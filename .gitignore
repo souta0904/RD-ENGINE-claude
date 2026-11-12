@@ -1,0 +1,9 @@
+# ビルド成果物
+Bin/
+Intermediate/
+.vs/
+*.user
+*.aps
+
+# 実行時に生成されるもの
+Logs/

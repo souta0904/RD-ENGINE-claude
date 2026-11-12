@@ -1,0 +1,2266 @@
+{
+    "Version": 1,
+    "Name": "Sample",
+    "Environment": {
+        "Ambient Sky": [
+            0.3499999940395355,
+            0.41999998688697815,
+            0.550000011920929,
+            1.0
+        ],
+        "Ambient Ground": [
+            0.18000000715255737,
+            0.1599999964237213,
+            0.14000000059604645,
+            1.0
+        ],
+        "Ambient Intensity": 1.0,
+        "Draw Sky": true,
+        "Sky Zenith": [
+            0.18000000715255737,
+            0.36000001430511475,
+            0.75,
+            1.0
+        ],
+        "Sky Horizon": [
+            0.6499999761581421,
+            0.75,
+            0.8999999761581421,
+            1.0
+        ],
+        "Fog Color": [
+            0.6000000238418579,
+            0.699999988079071,
+            0.8500000238418579,
+            1.0
+        ],
+        "Fog Density": 0.00800000037997961,
+        "Fog Start": 20.0
+    },
+    "Actors": [
+        {
+            "Id": 1,
+            "Name": "Sun",
+            "Parent": 0,
+            "Active": true,
+            "Transform": {
+                "Position": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "Rotation": [
+                    0.8811195492744446,
+                    0.36497169733047485,
+                    -0.27781590819358826,
+                    0.11507513374090195
+                ],
+                "Scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "Components": [
+                {
+                    "Type": "DirectionalLight",
+                    "Enabled": true,
+                    "Color": [
+                        1.0,
+                        0.949999988079071,
+                        0.8500000238418579,
+                        1.0
+                    ],
+                    "Intensity": 3.5,
+                    "Cast Shadows": true
+                }
+            ]
+        },
+        {
+            "Id": 2,
+            "Name": "Ground",
+            "Parent": 0,
+            "Active": true,
+            "Transform": {
+                "Position": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "Rotation": [
+                    1.0,
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "Scale": [
+                    6.0,
+                    1.0,
+                    6.0
+                ]
+            },
+            "Components": [
+                {
+                    "Type": "MeshRenderer",
+                    "Enabled": true,
+                    "Model": "Engine/Plane",
+                    "Tint": [
+                        1.0,
+                        1.0,
+                        1.0,
+                        1.0
+                    ],
+                    "Material Count": 1,
+                    "Material 0": {
+                        "Base Color": [
+                            0.3499999940395355,
+                            0.41999998688697815,
+                            0.3499999940395355,
+                            1.0
+                        ],
+                        "Albedo Map": "",
+                        "Normal Map": "",
+                        "Metallic": 0.0,
+                        "Roughness": 0.6000000238418579,
+                        "Emissive": [
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0
+                        ],
+                        "Emissive Intensity": 1.0,
+                        "Blend": "Opaque",
+                        "Double Sided": false,
+                        "Unlit": false,
+                        "Alpha Clip": false,
+                        "Alpha Cutoff": 0.5,
+                        "Cast Shadows": true,
+                        "Receive Shadows": true
+                    }
+                },
+                {
+                    "Type": "BoxCollider",
+                    "Enabled": true,
+                    "Center": [
+                        0.0,
+                        0.0,
+                        0.0
+                    ],
+                    "Is Trigger": false,
+                    "Friction": 0.5,
+                    "Restitution": 0.0,
+                    "Size": [
+                        10.0,
+                        0.019999999552965164,
+                        10.0
+                    ]
+                }
+            ]
+        },
+        {
+            "Id": 3,
+            "Name": "Player",
+            "Parent": 0,
+            "Active": true,
+            "Tag": "Player",
+            "Transform": {
+                "Position": [
+                    0.0,
+                    0.10000000149011612,
+                    0.0
+                ],
+                "Rotation": [
+                    1.0,
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "Scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "Components": [
+                {
+                    "Type": "Rigidbody",
+                    "Enabled": true,
+                    "Mass": 70.0,
+                    "Drag": 0.05000000074505806,
+                    "Angular Drag": 0.05000000074505806,
+                    "Use Gravity": true,
+                    "Is Kinematic": false,
+                    "Freeze Rotation": true,
+                    "Velocity": [
+                        0.0,
+                        0.0,
+                        0.0
+                    ],
+                    "Angular Velocity": [
+                        0.0,
+                        0.0,
+                        0.0
+                    ]
+                },
+                {
+                    "Type": "CapsuleCollider",
+                    "Enabled": true,
+                    "Center": [
+                        0.0,
+                        0.8999999761581421,
+                        0.0
+                    ],
+                    "Is Trigger": false,
+                    "Friction": 0.0,
+                    "Restitution": 0.0,
+                    "Radius": 0.3499999940395355,
+                    "Height": 1.7999999523162842,
+                    "Axis": "Y"
+                },
+                {
+                    "Type": "PlayerController",
+                    "Enabled": true,
+                    "Move Speed": 5.0,
+                    "Jump Speed": 6.0,
+                    "Turn Speed": 12.0,
+                    "Idle Animation": "Assets/Sample/Models/Idle/Idle.gltf",
+                    "Walk Animation": "Assets/Sample/Models/Walking/Walking.gltf"
+                }
+            ]
+        },
+        {
+            "Id": 4,
+            "Name": "Body",
+            "Parent": 3,
+            "Active": true,
+            "Transform": {
+                "Position": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "Rotation": [
+                    1.0,
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "Scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "Components": [
+                {
+                    "Type": "MeshRenderer",
+                    "Enabled": true,
+                    "Model": "Assets/Sample/Models/Walking/Walking.gltf",
+                    "Tint": [
+                        1.0,
+                        1.0,
+                        1.0,
+                        1.0
+                    ],
+                    "Material Count": 0
+                },
+                {
+                    "Type": "Animator",
+                    "Enabled": true,
+                    "Clip Source": "Assets/Sample/Models/Idle/Idle.gltf",
+                    "Clip": "",
+                    "Speed": 1.0,
+                    "Loop": true,
+                    "Play On Start": true,
+                    "Preview In Editor": true
+                }
+            ]
+        },
+        {
+            "Id": 5,
+            "Name": "Main Camera",
+            "Parent": 0,
+            "Active": true,
+            "Transform": {
+                "Position": [
+                    0.0,
+                    3.5,
+                    -8.0
+                ],
+                "Rotation": [
+                    0.9885544776916504,
+                    0.15086421370506287,
+                    0.0,
+                    0.0
+                ],
+                "Scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "Components": [
+                {
+                    "Type": "CameraComponent",
+                    "Enabled": true,
+                    "FOV": 55.0,
+                    "Near": 0.10000000149011612,
+                    "Far": 1000.0,
+                    "Priority": 0
+                },
+                {
+                    "Type": "FollowCamera",
+                    "Enabled": true,
+                    "Target": "Player",
+                    "Distance": 7.0,
+                    "Height": 2.5,
+                    "Smoothing": 8.0
+                }
+            ]
+        },
+        {
+            "Id": 6,
+            "Name": "Crate",
+            "Parent": 0,
+            "Active": true,
+            "Transform": {
+                "Position": [
+                    6.0,
+                    0.5,
+                    4.0
+                ],
+                "Rotation": [
+                    1.0,
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "Scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "Components": [
+                {
+                    "Type": "MeshRenderer",
+                    "Enabled": true,
+                    "Model": "Engine/Cube",
+                    "Tint": [
+                        1.0,
+                        1.0,
+                        1.0,
+                        1.0
+                    ],
+                    "Material Count": 1,
+                    "Material 0": {
+                        "Base Color": [
+                            0.800000011920929,
+                            0.5503999590873718,
+                            0.3199999928474426,
+                            1.0
+                        ],
+                        "Albedo Map": "",
+                        "Normal Map": "",
+                        "Metallic": 0.0,
+                        "Roughness": 0.5,
+                        "Emissive": [
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0
+                        ],
+                        "Emissive Intensity": 1.0,
+                        "Blend": "Opaque",
+                        "Double Sided": false,
+                        "Unlit": false,
+                        "Alpha Clip": false,
+                        "Alpha Cutoff": 0.5,
+                        "Cast Shadows": true,
+                        "Receive Shadows": true
+                    }
+                },
+                {
+                    "Type": "BoxCollider",
+                    "Enabled": true,
+                    "Center": [
+                        0.0,
+                        0.0,
+                        0.0
+                    ],
+                    "Is Trigger": false,
+                    "Friction": 0.5,
+                    "Restitution": 0.0,
+                    "Size": [
+                        1.0,
+                        1.0,
+                        1.0
+                    ]
+                },
+                {
+                    "Type": "Rigidbody",
+                    "Enabled": true,
+                    "Mass": 5.0,
+                    "Drag": 0.05000000074505806,
+                    "Angular Drag": 0.05000000074505806,
+                    "Use Gravity": true,
+                    "Is Kinematic": false,
+                    "Freeze Rotation": false,
+                    "Velocity": [
+                        0.0,
+                        0.0,
+                        0.0
+                    ],
+                    "Angular Velocity": [
+                        0.0,
+                        0.0,
+                        0.0
+                    ]
+                }
+            ]
+        },
+        {
+            "Id": 7,
+            "Name": "Crate",
+            "Parent": 0,
+            "Active": true,
+            "Transform": {
+                "Position": [
+                    7.050000190734863,
+                    0.5,
+                    4.0
+                ],
+                "Rotation": [
+                    1.0,
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "Scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "Components": [
+                {
+                    "Type": "MeshRenderer",
+                    "Enabled": true,
+                    "Model": "Engine/Cube",
+                    "Tint": [
+                        1.0,
+                        1.0,
+                        1.0,
+                        1.0
+                    ],
+                    "Material Count": 1,
+                    "Material 0": {
+                        "Base Color": [
+                            0.800000011920929,
+                            0.5503999590873718,
+                            0.3199999928474426,
+                            1.0
+                        ],
+                        "Albedo Map": "",
+                        "Normal Map": "",
+                        "Metallic": 0.0,
+                        "Roughness": 0.5,
+                        "Emissive": [
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0
+                        ],
+                        "Emissive Intensity": 1.0,
+                        "Blend": "Opaque",
+                        "Double Sided": false,
+                        "Unlit": false,
+                        "Alpha Clip": false,
+                        "Alpha Cutoff": 0.5,
+                        "Cast Shadows": true,
+                        "Receive Shadows": true
+                    }
+                },
+                {
+                    "Type": "BoxCollider",
+                    "Enabled": true,
+                    "Center": [
+                        0.0,
+                        0.0,
+                        0.0
+                    ],
+                    "Is Trigger": false,
+                    "Friction": 0.5,
+                    "Restitution": 0.0,
+                    "Size": [
+                        1.0,
+                        1.0,
+                        1.0
+                    ]
+                },
+                {
+                    "Type": "Rigidbody",
+                    "Enabled": true,
+                    "Mass": 5.0,
+                    "Drag": 0.05000000074505806,
+                    "Angular Drag": 0.05000000074505806,
+                    "Use Gravity": true,
+                    "Is Kinematic": false,
+                    "Freeze Rotation": false,
+                    "Velocity": [
+                        0.0,
+                        0.0,
+                        0.0
+                    ],
+                    "Angular Velocity": [
+                        0.0,
+                        0.0,
+                        0.0
+                    ]
+                }
+            ]
+        },
+        {
+            "Id": 8,
+            "Name": "Crate",
+            "Parent": 0,
+            "Active": true,
+            "Transform": {
+                "Position": [
+                    8.100000381469727,
+                    0.5,
+                    4.0
+                ],
+                "Rotation": [
+                    1.0,
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "Scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "Components": [
+                {
+                    "Type": "MeshRenderer",
+                    "Enabled": true,
+                    "Model": "Engine/Cube",
+                    "Tint": [
+                        1.0,
+                        1.0,
+                        1.0,
+                        1.0
+                    ],
+                    "Material Count": 1,
+                    "Material 0": {
+                        "Base Color": [
+                            0.800000011920929,
+                            0.5503999590873718,
+                            0.3199999928474426,
+                            1.0
+                        ],
+                        "Albedo Map": "",
+                        "Normal Map": "",
+                        "Metallic": 0.0,
+                        "Roughness": 0.5,
+                        "Emissive": [
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0
+                        ],
+                        "Emissive Intensity": 1.0,
+                        "Blend": "Opaque",
+                        "Double Sided": false,
+                        "Unlit": false,
+                        "Alpha Clip": false,
+                        "Alpha Cutoff": 0.5,
+                        "Cast Shadows": true,
+                        "Receive Shadows": true
+                    }
+                },
+                {
+                    "Type": "BoxCollider",
+                    "Enabled": true,
+                    "Center": [
+                        0.0,
+                        0.0,
+                        0.0
+                    ],
+                    "Is Trigger": false,
+                    "Friction": 0.5,
+                    "Restitution": 0.0,
+                    "Size": [
+                        1.0,
+                        1.0,
+                        1.0
+                    ]
+                },
+                {
+                    "Type": "Rigidbody",
+                    "Enabled": true,
+                    "Mass": 5.0,
+                    "Drag": 0.05000000074505806,
+                    "Angular Drag": 0.05000000074505806,
+                    "Use Gravity": true,
+                    "Is Kinematic": false,
+                    "Freeze Rotation": false,
+                    "Velocity": [
+                        0.0,
+                        0.0,
+                        0.0
+                    ],
+                    "Angular Velocity": [
+                        0.0,
+                        0.0,
+                        0.0
+                    ]
+                }
+            ]
+        },
+        {
+            "Id": 9,
+            "Name": "Crate",
+            "Parent": 0,
+            "Active": true,
+            "Transform": {
+                "Position": [
+                    6.519999980926514,
+                    1.5,
+                    4.0
+                ],
+                "Rotation": [
+                    1.0,
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "Scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "Components": [
+                {
+                    "Type": "MeshRenderer",
+                    "Enabled": true,
+                    "Model": "Engine/Cube",
+                    "Tint": [
+                        1.0,
+                        1.0,
+                        1.0,
+                        1.0
+                    ],
+                    "Material Count": 1,
+                    "Material 0": {
+                        "Base Color": [
+                            0.800000011920929,
+                            0.6367999911308289,
+                            0.3199999928474426,
+                            1.0
+                        ],
+                        "Albedo Map": "",
+                        "Normal Map": "",
+                        "Metallic": 0.0,
+                        "Roughness": 0.5,
+                        "Emissive": [
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0
+                        ],
+                        "Emissive Intensity": 1.0,
+                        "Blend": "Opaque",
+                        "Double Sided": false,
+                        "Unlit": false,
+                        "Alpha Clip": false,
+                        "Alpha Cutoff": 0.5,
+                        "Cast Shadows": true,
+                        "Receive Shadows": true
+                    }
+                },
+                {
+                    "Type": "BoxCollider",
+                    "Enabled": true,
+                    "Center": [
+                        0.0,
+                        0.0,
+                        0.0
+                    ],
+                    "Is Trigger": false,
+                    "Friction": 0.5,
+                    "Restitution": 0.0,
+                    "Size": [
+                        1.0,
+                        1.0,
+                        1.0
+                    ]
+                },
+                {
+                    "Type": "Rigidbody",
+                    "Enabled": true,
+                    "Mass": 5.0,
+                    "Drag": 0.05000000074505806,
+                    "Angular Drag": 0.05000000074505806,
+                    "Use Gravity": true,
+                    "Is Kinematic": false,
+                    "Freeze Rotation": false,
+                    "Velocity": [
+                        0.0,
+                        0.0,
+                        0.0
+                    ],
+                    "Angular Velocity": [
+                        0.0,
+                        0.0,
+                        0.0
+                    ]
+                }
+            ]
+        },
+        {
+            "Id": 10,
+            "Name": "Crate",
+            "Parent": 0,
+            "Active": true,
+            "Transform": {
+                "Position": [
+                    7.570000171661377,
+                    1.5,
+                    4.0
+                ],
+                "Rotation": [
+                    1.0,
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "Scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "Components": [
+                {
+                    "Type": "MeshRenderer",
+                    "Enabled": true,
+                    "Model": "Engine/Cube",
+                    "Tint": [
+                        1.0,
+                        1.0,
+                        1.0,
+                        1.0
+                    ],
+                    "Material Count": 1,
+                    "Material 0": {
+                        "Base Color": [
+                            0.800000011920929,
+                            0.6367999911308289,
+                            0.3199999928474426,
+                            1.0
+                        ],
+                        "Albedo Map": "",
+                        "Normal Map": "",
+                        "Metallic": 0.0,
+                        "Roughness": 0.5,
+                        "Emissive": [
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0
+                        ],
+                        "Emissive Intensity": 1.0,
+                        "Blend": "Opaque",
+                        "Double Sided": false,
+                        "Unlit": false,
+                        "Alpha Clip": false,
+                        "Alpha Cutoff": 0.5,
+                        "Cast Shadows": true,
+                        "Receive Shadows": true
+                    }
+                },
+                {
+                    "Type": "BoxCollider",
+                    "Enabled": true,
+                    "Center": [
+                        0.0,
+                        0.0,
+                        0.0
+                    ],
+                    "Is Trigger": false,
+                    "Friction": 0.5,
+                    "Restitution": 0.0,
+                    "Size": [
+                        1.0,
+                        1.0,
+                        1.0
+                    ]
+                },
+                {
+                    "Type": "Rigidbody",
+                    "Enabled": true,
+                    "Mass": 5.0,
+                    "Drag": 0.05000000074505806,
+                    "Angular Drag": 0.05000000074505806,
+                    "Use Gravity": true,
+                    "Is Kinematic": false,
+                    "Freeze Rotation": false,
+                    "Velocity": [
+                        0.0,
+                        0.0,
+                        0.0
+                    ],
+                    "Angular Velocity": [
+                        0.0,
+                        0.0,
+                        0.0
+                    ]
+                }
+            ]
+        },
+        {
+            "Id": 11,
+            "Name": "Crate",
+            "Parent": 0,
+            "Active": true,
+            "Transform": {
+                "Position": [
+                    6.0,
+                    2.5,
+                    4.0
+                ],
+                "Rotation": [
+                    1.0,
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "Scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "Components": [
+                {
+                    "Type": "MeshRenderer",
+                    "Enabled": true,
+                    "Model": "Engine/Cube",
+                    "Tint": [
+                        1.0,
+                        1.0,
+                        1.0,
+                        1.0
+                    ],
+                    "Material Count": 1,
+                    "Material 0": {
+                        "Base Color": [
+                            0.800000011920929,
+                            0.7232000231742859,
+                            0.3199999928474426,
+                            1.0
+                        ],
+                        "Albedo Map": "",
+                        "Normal Map": "",
+                        "Metallic": 0.0,
+                        "Roughness": 0.5,
+                        "Emissive": [
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0
+                        ],
+                        "Emissive Intensity": 1.0,
+                        "Blend": "Opaque",
+                        "Double Sided": false,
+                        "Unlit": false,
+                        "Alpha Clip": false,
+                        "Alpha Cutoff": 0.5,
+                        "Cast Shadows": true,
+                        "Receive Shadows": true
+                    }
+                },
+                {
+                    "Type": "BoxCollider",
+                    "Enabled": true,
+                    "Center": [
+                        0.0,
+                        0.0,
+                        0.0
+                    ],
+                    "Is Trigger": false,
+                    "Friction": 0.5,
+                    "Restitution": 0.0,
+                    "Size": [
+                        1.0,
+                        1.0,
+                        1.0
+                    ]
+                },
+                {
+                    "Type": "Rigidbody",
+                    "Enabled": true,
+                    "Mass": 5.0,
+                    "Drag": 0.05000000074505806,
+                    "Angular Drag": 0.05000000074505806,
+                    "Use Gravity": true,
+                    "Is Kinematic": false,
+                    "Freeze Rotation": false,
+                    "Velocity": [
+                        0.0,
+                        0.0,
+                        0.0
+                    ],
+                    "Angular Velocity": [
+                        0.0,
+                        0.0,
+                        0.0
+                    ]
+                }
+            ]
+        },
+        {
+            "Id": 12,
+            "Name": "Crate",
+            "Parent": 0,
+            "Active": true,
+            "Transform": {
+                "Position": [
+                    7.050000190734863,
+                    2.5,
+                    4.0
+                ],
+                "Rotation": [
+                    1.0,
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "Scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "Components": [
+                {
+                    "Type": "MeshRenderer",
+                    "Enabled": true,
+                    "Model": "Engine/Cube",
+                    "Tint": [
+                        1.0,
+                        1.0,
+                        1.0,
+                        1.0
+                    ],
+                    "Material Count": 1,
+                    "Material 0": {
+                        "Base Color": [
+                            0.800000011920929,
+                            0.7232000231742859,
+                            0.3199999928474426,
+                            1.0
+                        ],
+                        "Albedo Map": "",
+                        "Normal Map": "",
+                        "Metallic": 0.0,
+                        "Roughness": 0.5,
+                        "Emissive": [
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0
+                        ],
+                        "Emissive Intensity": 1.0,
+                        "Blend": "Opaque",
+                        "Double Sided": false,
+                        "Unlit": false,
+                        "Alpha Clip": false,
+                        "Alpha Cutoff": 0.5,
+                        "Cast Shadows": true,
+                        "Receive Shadows": true
+                    }
+                },
+                {
+                    "Type": "BoxCollider",
+                    "Enabled": true,
+                    "Center": [
+                        0.0,
+                        0.0,
+                        0.0
+                    ],
+                    "Is Trigger": false,
+                    "Friction": 0.5,
+                    "Restitution": 0.0,
+                    "Size": [
+                        1.0,
+                        1.0,
+                        1.0
+                    ]
+                },
+                {
+                    "Type": "Rigidbody",
+                    "Enabled": true,
+                    "Mass": 5.0,
+                    "Drag": 0.05000000074505806,
+                    "Angular Drag": 0.05000000074505806,
+                    "Use Gravity": true,
+                    "Is Kinematic": false,
+                    "Freeze Rotation": false,
+                    "Velocity": [
+                        0.0,
+                        0.0,
+                        0.0
+                    ],
+                    "Angular Velocity": [
+                        0.0,
+                        0.0,
+                        0.0
+                    ]
+                }
+            ]
+        },
+        {
+            "Id": 13,
+            "Name": "Crate",
+            "Parent": 0,
+            "Active": true,
+            "Transform": {
+                "Position": [
+                    8.100000381469727,
+                    2.5,
+                    4.0
+                ],
+                "Rotation": [
+                    1.0,
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "Scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "Components": [
+                {
+                    "Type": "MeshRenderer",
+                    "Enabled": true,
+                    "Model": "Engine/Cube",
+                    "Tint": [
+                        1.0,
+                        1.0,
+                        1.0,
+                        1.0
+                    ],
+                    "Material Count": 1,
+                    "Material 0": {
+                        "Base Color": [
+                            0.800000011920929,
+                            0.7232000231742859,
+                            0.3199999928474426,
+                            1.0
+                        ],
+                        "Albedo Map": "",
+                        "Normal Map": "",
+                        "Metallic": 0.0,
+                        "Roughness": 0.5,
+                        "Emissive": [
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0
+                        ],
+                        "Emissive Intensity": 1.0,
+                        "Blend": "Opaque",
+                        "Double Sided": false,
+                        "Unlit": false,
+                        "Alpha Clip": false,
+                        "Alpha Cutoff": 0.5,
+                        "Cast Shadows": true,
+                        "Receive Shadows": true
+                    }
+                },
+                {
+                    "Type": "BoxCollider",
+                    "Enabled": true,
+                    "Center": [
+                        0.0,
+                        0.0,
+                        0.0
+                    ],
+                    "Is Trigger": false,
+                    "Friction": 0.5,
+                    "Restitution": 0.0,
+                    "Size": [
+                        1.0,
+                        1.0,
+                        1.0
+                    ]
+                },
+                {
+                    "Type": "Rigidbody",
+                    "Enabled": true,
+                    "Mass": 5.0,
+                    "Drag": 0.05000000074505806,
+                    "Angular Drag": 0.05000000074505806,
+                    "Use Gravity": true,
+                    "Is Kinematic": false,
+                    "Freeze Rotation": false,
+                    "Velocity": [
+                        0.0,
+                        0.0,
+                        0.0
+                    ],
+                    "Angular Velocity": [
+                        0.0,
+                        0.0,
+                        0.0
+                    ]
+                }
+            ]
+        },
+        {
+            "Id": 14,
+            "Name": "Crate",
+            "Parent": 0,
+            "Active": true,
+            "Transform": {
+                "Position": [
+                    6.519999980926514,
+                    3.5,
+                    4.0
+                ],
+                "Rotation": [
+                    1.0,
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "Scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "Components": [
+                {
+                    "Type": "MeshRenderer",
+                    "Enabled": true,
+                    "Model": "Engine/Cube",
+                    "Tint": [
+                        1.0,
+                        1.0,
+                        1.0,
+                        1.0
+                    ],
+                    "Material Count": 1,
+                    "Material 0": {
+                        "Base Color": [
+                            0.7904000282287598,
+                            0.800000011920929,
+                            0.3199999928474426,
+                            1.0
+                        ],
+                        "Albedo Map": "",
+                        "Normal Map": "",
+                        "Metallic": 0.0,
+                        "Roughness": 0.5,
+                        "Emissive": [
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0
+                        ],
+                        "Emissive Intensity": 1.0,
+                        "Blend": "Opaque",
+                        "Double Sided": false,
+                        "Unlit": false,
+                        "Alpha Clip": false,
+                        "Alpha Cutoff": 0.5,
+                        "Cast Shadows": true,
+                        "Receive Shadows": true
+                    }
+                },
+                {
+                    "Type": "BoxCollider",
+                    "Enabled": true,
+                    "Center": [
+                        0.0,
+                        0.0,
+                        0.0
+                    ],
+                    "Is Trigger": false,
+                    "Friction": 0.5,
+                    "Restitution": 0.0,
+                    "Size": [
+                        1.0,
+                        1.0,
+                        1.0
+                    ]
+                },
+                {
+                    "Type": "Rigidbody",
+                    "Enabled": true,
+                    "Mass": 5.0,
+                    "Drag": 0.05000000074505806,
+                    "Angular Drag": 0.05000000074505806,
+                    "Use Gravity": true,
+                    "Is Kinematic": false,
+                    "Freeze Rotation": false,
+                    "Velocity": [
+                        0.0,
+                        0.0,
+                        0.0
+                    ],
+                    "Angular Velocity": [
+                        0.0,
+                        0.0,
+                        0.0
+                    ]
+                }
+            ]
+        },
+        {
+            "Id": 15,
+            "Name": "Crate",
+            "Parent": 0,
+            "Active": true,
+            "Transform": {
+                "Position": [
+                    7.570000171661377,
+                    3.5,
+                    4.0
+                ],
+                "Rotation": [
+                    1.0,
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "Scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "Components": [
+                {
+                    "Type": "MeshRenderer",
+                    "Enabled": true,
+                    "Model": "Engine/Cube",
+                    "Tint": [
+                        1.0,
+                        1.0,
+                        1.0,
+                        1.0
+                    ],
+                    "Material Count": 1,
+                    "Material 0": {
+                        "Base Color": [
+                            0.7904000282287598,
+                            0.800000011920929,
+                            0.3199999928474426,
+                            1.0
+                        ],
+                        "Albedo Map": "",
+                        "Normal Map": "",
+                        "Metallic": 0.0,
+                        "Roughness": 0.5,
+                        "Emissive": [
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0
+                        ],
+                        "Emissive Intensity": 1.0,
+                        "Blend": "Opaque",
+                        "Double Sided": false,
+                        "Unlit": false,
+                        "Alpha Clip": false,
+                        "Alpha Cutoff": 0.5,
+                        "Cast Shadows": true,
+                        "Receive Shadows": true
+                    }
+                },
+                {
+                    "Type": "BoxCollider",
+                    "Enabled": true,
+                    "Center": [
+                        0.0,
+                        0.0,
+                        0.0
+                    ],
+                    "Is Trigger": false,
+                    "Friction": 0.5,
+                    "Restitution": 0.0,
+                    "Size": [
+                        1.0,
+                        1.0,
+                        1.0
+                    ]
+                },
+                {
+                    "Type": "Rigidbody",
+                    "Enabled": true,
+                    "Mass": 5.0,
+                    "Drag": 0.05000000074505806,
+                    "Angular Drag": 0.05000000074505806,
+                    "Use Gravity": true,
+                    "Is Kinematic": false,
+                    "Freeze Rotation": false,
+                    "Velocity": [
+                        0.0,
+                        0.0,
+                        0.0
+                    ],
+                    "Angular Velocity": [
+                        0.0,
+                        0.0,
+                        0.0
+                    ]
+                }
+            ]
+        },
+        {
+            "Id": 16,
+            "Name": "Ball",
+            "Parent": 0,
+            "Active": true,
+            "Transform": {
+                "Position": [
+                    -5.0,
+                    3.0,
+                    5.0
+                ],
+                "Rotation": [
+                    1.0,
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "Scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "Components": [
+                {
+                    "Type": "MeshRenderer",
+                    "Enabled": true,
+                    "Model": "Engine/Sphere",
+                    "Tint": [
+                        1.0,
+                        1.0,
+                        1.0,
+                        1.0
+                    ],
+                    "Material Count": 1,
+                    "Material 0": {
+                        "Base Color": [
+                            0.8999999761581421,
+                            0.8999999761581421,
+                            0.949999988079071,
+                            1.0
+                        ],
+                        "Albedo Map": "",
+                        "Normal Map": "",
+                        "Metallic": 1.0,
+                        "Roughness": 0.15000000596046448,
+                        "Emissive": [
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0
+                        ],
+                        "Emissive Intensity": 1.0,
+                        "Blend": "Opaque",
+                        "Double Sided": false,
+                        "Unlit": false,
+                        "Alpha Clip": false,
+                        "Alpha Cutoff": 0.5,
+                        "Cast Shadows": true,
+                        "Receive Shadows": true
+                    }
+                },
+                {
+                    "Type": "SphereCollider",
+                    "Enabled": true,
+                    "Center": [
+                        0.0,
+                        0.0,
+                        0.0
+                    ],
+                    "Is Trigger": false,
+                    "Friction": 0.5,
+                    "Restitution": 0.6000000238418579,
+                    "Radius": 0.5
+                },
+                {
+                    "Type": "Rigidbody",
+                    "Enabled": true,
+                    "Mass": 2.0,
+                    "Drag": 0.05000000074505806,
+                    "Angular Drag": 0.05000000074505806,
+                    "Use Gravity": true,
+                    "Is Kinematic": false,
+                    "Freeze Rotation": false,
+                    "Velocity": [
+                        0.0,
+                        0.0,
+                        0.0
+                    ],
+                    "Angular Velocity": [
+                        0.0,
+                        0.0,
+                        0.0
+                    ]
+                }
+            ]
+        },
+        {
+            "Id": 17,
+            "Name": "Ball",
+            "Parent": 0,
+            "Active": true,
+            "Transform": {
+                "Position": [
+                    -3.5,
+                    4.0,
+                    5.0
+                ],
+                "Rotation": [
+                    1.0,
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "Scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "Components": [
+                {
+                    "Type": "MeshRenderer",
+                    "Enabled": true,
+                    "Model": "Engine/Sphere",
+                    "Tint": [
+                        1.0,
+                        1.0,
+                        1.0,
+                        1.0
+                    ],
+                    "Material Count": 1,
+                    "Material 0": {
+                        "Base Color": [
+                            0.8999999761581421,
+                            0.8999999761581421,
+                            0.949999988079071,
+                            1.0
+                        ],
+                        "Albedo Map": "",
+                        "Normal Map": "",
+                        "Metallic": 1.0,
+                        "Roughness": 0.45000001788139343,
+                        "Emissive": [
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0
+                        ],
+                        "Emissive Intensity": 1.0,
+                        "Blend": "Opaque",
+                        "Double Sided": false,
+                        "Unlit": false,
+                        "Alpha Clip": false,
+                        "Alpha Cutoff": 0.5,
+                        "Cast Shadows": true,
+                        "Receive Shadows": true
+                    }
+                },
+                {
+                    "Type": "SphereCollider",
+                    "Enabled": true,
+                    "Center": [
+                        0.0,
+                        0.0,
+                        0.0
+                    ],
+                    "Is Trigger": false,
+                    "Friction": 0.5,
+                    "Restitution": 0.6000000238418579,
+                    "Radius": 0.5
+                },
+                {
+                    "Type": "Rigidbody",
+                    "Enabled": true,
+                    "Mass": 2.0,
+                    "Drag": 0.05000000074505806,
+                    "Angular Drag": 0.05000000074505806,
+                    "Use Gravity": true,
+                    "Is Kinematic": false,
+                    "Freeze Rotation": false,
+                    "Velocity": [
+                        0.0,
+                        0.0,
+                        0.0
+                    ],
+                    "Angular Velocity": [
+                        0.0,
+                        0.0,
+                        0.0
+                    ]
+                }
+            ]
+        },
+        {
+            "Id": 18,
+            "Name": "Ball",
+            "Parent": 0,
+            "Active": true,
+            "Transform": {
+                "Position": [
+                    -2.0,
+                    5.0,
+                    5.0
+                ],
+                "Rotation": [
+                    1.0,
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "Scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "Components": [
+                {
+                    "Type": "MeshRenderer",
+                    "Enabled": true,
+                    "Model": "Engine/Sphere",
+                    "Tint": [
+                        1.0,
+                        1.0,
+                        1.0,
+                        1.0
+                    ],
+                    "Material Count": 1,
+                    "Material 0": {
+                        "Base Color": [
+                            0.8999999761581421,
+                            0.8999999761581421,
+                            0.949999988079071,
+                            1.0
+                        ],
+                        "Albedo Map": "",
+                        "Normal Map": "",
+                        "Metallic": 1.0,
+                        "Roughness": 0.75,
+                        "Emissive": [
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0
+                        ],
+                        "Emissive Intensity": 1.0,
+                        "Blend": "Opaque",
+                        "Double Sided": false,
+                        "Unlit": false,
+                        "Alpha Clip": false,
+                        "Alpha Cutoff": 0.5,
+                        "Cast Shadows": true,
+                        "Receive Shadows": true
+                    }
+                },
+                {
+                    "Type": "SphereCollider",
+                    "Enabled": true,
+                    "Center": [
+                        0.0,
+                        0.0,
+                        0.0
+                    ],
+                    "Is Trigger": false,
+                    "Friction": 0.5,
+                    "Restitution": 0.6000000238418579,
+                    "Radius": 0.5
+                },
+                {
+                    "Type": "Rigidbody",
+                    "Enabled": true,
+                    "Mass": 2.0,
+                    "Drag": 0.05000000074505806,
+                    "Angular Drag": 0.05000000074505806,
+                    "Use Gravity": true,
+                    "Is Kinematic": false,
+                    "Freeze Rotation": false,
+                    "Velocity": [
+                        0.0,
+                        0.0,
+                        0.0
+                    ],
+                    "Angular Velocity": [
+                        0.0,
+                        0.0,
+                        0.0
+                    ]
+                }
+            ]
+        },
+        {
+            "Id": 19,
+            "Name": "Ramp",
+            "Parent": 0,
+            "Active": true,
+            "Transform": {
+                "Position": [
+                    -6.0,
+                    0.800000011920929,
+                    -2.0
+                ],
+                "Rotation": [
+                    0.9914448857307434,
+                    -0.13052619993686676,
+                    0.0,
+                    0.0
+                ],
+                "Scale": [
+                    4.0,
+                    0.30000001192092896,
+                    6.0
+                ]
+            },
+            "Components": [
+                {
+                    "Type": "MeshRenderer",
+                    "Enabled": true,
+                    "Model": "Engine/Cube",
+                    "Tint": [
+                        1.0,
+                        1.0,
+                        1.0,
+                        1.0
+                    ],
+                    "Material Count": 1,
+                    "Material 0": {
+                        "Base Color": [
+                            0.5,
+                            0.5,
+                            0.550000011920929,
+                            1.0
+                        ],
+                        "Albedo Map": "",
+                        "Normal Map": "",
+                        "Metallic": 0.0,
+                        "Roughness": 0.6000000238418579,
+                        "Emissive": [
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0
+                        ],
+                        "Emissive Intensity": 1.0,
+                        "Blend": "Opaque",
+                        "Double Sided": false,
+                        "Unlit": false,
+                        "Alpha Clip": false,
+                        "Alpha Cutoff": 0.5,
+                        "Cast Shadows": true,
+                        "Receive Shadows": true
+                    }
+                },
+                {
+                    "Type": "BoxCollider",
+                    "Enabled": true,
+                    "Center": [
+                        0.0,
+                        0.0,
+                        0.0
+                    ],
+                    "Is Trigger": false,
+                    "Friction": 0.5,
+                    "Restitution": 0.0,
+                    "Size": [
+                        1.0,
+                        1.0,
+                        1.0
+                    ]
+                }
+            ]
+        },
+        {
+            "Id": 20,
+            "Name": "Star Piece",
+            "Parent": 0,
+            "Active": true,
+            "Transform": {
+                "Position": [
+                    9.0,
+                    1.0,
+                    0.0
+                ],
+                "Rotation": [
+                    1.0,
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "Scale": [
+                    0.6000000238418579,
+                    0.6000000238418579,
+                    0.6000000238418579
+                ]
+            },
+            "Components": [
+                {
+                    "Type": "MeshRenderer",
+                    "Enabled": true,
+                    "Model": "Assets/Sample/Models/StarPiece/StarPiece.gltf",
+                    "Tint": [
+                        1.0,
+                        1.0,
+                        1.0,
+                        1.0
+                    ],
+                    "Material Count": 0
+                },
+                {
+                    "Type": "SphereCollider",
+                    "Enabled": true,
+                    "Center": [
+                        0.0,
+                        0.0,
+                        0.0
+                    ],
+                    "Is Trigger": true,
+                    "Friction": 0.5,
+                    "Restitution": 0.0,
+                    "Radius": 1.2000000476837158
+                },
+                {
+                    "Type": "Rotator",
+                    "Enabled": true,
+                    "Degrees Per Second": [
+                        0.0,
+                        90.0,
+                        0.0
+                    ],
+                    "Bob Amplitude": 0.25
+                },
+                {
+                    "Type": "Collectible",
+                    "Enabled": true,
+                    "Sound": "Assets/Sample/Audio/ChipGet.wav"
+                }
+            ]
+        },
+        {
+            "Id": 21,
+            "Name": "Star Piece",
+            "Parent": 0,
+            "Active": true,
+            "Transform": {
+                "Position": [
+                    2.7811527252197266,
+                    1.0,
+                    8.55950927734375
+                ],
+                "Rotation": [
+                    1.0,
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "Scale": [
+                    0.6000000238418579,
+                    0.6000000238418579,
+                    0.6000000238418579
+                ]
+            },
+            "Components": [
+                {
+                    "Type": "MeshRenderer",
+                    "Enabled": true,
+                    "Model": "Assets/Sample/Models/StarPiece/StarPiece.gltf",
+                    "Tint": [
+                        1.0,
+                        1.0,
+                        1.0,
+                        1.0
+                    ],
+                    "Material Count": 0
+                },
+                {
+                    "Type": "SphereCollider",
+                    "Enabled": true,
+                    "Center": [
+                        0.0,
+                        0.0,
+                        0.0
+                    ],
+                    "Is Trigger": true,
+                    "Friction": 0.5,
+                    "Restitution": 0.0,
+                    "Radius": 1.2000000476837158
+                },
+                {
+                    "Type": "Rotator",
+                    "Enabled": true,
+                    "Degrees Per Second": [
+                        0.0,
+                        90.0,
+                        0.0
+                    ],
+                    "Bob Amplitude": 0.25
+                },
+                {
+                    "Type": "Collectible",
+                    "Enabled": true,
+                    "Sound": "Assets/Sample/Audio/ChipGet.wav"
+                }
+            ]
+        },
+        {
+            "Id": 22,
+            "Name": "Star Piece",
+            "Parent": 0,
+            "Active": true,
+            "Transform": {
+                "Position": [
+                    -7.281153678894043,
+                    1.0,
+                    5.290066719055176
+                ],
+                "Rotation": [
+                    1.0,
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "Scale": [
+                    0.6000000238418579,
+                    0.6000000238418579,
+                    0.6000000238418579
+                ]
+            },
+            "Components": [
+                {
+                    "Type": "MeshRenderer",
+                    "Enabled": true,
+                    "Model": "Assets/Sample/Models/StarPiece/StarPiece.gltf",
+                    "Tint": [
+                        1.0,
+                        1.0,
+                        1.0,
+                        1.0
+                    ],
+                    "Material Count": 0
+                },
+                {
+                    "Type": "SphereCollider",
+                    "Enabled": true,
+                    "Center": [
+                        0.0,
+                        0.0,
+                        0.0
+                    ],
+                    "Is Trigger": true,
+                    "Friction": 0.5,
+                    "Restitution": 0.0,
+                    "Radius": 1.2000000476837158
+                },
+                {
+                    "Type": "Rotator",
+                    "Enabled": true,
+                    "Degrees Per Second": [
+                        0.0,
+                        90.0,
+                        0.0
+                    ],
+                    "Bob Amplitude": 0.25
+                },
+                {
+                    "Type": "Collectible",
+                    "Enabled": true,
+                    "Sound": "Assets/Sample/Audio/ChipGet.wav"
+                }
+            ]
+        },
+        {
+            "Id": 23,
+            "Name": "Star Piece",
+            "Parent": 0,
+            "Active": true,
+            "Transform": {
+                "Position": [
+                    -7.281152725219727,
+                    1.0,
+                    -5.29006814956665
+                ],
+                "Rotation": [
+                    1.0,
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "Scale": [
+                    0.6000000238418579,
+                    0.6000000238418579,
+                    0.6000000238418579
+                ]
+            },
+            "Components": [
+                {
+                    "Type": "MeshRenderer",
+                    "Enabled": true,
+                    "Model": "Assets/Sample/Models/StarPiece/StarPiece.gltf",
+                    "Tint": [
+                        1.0,
+                        1.0,
+                        1.0,
+                        1.0
+                    ],
+                    "Material Count": 0
+                },
+                {
+                    "Type": "SphereCollider",
+                    "Enabled": true,
+                    "Center": [
+                        0.0,
+                        0.0,
+                        0.0
+                    ],
+                    "Is Trigger": true,
+                    "Friction": 0.5,
+                    "Restitution": 0.0,
+                    "Radius": 1.2000000476837158
+                },
+                {
+                    "Type": "Rotator",
+                    "Enabled": true,
+                    "Degrees Per Second": [
+                        0.0,
+                        90.0,
+                        0.0
+                    ],
+                    "Bob Amplitude": 0.25
+                },
+                {
+                    "Type": "Collectible",
+                    "Enabled": true,
+                    "Sound": "Assets/Sample/Audio/ChipGet.wav"
+                }
+            ]
+        },
+        {
+            "Id": 24,
+            "Name": "Star Piece",
+            "Parent": 0,
+            "Active": true,
+            "Transform": {
+                "Position": [
+                    2.781154155731201,
+                    1.0,
+                    -8.559508323669434
+                ],
+                "Rotation": [
+                    1.0,
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "Scale": [
+                    0.6000000238418579,
+                    0.6000000238418579,
+                    0.6000000238418579
+                ]
+            },
+            "Components": [
+                {
+                    "Type": "MeshRenderer",
+                    "Enabled": true,
+                    "Model": "Assets/Sample/Models/StarPiece/StarPiece.gltf",
+                    "Tint": [
+                        1.0,
+                        1.0,
+                        1.0,
+                        1.0
+                    ],
+                    "Material Count": 0
+                },
+                {
+                    "Type": "SphereCollider",
+                    "Enabled": true,
+                    "Center": [
+                        0.0,
+                        0.0,
+                        0.0
+                    ],
+                    "Is Trigger": true,
+                    "Friction": 0.5,
+                    "Restitution": 0.0,
+                    "Radius": 1.2000000476837158
+                },
+                {
+                    "Type": "Rotator",
+                    "Enabled": true,
+                    "Degrees Per Second": [
+                        0.0,
+                        90.0,
+                        0.0
+                    ],
+                    "Bob Amplitude": 0.25
+                },
+                {
+                    "Type": "Collectible",
+                    "Enabled": true,
+                    "Sound": "Assets/Sample/Audio/ChipGet.wav"
+                }
+            ]
+        },
+        {
+            "Id": 25,
+            "Name": "Planet",
+            "Parent": 0,
+            "Active": true,
+            "Transform": {
+                "Position": [
+                    0.0,
+                    14.0,
+                    45.0
+                ],
+                "Rotation": [
+                    0.9876721501350403,
+                    0.13002951443195343,
+                    0.01137610711157322,
+                    0.08641011267900467
+                ],
+                "Scale": [
+                    0.4000000059604645,
+                    0.4000000059604645,
+                    0.4000000059604645
+                ]
+            },
+            "Components": [
+                {
+                    "Type": "MeshRenderer",
+                    "Enabled": true,
+                    "Model": "Assets/Sample/Models/Planet2/Planet2.obj",
+                    "Tint": [
+                        1.0,
+                        1.0,
+                        1.0,
+                        1.0
+                    ],
+                    "Material Count": 0
+                },
+                {
+                    "Type": "Rotator",
+                    "Enabled": true,
+                    "Degrees Per Second": [
+                        0.0,
+                        10.0,
+                        0.0
+                    ],
+                    "Bob Amplitude": 0.0
+                }
+            ]
+        },
+        {
+            "Id": 26,
+            "Name": "Campfire",
+            "Parent": 0,
+            "Active": true,
+            "Transform": {
+                "Position": [
+                    3.0,
+                    0.0,
+                    -3.0
+                ],
+                "Rotation": [
+                    1.0,
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "Scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "Components": [
+                {
+                    "Type": "ParticleSystem",
+                    "Enabled": true,
+                    "Emission": {
+                        "Play On Start": true,
+                        "Loop": true,
+                        "Duration": 5.0,
+                        "Rate": 60.0,
+                        "Burst": 0,
+                        "Max Particles": 1000,
+                        "Shape": "Cone",
+                        "Radius": 0.30000001192092896,
+                        "Box Size": [
+                            1.0,
+                            1.0,
+                            1.0
+                        ],
+                        "Cone Angle": 15.0,
+                        "Space": "World"
+                    },
+                    "Particle": {
+                        "Life Min": 1.0,
+                        "Life Max": 2.0,
+                        "Speed Min": 1.0,
+                        "Speed Max": 2.0,
+                        "Start Size": 0.5,
+                        "End Size": 0.05000000074505806,
+                        "Start Color": [
+                            1.0,
+                            0.800000011920929,
+                            0.4000000059604645,
+                            1.0
+                        ],
+                        "End Color": [
+                            1.0,
+                            0.20000000298023224,
+                            0.0,
+                            0.0
+                        ],
+                        "Gravity Scale": 0.0,
+                        "Drag": 0.0,
+                        "Rotation Speed": 0.0
+                    },
+                    "Render": {
+                        "Texture": "Assets/Sample/Textures/Effect01.png",
+                        "Blend": "Additive",
+                        "Emissive": 4.0,
+                        "Preview In Editor": true
+                    }
+                }
+            ]
+        },
+        {
+            "Id": 27,
+            "Name": "Fire Light",
+            "Parent": 26,
+            "Active": true,
+            "Transform": {
+                "Position": [
+                    0.0,
+                    1.0,
+                    0.0
+                ],
+                "Rotation": [
+                    1.0,
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "Scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "Components": [
+                {
+                    "Type": "PointLight",
+                    "Enabled": true,
+                    "Color": [
+                        1.0,
+                        0.550000011920929,
+                        0.20000000298023224,
+                        1.0
+                    ],
+                    "Intensity": 30.0,
+                    "Range": 8.0
+                }
+            ]
+        },
+        {
+            "Id": 28,
+            "Name": "Jingle",
+            "Parent": 0,
+            "Active": true,
+            "Transform": {
+                "Position": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "Rotation": [
+                    1.0,
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "Scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "Components": [
+                {
+                    "Type": "AudioSource",
+                    "Enabled": true,
+                    "Clip": "Assets/Sample/Audio/Open.wav",
+                    "Volume": 0.4000000059604645,
+                    "Pitch": 1.0,
+                    "Loop": false,
+                    "Play On Start": true,
+                    "Spatial": false,
+                    "Min Distance": 2.0,
+                    "Max Distance": 50.0,
+                    "Bus": "Music"
+                }
+            ]
+        },
+        {
+            "Id": 29,
+            "Name": "HUD",
+            "Parent": 0,
+            "Active": true,
+            "Transform": {
+                "Position": [
+                    40.0,
+                    40.0,
+                    0.0
+                ],
+                "Rotation": [
+                    1.0,
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "Scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "Components": [
+                {
+                    "Type": "ScoreHud",
+                    "Enabled": true,
+                    "Icon": "Assets/Sample/Textures/Heart.png"
+                }
+            ]
+        }
+    ]
+}
