@@ -224,7 +224,10 @@
                     "Jump Speed": 6.0,
                     "Turn Speed": 12.0,
                     "Idle Animation": "Assets/Sample/Models/Idle/Idle.gltf",
-                    "Walk Animation": "Assets/Sample/Models/Walking/Walking.gltf"
+                    "Walk Animation": "Assets/Sample/Models/Walking/Walking.gltf",
+                    "Animator": {
+                        "$ref": 4
+                    }
                 }
             ]
         },
@@ -311,7 +314,9 @@
                 {
                     "Type": "FollowCamera",
                     "Enabled": true,
-                    "Target": "Player",
+                    "Target": {
+                        "$ref": 3
+                    },
                     "Distance": 7.0,
                     "Height": 2.5,
                     "Smoothing": 8.0

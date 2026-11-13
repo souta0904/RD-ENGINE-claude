@@ -122,6 +122,8 @@
     <ClInclude Include="Source\Scene\ComponentRegistry.h"><Filter>Source\Scene</Filter></ClInclude>
     <ClCompile Include="Source\Scene\Scene.cpp"><Filter>Source\Scene</Filter></ClCompile>
     <ClInclude Include="Source\Scene\Scene.h"><Filter>Source\Scene</Filter></ClInclude>
+    <ClCompile Include="Source\Scene\ObjectRef.cpp"><Filter>Source\Scene</Filter></ClCompile>
+    <ClInclude Include="Source\Scene\ObjectRef.h"><Filter>Source\Scene</Filter></ClInclude>
     <ClCompile Include="Source\Scene\Transform.cpp"><Filter>Source\Scene</Filter></ClCompile>
     <ClInclude Include="Source\Scene\Transform.h"><Filter>Source\Scene</Filter></ClInclude>
     <ClCompile Include="Source\Engine.cpp"><Filter>Source</Filter></ClCompile>

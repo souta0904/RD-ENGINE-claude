@@ -18,6 +18,7 @@ namespace rd
 		bool Property(const char* name, Quaternion& value, const PropertyMeta& meta = {}) override;
 		bool Property(const char* name, Color& value, const PropertyMeta& meta = {}) override;
 		bool Property(const char* name, std::string& value, const PropertyMeta& meta = {}) override;
+		bool Property(const char* name, ObjectRef& value, const PropertyMeta& meta = {}) override;
 		using PropertyVisitor::Property;
 
 		bool BeginGroup(const char* name) override;

@@ -6,6 +6,7 @@
 #include "Physics/PhysicsWorld.h"
 #include "Render/DebugDraw.h"
 #include "Scene/ComponentRegistry.h"
+#include "Scene/ObjectRef.h"
 
 namespace rd
 {
@@ -13,6 +14,51 @@ namespace rd
 	{
 		constexpr int kSceneVersion = 1;
 		constexpr int kMaxFixedStepsPerFrame = 5;
+
+		// 読み込んだ ObjectRef を、このシーンに結び付けて ID を付け替えるビジター（参照以外は何もしない）
+		class RefFixupVisitor final : public PropertyVisitor
+		{
+		public:
+			RefFixupVisitor(Scene* scene, const std::unordered_map<ActorId, Actor*>& idMap, bool remap, bool keepExternal)
+				: mScene(scene), mIdMap(idMap), mRemap(remap), mKeepExternal(keepExternal) {}
+
+			bool Property(const char*, ObjectRef& value, const PropertyMeta&) override
+			{
+				value.SetScene(mScene);
+				if (value.GetId() == 0 || !mRemap) { return false; }
+				if (auto it = mIdMap.find(value.GetId()); it != mIdMap.end())
+				{
+					// 一緒に複製されたアクターを指していたら、複製先へ付け替える
+					value.SetId(it->second->GetId());
+				}
+				else if (!mKeepExternal)
+				{
+					value.Clear();
+				}
+				return false;
+			}
+
+			bool Property(const char*, bool&, const PropertyMeta&) override { return false; }
+			bool Property(const char*, int32_t&, const PropertyMeta&) override { return false; }
+			bool Property(const char*, uint32_t&, const PropertyMeta&) override { return false; }
+			bool Property(const char*, float&, const PropertyMeta&) override { return false; }
+			bool Property(const char*, Vector2&, const PropertyMeta&) override { return false; }
+			bool Property(const char*, Vector3&, const PropertyMeta&) override { return false; }
+			bool Property(const char*, Vector4&, const PropertyMeta&) override { return false; }
+			bool Property(const char*, Quaternion&, const PropertyMeta&) override { return false; }
+			bool Property(const char*, Color&, const PropertyMeta&) override { return false; }
+			bool Property(const char*, std::string&, const PropertyMeta&) override { return false; }
+			using PropertyVisitor::Property;
+
+		protected:
+			bool EnumProperty(const char*, int64_t&, std::span<const std::string_view>, std::span<const int64_t>, const PropertyMeta&) override { return false; }
+
+		private:
+			Scene* mScene;
+			const std::unordered_map<ActorId, Actor*>& mIdMap;
+			bool mRemap;
+			bool mKeepExternal;
+		};
 	}
 
 	Scene::Scene()
@@ -248,7 +294,7 @@ namespace rd
 		return out;
 	}
 
-	std::vector<Actor*> Scene::DeserializeActors(const Json& actors, bool remapIds, Actor* parent)
+	std::vector<Actor*> Scene::DeserializeActors(const Json& actors, bool remapIds, Actor* parent, bool keepExternalRefs)
 	{
 		std::vector<Actor*> roots;
 		std::vector<std::pair<Actor*, const Json*>> created;
@@ -310,7 +356,14 @@ namespace rd
 			}
 		}
 
-		// 3. すべてそろってから Awake
+		// 3. 参照をこのシーンに結び付ける（複製なら、一緒に複製したアクターへの参照を付け替える）
+		RefFixupVisitor fixup(this, idMap, remapIds, keepExternalRefs);
+		for (auto& [actor, jp] : created)
+		{
+			for (auto& c : actor->mComponents) { c->Reflect(fixup); }
+		}
+
+		// 4. すべてそろってから Awake
 		for (auto& [actor, jp] : created)
 		{
 			for (auto& c : actor->mComponents) { c->Awake(); }
@@ -382,7 +435,8 @@ namespace rd
 			Log::Error("Prefab not found: {}", prefabPath);
 			return nullptr;
 		}
-		auto roots = DeserializeActors(json.value("Actors", Json::array()), true, parent);
+		// プレハブの外を指していた参照は、このシーンでは意味がないので外す
+		auto roots = DeserializeActors(json.value("Actors", Json::array()), true, parent, false);
 		return roots.empty() ? nullptr : roots.front();
 	}
 

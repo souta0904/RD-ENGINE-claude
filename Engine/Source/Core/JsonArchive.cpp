@@ -1,6 +1,7 @@
 #include "RdPch.h"
 #include "Core/JsonArchive.h"
 #include "Core/StringUtil.h"
+#include "Scene/ObjectRef.h"
 
 namespace rd
 {
@@ -66,6 +67,29 @@ namespace rd
 			return true;
 		}
 		return false;
+	}
+
+	// 参照は { "$ref": ActorId } として保存する（0 は未設定）
+	bool JsonWriter::Property(const char* name, ObjectRef& value, const PropertyMeta&)
+	{
+		Top()[name] = Json{ { kRefKey, value.GetId() } };
+		return false;
+	}
+
+	bool JsonReader::Property(const char* name, ObjectRef& value, const PropertyMeta&)
+	{
+		const Json& top = *mStack.back();
+		auto it = top.find(name);
+		if (it == top.end() || !it->is_object()) { return false; }
+		auto ref = it->find(kRefKey);
+		if (ref == it->end() || !ref->is_number_unsigned()) { return false; }
+		value.SetId(ref->get<ActorId>());
+		return true;
+	}
+
+	bool IsRefJson(const Json& j)
+	{
+		return j.is_object() && j.size() == 1 && j.contains(kRefKey);
 	}
 
 	bool LoadJsonFile(const std::string& path, Json& out)

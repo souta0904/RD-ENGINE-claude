@@ -32,6 +32,7 @@ namespace sample
 		v.Property("Turn Speed", turnSpeed, { .speed = 0.1f, .min = 0.0f, .max = 100.0f });
 		v.Property("Idle Animation", idleAnimation, { .flags = PropertyMeta::AssetModel });
 		v.Property("Walk Animation", walkAnimation, { .flags = PropertyMeta::AssetModel });
+		v.Property("Animator", animator);
 	}
 
 	void PlayerController::Update(float dt)
@@ -72,9 +73,10 @@ namespace sample
 
 		// アニメーションの切り替え（状態が変わったときだけ）
 		bool walking = LengthSq(move) > 0.1f;
-		if (auto animator = GetActor()->GetComponentInChildren<Animator>(); animator && (walking != mWalking || !mAnimStarted))
+		Animator* anim = animator ? animator.Get() : GetActor()->GetComponentInChildren<Animator>();
+		if (anim && (walking != mWalking || !mAnimStarted))
 		{
-			animator->Play("", mAnimStarted ? 0.25f : 0.0f, walking ? walkAnimation : idleAnimation);
+			anim->Play("", mAnimStarted ? 0.25f : 0.0f, walking ? walkAnimation : idleAnimation);
 			mWalking = walking;
 			mAnimStarted = true;
 		}
@@ -85,7 +87,7 @@ namespace sample
 	// ==================================================
 	void FollowCamera::Reflect(PropertyVisitor& v)
 	{
-		v.Property("Target", targetName);
+		v.Property("Target", target);
 		v.Property("Distance", distance, { .speed = 0.05f, .min = 0.5f, .max = 100.0f });
 		v.Property("Height", height, { .speed = 0.05f });
 		v.Property("Smoothing", smoothing, { .speed = 0.1f, .min = 0.0f, .max = 50.0f });
@@ -93,14 +95,14 @@ namespace sample
 
 	void FollowCamera::LateUpdate(float dt)
 	{
-		Actor* target = GetScene()->FindActorByName(targetName);
-		if (!target) { return; }
+		Actor* followed = target.Get();
+		if (!followed) { return; }
 
 		// 回り込み
 		if (Input::GetMouseButton(MouseButton::Right)) { mYaw += Input::GetMouseDelta().x * 0.005f; }
 		mYaw += Input::GetRightStick().x * 2.5f * dt;
 
-		Vector3 focus = target->GetTransform().GetPosition() + Vector3(0.0f, 1.2f, 0.0f);
+		Vector3 focus = followed->GetTransform().GetPosition() + Vector3(0.0f, 1.2f, 0.0f);
 		Vector3 offset = Vector3(std::sin(mYaw), 0.0f, -std::cos(mYaw)) * distance + Vector3(0.0f, height, 0.0f);
 		Vector3 desired = focus + offset;
 
@@ -108,7 +110,7 @@ namespace sample
 		Vector3 dir = desired - focus;
 		float len = Length(dir);
 		RaycastHit hit;
-		if (len > 0.01f && GetScene()->GetPhysics().Raycast({ focus, dir / len }, len, hit) && hit.collider->GetActor() != target)
+		if (len > 0.01f && GetScene()->GetPhysics().Raycast({ focus, dir / len }, len, hit) && hit.collider->GetActor() != followed)
 		{
 			desired = hit.point - dir / len * 0.3f;
 		}

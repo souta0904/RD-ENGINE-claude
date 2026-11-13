@@ -64,19 +64,20 @@ namespace sample
 		capsule->height = 1.8f;
 		capsule->center = Vector3(0.0f, 0.9f, 0.0f);
 		capsule->friction = 0.0f;
-		player->AddComponent<PlayerController>();
+		auto controller = player->AddComponent<PlayerController>();
 		Actor* body = scene.CreateActor("Body", player);
 		body->AddComponent<MeshRenderer>()->SetModel("Assets/Sample/Models/Walking/Walking.gltf");
 		auto animator = body->AddComponent<Animator>();
 		animator->clipSource = "Assets/Sample/Models/Idle/Idle.gltf";
 		animator->previewInEditor = true;
+		controller->animator = animator;// コンポーネントへの参照
 
 		// カメラ
 		Actor* camera = scene.CreateActor("Main Camera");
 		camera->GetTransform().SetLocalPosition({ 0.0f, 3.5f, -8.0f });
 		camera->GetTransform().LookAt({ 0.0f, 1.0f, 0.0f });
 		camera->AddComponent<CameraComponent>()->fov = 55.0f;
-		camera->AddComponent<FollowCamera>();
+		camera->AddComponent<FollowCamera>()->target = player;// アクターへの参照
 
 		// 物理のデモ: 積み上げた箱と転がる球
 		for (int y = 0; y < 4; ++y)

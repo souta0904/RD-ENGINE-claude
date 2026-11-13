@@ -71,7 +71,9 @@ namespace rd
 		// アクター（と子）を JSON 配列へ
 		Json SerializeActors(const std::vector<Actor*>& actors) const;
 		// JSON 配列からアクターを生成（remapIds=true なら新しい ID を振る）
-		std::vector<Actor*> DeserializeActors(const Json& actors, bool remapIds, Actor* parent = nullptr);
+		//  ObjectRef のうち、一緒に生成したアクターを指すものは新しい ID へ付け替える。
+		//  それ以外を指す参照は keepExternalRefs=true なら残し（複製）、false なら外す（プレハブ）。
+		std::vector<Actor*> DeserializeActors(const Json& actors, bool remapIds, Actor* parent = nullptr, bool keepExternalRefs = true);
 		// プレハブ
 		Actor* Instantiate(const std::string& prefabPath, Actor* parent = nullptr);
 		Actor* Duplicate(Actor* actor);

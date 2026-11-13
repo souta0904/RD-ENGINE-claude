@@ -8,6 +8,8 @@
 
 namespace rd
 {
+	class ObjectRef;
+
 	// プロパティの付加情報（エディタ表示用）
 	struct PropertyMeta
 	{
@@ -50,6 +52,8 @@ namespace rd
 		virtual bool Property(const char* name, Quaternion& value, const PropertyMeta& meta = {}) = 0;
 		virtual bool Property(const char* name, Color& value, const PropertyMeta& meta = {}) = 0;
 		virtual bool Property(const char* name, std::string& value, const PropertyMeta& meta = {}) = 0;
+		// アクター/コンポーネントへの参照（ActorRef / ComponentRef<T>。Scene/ObjectRef.h）
+		virtual bool Property(const char* name, ObjectRef& value, const PropertyMeta& meta = {}) = 0;
 
 		// 列挙型（名前で保存されるので並び替えに強い）
 		template <class E> requires std::is_enum_v<E>

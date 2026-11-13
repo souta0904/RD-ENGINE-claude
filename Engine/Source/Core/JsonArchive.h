@@ -35,6 +35,7 @@ namespace rd
 		bool Property(const char* name, Quaternion& value, const PropertyMeta& = {}) override { Top()[name] = value; return false; }
 		bool Property(const char* name, Color& value, const PropertyMeta& = {}) override { Top()[name] = value; return false; }
 		bool Property(const char* name, std::string& value, const PropertyMeta& = {}) override { Top()[name] = value; return false; }
+		bool Property(const char* name, ObjectRef& value, const PropertyMeta& = {}) override;// { "$ref": id }
 		using PropertyVisitor::Property;
 
 		bool BeginGroup(const char* name) override
@@ -71,6 +72,7 @@ namespace rd
 		bool Property(const char* name, Quaternion& value, const PropertyMeta& = {}) override { return Read(name, value); }
 		bool Property(const char* name, Color& value, const PropertyMeta& = {}) override { return Read(name, value); }
 		bool Property(const char* name, std::string& value, const PropertyMeta& = {}) override { return Read(name, value); }
+		bool Property(const char* name, ObjectRef& value, const PropertyMeta& = {}) override;// ID だけ読む（シーンは Scene が後で設定）
 		using PropertyVisitor::Property;
 
 		bool BeginGroup(const char* name) override
@@ -109,6 +111,10 @@ namespace rd
 		static inline const Json kEmpty = Json::object();
 		std::vector<const Json*> mStack;
 	};
+
+	// ObjectRef の保存形式 { "$ref": id } のキー
+	inline constexpr const char* kRefKey = "$ref";
+	bool IsRefJson(const Json& j);
 
 	bool LoadJsonFile(const std::string& path, Json& out);
 	bool SaveJsonFile(const std::string& path, const Json& json);

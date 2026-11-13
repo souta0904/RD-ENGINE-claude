@@ -1,6 +1,10 @@
 #include "RdPch.h"
 #include "Editor/ImGuiInspector.h"
 #include "Core/StringUtil.h"
+#include "Editor/Editor.h"
+#include "Engine.h"
+#include "Scene/ObjectRef.h"
+#include "Scene/Scene.h"
 #include <ImGui/imgui.h>
 #include <ImGui/imgui_stdlib.h>
 #include <unordered_map>
@@ -186,6 +190,101 @@ namespace rd
 			}
 			ImGui::EndDragDropTarget();
 		}
+		ImGui::PopID();
+		return changed;
+	}
+
+	// 参照フィールド: [ Player (Actor) ][...]
+	//  - ヒエラルキーのアクターをドラッグ&ドロップ（型が合わないものは受け付けない）
+	//  - [...] で候補の一覧から選ぶ / None に戻す
+	//  - ダブルクリックで参照先を選択
+	bool ImGuiInspector::Property(const char* name, ObjectRef& value, const PropertyMeta& meta)
+	{
+		ImGui::PushID(name);
+		Label(name, meta);
+		bool changed = false;
+		Scene& scene = value.GetScene() ? *value.GetScene() : Engine::Get().GetScene();
+		if (!value.GetScene()) { value.SetScene(&scene); }
+		Actor* target = value.GetActor();
+		bool readOnly = (meta.flags & PropertyMeta::ReadOnly) != 0;
+
+		std::string text;
+		if (target) { text = std::format("{} ({})", target->GetName(), value.GetTypeName()); }
+		else if (value.GetId() != 0) { text = std::format("Missing ({})", value.GetTypeName()); }
+		else { text = std::format("None ({})", value.GetTypeName()); }
+
+		const float buttonWidth = ImGui::GetFrameHeight() * 1.4f;
+		const float fieldWidth = std::max(1.0f, ImGui::GetContentRegionAvail().x - buttonWidth - ImGui::GetStyle().ItemInnerSpacing.x);
+		ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetStyleColorVec4(ImGuiCol_FrameBg));
+		ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImGui::GetStyleColorVec4(ImGuiCol_FrameBgHovered));
+		ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImGui::GetStyleColorVec4(ImGuiCol_FrameBgActive));
+		ImGui::PushStyleVar(ImGuiStyleVar_ButtonTextAlign, ImVec2(0.0f, 0.5f));
+		if (!target && value.GetId() != 0) { ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.45f, 0.4f, 1.0f)); }
+		else if (!target) { ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled)); }
+		else { ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_Text)); }
+		ImGui::Button(text.c_str(), ImVec2(fieldWidth, 0.0f));
+		ImGui::PopStyleColor(4);
+		ImGui::PopStyleVar();
+
+		if (target && ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+		{
+			if (Editor* editor = Engine::Get().GetEditor()) { editor->Select(target); }
+		}
+
+		// ヒエラルキーからのドラッグ&ドロップ
+		if (!readOnly && ImGui::BeginDragDropTarget())
+		{
+			const ImGuiPayload* peek = ImGui::GetDragDropPayload();
+			if (peek && peek->IsDataType("ACTOR_ID"))
+			{
+				Actor* dropped = scene.FindActor(*static_cast<const ActorId*>(peek->Data));
+				if (value.Accepts(dropped) && ImGui::AcceptDragDropPayload("ACTOR_ID"))
+				{
+					value.SetActor(dropped);
+					changed = true;
+				}
+			}
+			ImGui::EndDragDropTarget();
+		}
+
+		// 候補の一覧
+		ImGui::SameLine(0.0f, ImGui::GetStyle().ItemInnerSpacing.x);
+		ImGui::BeginDisabled(readOnly);
+		if (ImGui::Button("...", ImVec2(buttonWidth, 0.0f))) { ImGui::OpenPopup("pick"); }
+		ImGui::EndDisabled();
+		if (ImGui::BeginPopup("pick"))
+		{
+			static std::string sFilter;
+			if (ImGui::IsWindowAppearing()) { sFilter.clear(); ImGui::SetKeyboardFocusHere(); }
+			ImGui::SetNextItemWidth(260.0f);
+			ImGui::InputTextWithHint("##filter", "Search", &sFilter);
+			ImGui::Separator();
+			ImGui::BeginChild("list", ImVec2(260.0f, 280.0f));
+			if (ImGui::Selectable("None", value.GetId() == 0))
+			{
+				value.Clear();
+				changed = true;
+				ImGui::CloseCurrentPopup();
+			}
+			std::string lowerFilter = ToLower(sFilter);
+			scene.ForEachActor([&](Actor* a)
+				{
+					if (a->IsPendingDestroy() || !value.Accepts(a)) { return; }
+					if (!lowerFilter.empty() && ToLower(a->GetName()).find(lowerFilter) == std::string::npos) { return; }
+					ImGui::PushID(reinterpret_cast<void*>(a->GetId()));
+					if (ImGui::Selectable(a->GetName().c_str(), a == target))
+					{
+						value.SetActor(a);
+						changed = true;
+						ImGui::CloseCurrentPopup();
+					}
+					ImGui::PopID();
+				});
+			ImGui::EndChild();
+			ImGui::EndPopup();
+		}
+
+		if (changed) { mChanged = mCommitted = true; }
 		ImGui::PopID();
 		return changed;
 	}

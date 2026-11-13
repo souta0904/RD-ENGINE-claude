@@ -2,6 +2,8 @@
 // エンジンの使い方を示すサンプルのゲーム用コンポーネント
 #include "Scene/Actor.h"
 #include "Scene/Component.h"
+#include "Scene/ObjectRef.h"
+#include "Components/Animator.h"
 
 namespace sample
 {
@@ -17,6 +19,7 @@ namespace sample
 		float turnSpeed = 12.0f;
 		std::string idleAnimation = "Assets/Sample/Models/Idle/Idle.gltf";
 		std::string walkAnimation = "Assets/Sample/Models/Walking/Walking.gltf";
+		ComponentRef<Animator> animator;// 見た目の Animator（未設定なら子から探す）
 
 		void Reflect(PropertyVisitor& v) override;
 		void Update(float dt) override;
@@ -31,7 +34,7 @@ namespace sample
 	{
 		RD_COMPONENT(FollowCamera)
 	public:
-		std::string targetName = "Player";
+		ActorRef target;// 追いかける対象
 		float distance = 7.0f;
 		float height = 2.5f;
 		float smoothing = 8.0f;
