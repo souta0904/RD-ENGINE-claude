@@ -1,34 +1,40 @@
 #include "RdPch.h"
 #include "FrameComposer.h"
 #include "Components/CameraComponent.h"
-#include "Editor/Editor.h"
 #include "Platform/Window.h"
 #include "Render/Renderer.h"
 #include "RHI/GraphicsDevice.h"
 #include "Scene/Scene.h"
+#if RD_EDITOR
+#include "Editor/Editor.h"
+#endif
 
 namespace rd
 {
-	void FrameComposer::Initialize(Window& window, GraphicsDevice& device, Renderer& renderer, Editor* editor)
+	void FrameComposer::Initialize(Window& window, GraphicsDevice& device, Renderer& renderer)
 	{
 		mWindow = &window;
 		mDevice = &device;
 		mRenderer = &renderer;
-		mEditor = editor;
 	}
 
 	void FrameComposer::Render(Scene& scene, float realTime)
 	{
 		// カメラを決める（エディタカメラ → シーンのメインカメラ → 既定位置）
 		uint32_t viewW = mWindow->GetWidth(), viewH = mWindow->GetHeight();
+#if RD_EDITOR
 		if (mEditor) { mEditor->GetViewportSize(viewW, viewH); }
+#endif
 		float aspect = float(std::max(1u, viewW)) / float(std::max(1u, viewH));
 		RenderCamera camera;
+#if RD_EDITOR
 		if (mEditor && mEditor->UseEditorCamera())
 		{
 			camera = mEditor->GetEditorCamera(aspect);
 		}
-		else if (CameraComponent* mainCam = scene.GetMainCamera())
+		else
+#endif
+		if (CameraComponent* mainCam = scene.GetMainCamera())
 		{
 			camera = mainCam->GetRenderCamera(aspect);
 		}
@@ -41,7 +47,9 @@ namespace rd
 		// 描画
 		auto& renderer = *mRenderer;
 		scene.CollectRender(renderer.GetRenderList());
+#if RD_EDITOR
 		if (mEditor) { mEditor->DrawGizmos(renderer.GetDebugDraw()); }
+#endif
 		renderer.Render(camera, scene.GetEnvironment(), viewW, viewH, realTime);
 
 		ComposeBackBuffer();
@@ -52,6 +60,7 @@ namespace rd
 		auto& device = *mDevice;
 		auto cmd = device.GetCommandList();
 		TransitionBarrier(cmd, device.GetBackBuffer(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
+#if RD_EDITOR
 		if (mEditor)
 		{
 			// エディタ UI（ゲーム画面はビューポート内にテクスチャとして描かれる）
@@ -63,6 +72,7 @@ namespace rd
 			mEditor->RenderUI();
 		}
 		else
+#endif
 		{
 			mRenderer->BlitToBackBuffer();
 		}

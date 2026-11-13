@@ -13,7 +13,9 @@ namespace rd
 {
 	class AssetManager;
 	class AudioSystem;
+#if RD_EDITOR
 	class Editor;
+#endif
 	class GraphicsDevice;
 	class Renderer;
 	class Scene;
@@ -21,6 +23,7 @@ namespace rd
 	// エンジン本体
 	//  サブシステムの所有と初期化・終了の順番、メインループの進行を受け持つ。
 	//  シーン切り替えは SceneManager、プレイ状態は PlayController、描画の組み立ては FrameComposer に任せる。
+	//  RD_EDITOR=0（Game 構成）ではエディタを持たず、常にプレイ中として動く。
 	class Engine
 	{
 	public:
@@ -35,7 +38,9 @@ namespace rd
 		void Quit();
 
 		Window& GetWindow() { return mWindow; }
+#if RD_EDITOR
 		Editor* GetEditor() { return mEditor.get(); }
+#endif
 		const EngineConfig& GetConfig() const { return mConfig; }
 		SceneManager& GetSceneManager() { return mScenes; }
 		PlayController& GetPlayController() { return mPlay; }
@@ -45,8 +50,11 @@ namespace rd
 		bool IsPaused() const { return mPlay.IsPaused(); }
 		void SetPaused(bool paused) { mPlay.SetPaused(paused); }
 		void StepFrame() { mPlay.StepFrame(); }
+#if RD_EDITOR
+		// エディタの Play / Stop（Stop でプレイ前のシーンに戻す）
 		void BeginPlay();
 		void EndPlay();
+#endif
 
 		// シーン（切り替えはフレームの区切りで行われる）
 		Scene& GetScene() { return mScenes.GetScene(); }
@@ -56,7 +64,10 @@ namespace rd
 
 		float GetFps() const { return mStats.GetFps(); }
 		float GetFrameMs() const { return mStats.GetFrameMs(); }
+#if RD_EDITOR
+		// タイトルを「エンジン名 - シーンパス + suffix」にする（未保存の * 表示など）
 		void SetWindowTitleSuffix(const std::string& suffix);
+#endif
 
 	private:
 		bool Initialize();
@@ -74,7 +85,9 @@ namespace rd
 		std::unique_ptr<AssetManager> mAssets;
 		std::unique_ptr<Renderer> mRenderer;
 		std::unique_ptr<AudioSystem> mAudio;
+#if RD_EDITOR
 		std::unique_ptr<Editor> mEditor;
+#endif
 
 		SceneManager mScenes;
 		PlayController mPlay;

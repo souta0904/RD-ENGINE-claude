@@ -52,6 +52,7 @@ namespace rd
 		return Abs(GetTransform().GetLossyScale());
 	}
 
+#if RD_EDITOR
 	void Collider::OnDrawGizmos(DebugDraw& draw, bool selected)
 	{
 		WorldShape s;
@@ -80,6 +81,7 @@ namespace rd
 			break;
 		}
 	}
+#endif
 
 	// ==================================================
 	// SphereCollider

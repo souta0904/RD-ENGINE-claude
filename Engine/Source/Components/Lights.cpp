@@ -9,7 +9,9 @@ namespace rd
 	namespace
 	{
 		Vector3 Rgb(const Color& c) { return { c.r, c.g, c.b }; }
+#if RD_EDITOR
 		const Color kGizmoColor(1.0f, 0.9f, 0.3f, 0.9f);
+#endif
 	}
 
 	// ==================================================
@@ -32,11 +34,13 @@ namespace rd
 		list.dirLights.push_back(l);
 	}
 
+#if RD_EDITOR
 	void DirectionalLight::OnDrawGizmos(DebugDraw& draw, bool selected)
 	{
 		Vector3 p = GetTransform().GetPosition();
 		draw.Arrow(p, p + GetTransform().GetForward() * (selected ? 3.0f : 1.5f), kGizmoColor);
 	}
+#endif
 
 	// ==================================================
 	// PointLight
@@ -58,10 +62,12 @@ namespace rd
 		list.pointLights.push_back(l);
 	}
 
+#if RD_EDITOR
 	void PointLight::OnDrawGizmos(DebugDraw& draw, bool selected)
 	{
 		draw.Sphere(GetTransform().GetPosition(), selected ? range : 0.2f, kGizmoColor, true, selected ? 32 : 12);
 	}
+#endif
 
 	// ==================================================
 	// SpotLight
@@ -89,9 +95,11 @@ namespace rd
 		list.spotLights.push_back(l);
 	}
 
+#if RD_EDITOR
 	void SpotLight::OnDrawGizmos(DebugDraw& draw, bool selected)
 	{
 		draw.Cone(GetTransform().GetPosition(), GetTransform().GetForward(), selected ? range : 1.0f,
 			math::ToRadians(outerAngle), kGizmoColor);
 	}
+#endif
 }

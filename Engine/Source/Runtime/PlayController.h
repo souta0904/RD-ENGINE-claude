@@ -25,10 +25,12 @@ namespace rd
 		// プレイ状態を直接設定（エディタなしの常時プレイ、シーン切り替え時の停止）
 		void SetPlaying(bool playing) { mPlaying = playing; }
 
+#if RD_EDITOR
 		// プレイ開始（停止時に戻すためシーンのスナップショットを取る）。すでにプレイ中なら false
 		bool Begin(const Scene& scene);
 		// プレイ終了。スナップショットから復元したシーンを返す（プレイ中でなければ nullptr）
 		std::unique_ptr<Scene> End(const Scene& current);
+#endif
 
 		// 実時間 dt からゲーム時間を決めて Time を更新する
 		FrameTime AdvanceTime(float dt);
@@ -37,6 +39,8 @@ namespace rd
 		bool mPlaying = false;
 		bool mPaused = false;
 		bool mStepRequested = false;
+#if RD_EDITOR
 		std::string mSnapshot;// プレイ開始時のシーン
+#endif
 	};
 }

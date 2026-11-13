@@ -5,13 +5,18 @@
     <RdRoot>$(MSBuildThisFileDirectory)..\</RdRoot>
     <OutDir>$(RdRoot)Bin\$(Configuration)\</OutDir>
     <IntDir>$(RdRoot)Intermediate\$(ProjectName)\$(Configuration)\</IntDir>
+    <!-- エディタを含めるか（Unity の UNITY_EDITOR 相当）。Game 構成ではエディタ・ImGui を外す -->
+    <RdEditor Condition="'$(Configuration)'=='Game'">0</RdEditor>
+    <RdEditor Condition="'$(RdEditor)'==''">1</RdEditor>
+    <!-- Game は Release と同じ最適化設定を使う -->
+    <RdOptimized Condition="'$(Configuration)'=='Release' or '$(Configuration)'=='Game'">true</RdOptimized>
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <ConformanceMode>true</ConformanceMode>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <PreprocessorDefinitions>NOMINMAX;WIN32_LEAN_AND_MEAN;_UNICODE;UNICODE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NOMINMAX;WIN32_LEAN_AND_MEAN;_UNICODE;UNICODE;RD_EDITOR=$(RdEditor);%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalOptions>/utf-8 /Zc:__cplusplus %(AdditionalOptions)</AdditionalOptions>
       <AdditionalIncludeDirectories>$(RdRoot)External;$(RdRoot)External\assimp\include;$(RdRoot)External\DirectXTex;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
@@ -24,7 +29,7 @@
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
     </ClCompile>
   </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)'=='Release'">
+  <ItemDefinitionGroup Condition="'$(RdOptimized)'=='true'">
     <ClCompile>
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>

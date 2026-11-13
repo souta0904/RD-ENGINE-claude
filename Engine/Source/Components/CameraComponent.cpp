@@ -19,6 +19,7 @@ namespace rd
 		return RenderCamera::Make(t.GetPosition(), t.GetRotation(), math::ToRadians(fov), aspect, nearZ, farZ);
 	}
 
+#if RD_EDITOR
 	void CameraComponent::OnDrawGizmos(DebugDraw& draw, bool selected)
 	{
 		if (!selected) { return; }
@@ -26,4 +27,5 @@ namespace rd
 			math::ToRadians(fov), 16.0f / 9.0f, nearZ, std::min(farZ, 10.0f));
 		draw.Frustum(Inverse(cam.view * cam.proj), Color(1.0f, 1.0f, 0.4f, 1.0f));
 	}
+#endif
 }

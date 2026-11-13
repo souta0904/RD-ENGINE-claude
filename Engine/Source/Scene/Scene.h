@@ -58,7 +58,9 @@ namespace rd
 		// 破棄予約されたアクター/コンポーネントをすぐに破棄する
 		void FlushPendingDestroy() { if (mHasPendingDestroy) { FlushDestroyed(); } }
 		void CollectRender(RenderList& list);
+#if RD_EDITOR
 		void DrawGizmos(DebugDraw& draw, const Actor* selected);
+#endif
 		CameraComponent* GetMainCamera() const;
 
 		// シリアライズ

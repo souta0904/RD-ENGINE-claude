@@ -171,6 +171,7 @@ namespace rd
 		}
 	}
 
+#if RD_EDITOR
 	void Scene::DrawGizmos(DebugDraw& draw, const Actor* selected)
 	{
 		for (auto& a : mActors)
@@ -183,6 +184,7 @@ namespace rd
 			}
 		}
 	}
+#endif
 
 	CameraComponent* Scene::GetMainCamera() const
 	{

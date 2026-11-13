@@ -2,7 +2,9 @@
 
 namespace rd
 {
+#if RD_EDITOR
 	class Editor;
+#endif
 	class GraphicsDevice;
 	class Renderer;
 	class Scene;
@@ -14,8 +16,11 @@ namespace rd
 	class FrameComposer
 	{
 	public:
-		// editor は nullptr 可（エディタなし）
-		void Initialize(Window& window, GraphicsDevice& device, Renderer& renderer, Editor* editor);
+		void Initialize(Window& window, GraphicsDevice& device, Renderer& renderer);
+#if RD_EDITOR
+		// エディタがあるときはエディタカメラ・ギズモ・エディタ UI を使う（nullptr でゲーム表示）
+		void SetEditor(Editor* editor) { mEditor = editor; }
+#endif
 		void Render(Scene& scene, float realTime);
 
 	private:
@@ -24,6 +29,8 @@ namespace rd
 		Window* mWindow = nullptr;
 		GraphicsDevice* mDevice = nullptr;
 		Renderer* mRenderer = nullptr;
+#if RD_EDITOR
 		Editor* mEditor = nullptr;
+#endif
 	};
 }

@@ -15,7 +15,9 @@ namespace rd
 		int32_t priority = 0;
 
 		void Reflect(PropertyVisitor& v) override;
+#if RD_EDITOR
 		void OnDrawGizmos(DebugDraw& draw, bool selected) override;
+#endif
 
 		RenderCamera GetRenderCamera(float aspect) const;
 		int32_t GetPriority() const { return priority; }

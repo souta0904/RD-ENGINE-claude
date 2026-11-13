@@ -15,7 +15,9 @@ namespace rd
 
 		void Reflect(PropertyVisitor& v) override;
 		void OnRender(RenderList& list) override;
+#if RD_EDITOR
 		void OnDrawGizmos(DebugDraw& draw, bool selected) override;
+#endif
 	};
 
 	// 点光源
@@ -29,7 +31,9 @@ namespace rd
 
 		void Reflect(PropertyVisitor& v) override;
 		void OnRender(RenderList& list) override;
+#if RD_EDITOR
 		void OnDrawGizmos(DebugDraw& draw, bool selected) override;
+#endif
 	};
 
 	// スポットライト（Transform の前方向を照らす）
@@ -45,6 +49,8 @@ namespace rd
 
 		void Reflect(PropertyVisitor& v) override;
 		void OnRender(RenderList& list) override;
+#if RD_EDITOR
 		void OnDrawGizmos(DebugDraw& draw, bool selected) override;
+#endif
 	};
 }

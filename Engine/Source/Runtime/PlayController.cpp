@@ -5,6 +5,7 @@
 
 namespace rd
 {
+#if RD_EDITOR
 	bool PlayController::Begin(const Scene& scene)
 	{
 		if (mPlaying) { return false; }
@@ -27,6 +28,7 @@ namespace rd
 		scene->SetPath(path);
 		return scene;
 	}
+#endif
 
 	PlayController::FrameTime PlayController::AdvanceTime(float dt)
 	{

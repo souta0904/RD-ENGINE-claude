@@ -19,7 +19,9 @@ namespace rd
 		void Reflect(PropertyVisitor& v) override;
 		void OnValidate() override;
 		void OnRender(RenderList& list) override;
+#if RD_EDITOR
 		void OnDrawGizmos(DebugDraw& draw, bool selected) override;
+#endif
 
 		void SetModel(const std::string& path);
 		const AssetRef<Model>& GetModel() const { return mModel; }

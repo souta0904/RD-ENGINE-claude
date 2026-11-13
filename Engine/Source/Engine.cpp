@@ -7,11 +7,13 @@
 #include "Core/JobSystem.h"
 #include "Core/Time.h"
 #include "Core/Timer.h"
-#include "Editor/Editor.h"
 #include "Platform/Input.h"
 #include "Render/Renderer.h"
 #include "RHI/GraphicsDevice.h"
 #include "Scene/Scene.h"
+#if RD_EDITOR
+#include "Editor/Editor.h"
+#endif
 
 namespace rd
 {
@@ -64,7 +66,7 @@ namespace rd
 	bool Engine::Initialize()
 	{
 		CoInitializeEx(nullptr, COINIT_MULTITHREADED);
-		Log::Info("{} {}", kName, kVersion);
+		Log::Info("{} {}{}", kName, kVersion, RD_EDITOR ? "" : " (Game)");
 
 		JobSystem::Initialize();
 
@@ -92,23 +94,30 @@ namespace rd
 
 		RegisterBuiltinComponents();
 
+		mComposer.Initialize(mWindow, *mDevice, *mRenderer);
+		mCapture.Configure(mConfig.captureFrame, mConfig.capturePath);
+
+#if RD_EDITOR
 		if (mConfig.enableEditor)
 		{
 			mEditor = std::make_unique<Editor>();
 			mEditor->Initialize();
 			mWindow.SetMessageHook([this](HWND h, UINT m, WPARAM w, LPARAM l) { return mEditor->HandleMessage(h, m, w, l); });
+			mComposer.SetEditor(mEditor.get());
 		}
-
-		mComposer.Initialize(mWindow, *mDevice, *mRenderer, mEditor.get());
-		mCapture.Configure(mConfig.captureFrame, mConfig.capturePath);
+#endif
 
 		// 初期シーン
 		mScenes.CreateInitial(mConfig.startScene, mConfig.buildDefaultScene);
-		if (mEditor) { mEditor->OnSceneChanged(); }
 
+#if RD_EDITOR
+		if (mEditor) { mEditor->OnSceneChanged(); }
 		mPlay.SetPlaying(!mEditor);
 		if (mEditor && mConfig.autoPlay) { BeginPlay(); }
 		SetWindowTitleSuffix("");
+#else
+		mPlay.SetPlaying(true);// エディタなしでは常にプレイ中
+#endif
 		return true;
 	}
 
@@ -119,7 +128,9 @@ namespace rd
 		mWindow.SetMessageHook(nullptr);
 		mWindow.SetResizeCallback(nullptr);
 		mScenes.Clear();
+#if RD_EDITOR
 		if (mEditor) { mEditor->Shutdown(); mEditor.reset(); }
+#endif
 		if (mAudio) { mAudio->Shutdown(); mAudio.reset(); }
 		if (mRenderer) { mRenderer->Shutdown(); mRenderer.reset(); }
 		if (mAssets) { mAssets->Shutdown(); mAssets.reset(); }
@@ -140,6 +151,7 @@ namespace rd
 
 		mDevice->BeginFrame();
 
+#if RD_EDITOR
 		// エディタ UI（ビューポートの大きさやカメラもここで決まる。Stop でシーンが差し替わることもある）
 		if (mEditor)
 		{
@@ -147,6 +159,7 @@ namespace rd
 			mEditor->Update(dt);
 		}
 		else
+#endif
 		{
 			Input::SetBlocked(false, false);
 		}
@@ -181,8 +194,9 @@ namespace rd
 	}
 
 	// ==================================================
-	// プレイ
+	// プレイ（エディタ）
 	// ==================================================
+#if RD_EDITOR
 	void Engine::BeginPlay()
 	{
 		if (!mPlay.Begin(mScenes.GetScene())) { return; }
@@ -197,6 +211,7 @@ namespace rd
 		mEditor->OnSceneChanged(true);
 		Log::Info("Stop");
 	}
+#endif
 
 	// ==================================================
 	// シーン
@@ -204,17 +219,21 @@ namespace rd
 	void Engine::ApplyPendingScene()
 	{
 		if (!mScenes.ApplyPending()) { return; }
+#if RD_EDITOR
 		if (mEditor)
 		{
 			mPlay.SetPlaying(false);
 			mEditor->OnSceneChanged();
 		}
 		SetWindowTitleSuffix("");
+#endif
 	}
 
+#if RD_EDITOR
 	void Engine::SetWindowTitleSuffix(const std::string& suffix)
 	{
 		std::string scene = mScenes.HasScene() ? (mScenes.GetScene().GetPath().empty() ? std::string("Untitled") : mScenes.GetScene().GetPath()) : "";
 		mWindow.SetTitle(std::format("{} {} - {}{}", kName, kVersion, scene, suffix));
 	}
+#endif
 }

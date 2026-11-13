@@ -54,8 +54,10 @@ namespace rd
 		void OnEditorUpdate(float dt) override;
 		void OnRender(RenderList& list) override;
 		void OnDestroy() override { JobSystem::Wait(mJob); }
+#if RD_EDITOR
 		void OnDrawGizmos(DebugDraw& draw, bool selected) override;
 		void OnInspectorGUI() override;
+#endif
 
 		void Play();
 		void Stop(bool clear = false);

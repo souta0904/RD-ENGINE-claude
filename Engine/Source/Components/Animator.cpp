@@ -5,7 +5,9 @@
 #include "Components/MeshRenderer.h"
 #include "RHI/GraphicsDevice.h"
 #include "Scene/Actor.h"
+#if RD_EDITOR
 #include <ImGui/imgui.h>
+#endif
 
 namespace rd
 {
@@ -203,6 +205,7 @@ namespace rd
 		return mPaletteGpu;
 	}
 
+#if RD_EDITOR
 	void Animator::OnInspectorGUI()
 	{
 		// クリップ一覧から選べるようにする
@@ -222,4 +225,5 @@ namespace rd
 		}
 		ImGui::ProgressBar(GetNormalizedTime(), ImVec2(-1, 0), std::format("{:.2f}s", mTime).c_str());
 	}
+#endif
 }

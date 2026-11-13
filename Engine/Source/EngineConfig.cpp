@@ -12,9 +12,11 @@ namespace rd
 		for (int i = 1; i < argc; ++i)
 		{
 			std::string arg = ToUtf8(argv[i]);
-			if (arg == "-noeditor") { enableEditor = false; }
-			else if (arg == "-play") { autoPlay = true; }
-			else if (arg == "-novsync") { vsync = false; }
+#if RD_EDITOR
+			if (arg == "-noeditor") { enableEditor = false; continue; }
+			if (arg == "-play") { autoPlay = true; continue; }
+#endif
+			if (arg == "-novsync") { vsync = false; }
 			else if (arg == "-fullscreen") { window.fullscreen = true; }
 			else if (arg == "-windowed") { window.fullscreen = false; }
 			else if (arg == "-scene" && i + 1 < argc) { startScene = ToUtf8(argv[++i]); }

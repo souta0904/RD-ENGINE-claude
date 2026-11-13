@@ -10,6 +10,10 @@
       <Configuration>Release</Configuration>
       <Platform>x64</Platform>
     </ProjectConfiguration>
+    <ProjectConfiguration Include="Game|x64">
+      <Configuration>Game</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>18.0</VCProjectVersion>
@@ -43,6 +47,10 @@
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
     <ClInclude Include="Source\**\*.h" />
+  </ItemGroup>
+  <!-- Game 構成（RD_EDITOR=0）ではエディタを丸ごと外す -->
+  <ItemGroup Condition="'$(RdEditor)'=='0'">
+    <ClCompile Remove="Source\Editor\**\*.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\Assets\Engine\Shaders\**\*.hlsl;..\Assets\Engine\Shaders\**\*.hlsli" />

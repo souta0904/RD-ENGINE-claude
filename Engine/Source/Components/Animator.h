@@ -30,7 +30,9 @@ namespace rd
 		void Start() override;
 		void Update(float dt) override;
 		void OnEditorUpdate(float dt) override;
+#if RD_EDITOR
 		void OnInspectorGUI() override;
+#endif
 
 		// クリップを再生（fade 秒かけて現在のクリップから切り替える）
 		void Play(const std::string& clipName, float fade = 0.2f, const std::string& source = "");

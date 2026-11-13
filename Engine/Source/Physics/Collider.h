@@ -33,7 +33,9 @@ namespace rd
 		void Reflect(PropertyVisitor& v) override;
 		void Awake() override;
 		void OnDestroy() override;
+#if RD_EDITOR
 		void OnDrawGizmos(DebugDraw& draw, bool selected) override;
+#endif
 
 		// ワールド形状を更新して返す
 		virtual bool UpdateShape(WorldShape& out) = 0;

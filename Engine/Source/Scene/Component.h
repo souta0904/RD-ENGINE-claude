@@ -45,8 +45,10 @@ private:
 		virtual void OnEditorUpdate(float /*dt*/) {}// 編集中のみ（プレビュー用）
 
 		virtual void OnRender(RenderList& /*list*/) {}
+#if RD_EDITOR
 		virtual void OnDrawGizmos(DebugDraw& /*draw*/, bool /*selected*/) {}
 		virtual void OnInspectorGUI() {}// Reflect では表現できない追加 UI
+#endif
 
 		// 衝突
 		virtual void OnCollisionEnter(const Collision& /*c*/) {}

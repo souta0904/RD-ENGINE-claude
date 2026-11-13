@@ -123,6 +123,7 @@ namespace rd
 		}
 	}
 
+#if RD_EDITOR
 	void MeshRenderer::OnDrawGizmos(DebugDraw& draw, bool selected)
 	{
 		if (selected && mModel && mModel->IsReady())
@@ -130,6 +131,7 @@ namespace rd
 			draw.Box(GetWorldBounds(), Color(1.0f, 0.6f, 0.1f, 0.8f));
 		}
 	}
+#endif
 
 	AABB MeshRenderer::GetWorldBounds() const
 	{

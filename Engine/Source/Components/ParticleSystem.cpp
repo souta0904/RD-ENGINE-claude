@@ -8,7 +8,9 @@
 #include "Scene/Actor.h"
 #include "Scene/Scene.h"
 #include "Physics/PhysicsWorld.h"
+#if RD_EDITOR
 #include <ImGui/imgui.h>
+#endif
 
 namespace rd
 {
@@ -243,6 +245,7 @@ namespace rd
 		list.particles.push_back(item);
 	}
 
+#if RD_EDITOR
 	void ParticleSystem::OnDrawGizmos(DebugDraw& draw, bool selected)
 	{
 		if (!selected) { return; }
@@ -265,4 +268,5 @@ namespace rd
 		ImGui::SameLine();
 		ImGui::Text("Alive: %u", GetAliveCount());
 	}
+#endif
 }
