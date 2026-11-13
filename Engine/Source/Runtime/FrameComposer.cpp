@@ -4,10 +4,8 @@
 #include "Platform/Window.h"
 #include "Render/Renderer.h"
 #include "RHI/GraphicsDevice.h"
+#include "Runtime/FrameOverlay.h"
 #include "Scene/Scene.h"
-#if RD_EDITOR
-#include "Editor/Editor.h"
-#endif
 
 namespace rd
 {
@@ -20,36 +18,29 @@ namespace rd
 
 	void FrameComposer::Render(Scene& scene, float realTime)
 	{
-		// カメラを決める（エディタカメラ → シーンのメインカメラ → 既定位置）
+		// カメラを決める（割り込み層のカメラ → シーンのメインカメラ → 既定位置）
 		uint32_t viewW = mWindow->GetWidth(), viewH = mWindow->GetHeight();
-#if RD_EDITOR
-		if (mEditor) { mEditor->GetViewportSize(viewW, viewH); }
-#endif
+		if (mOverlay) { mOverlay->GetViewportSize(viewW, viewH); }
 		float aspect = float(std::max(1u, viewW)) / float(std::max(1u, viewH));
 		RenderCamera camera;
-#if RD_EDITOR
-		if (mEditor && mEditor->UseEditorCamera())
+		bool overridden = mOverlay && mOverlay->OverrideCamera(aspect, camera);
+		if (!overridden)
 		{
-			camera = mEditor->GetEditorCamera(aspect);
-		}
-		else
-#endif
-		if (CameraComponent* mainCam = scene.GetMainCamera())
-		{
-			camera = mainCam->GetRenderCamera(aspect);
-		}
-		else
-		{
-			camera = RenderCamera::Make({ 0.0f, 3.0f, -10.0f }, Quaternion::FromEuler({ math::ToRadians(10.0f), 0.0f, 0.0f }),
-				math::ToRadians(60.0f), aspect, 0.1f, 1000.0f);
+			if (CameraComponent* mainCam = CameraComponent::FindMain(scene))
+			{
+				camera = mainCam->GetRenderCamera(aspect);
+			}
+			else
+			{
+				camera = RenderCamera::Make({ 0.0f, 3.0f, -10.0f }, Quaternion::FromEuler({ math::ToRadians(10.0f), 0.0f, 0.0f }),
+					math::ToRadians(60.0f), aspect, 0.1f, 1000.0f);
+			}
 		}
 
 		// 描画
 		auto& renderer = *mRenderer;
 		scene.CollectRender(renderer.GetRenderList());
-#if RD_EDITOR
-		if (mEditor) { mEditor->DrawGizmos(renderer.GetDebugDraw()); }
-#endif
+		if (mOverlay) { mOverlay->DrawGizmos(renderer.GetDebugDraw()); }
 		renderer.Render(camera, scene.GetEnvironment(), viewW, viewH, realTime);
 
 		ComposeBackBuffer();
@@ -60,19 +51,17 @@ namespace rd
 		auto& device = *mDevice;
 		auto cmd = device.GetCommandList();
 		TransitionBarrier(cmd, device.GetBackBuffer(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
-#if RD_EDITOR
-		if (mEditor)
+		if (mOverlay)
 		{
-			// エディタ UI（ゲーム画面はビューポート内にテクスチャとして描かれる）
+			// 割り込み層の UI（ゲーム画面はその中にテクスチャとして描かれる）
 			auto rtv = device.GetBackBufferRtv();
 			cmd->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
 			float clear[4] = { 0.08f, 0.08f, 0.09f, 1.0f };
 			cmd->ClearRenderTargetView(rtv, clear, 0, nullptr);
 			SetViewport(cmd, device.GetWidth(), device.GetHeight());
-			mEditor->RenderUI();
+			mOverlay->RenderUI();
 		}
 		else
-#endif
 		{
 			mRenderer->BlitToBackBuffer();
 		}

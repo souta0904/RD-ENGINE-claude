@@ -1,21 +1,53 @@
 #pragma once
 #include "Core/Reflection.h"
+#include <typeindex>
 
 namespace rd
 {
 	class Actor;
 	class Collider;
+	class Component;
 	class DebugDraw;
 	class RenderList;
 	class Scene;
 	class Transform;
 	struct Collision;
 
+	// コンポーネントが上書きしているコールバック
+	//  シーンは上書きしているものだけを型ごとのリストに入れて呼ぶので、
+	//  Update を持たないコンポーネント（ライトなど）を毎フレーム呼び出すことはない。
+	enum ComponentCallback : uint32_t
+	{
+		kCallbackUpdate = 1 << 0,
+		kCallbackFixedUpdate = 1 << 1,
+		kCallbackLateUpdate = 1 << 2,
+		kCallbackRender = 1 << 3,
+		kCallbackEditorUpdate = 1 << 4,
+		kCallbackGizmos = 1 << 5,
+	};
+
+	// コンポーネントの型ごとの情報（RD_COMPONENT が自動で用意する）
+	struct ComponentTypeInfo
+	{
+		const char* name;
+		std::type_index type;
+		uint32_t callbacks;// ComponentCallback の組み合わせ
+	};
+
+	namespace detail
+	{
+		// メンバ関数ポインタの型が Component のままなら、どこでも上書きされていない
+		template <class T> constexpr uint32_t ComputeCallbacks();
+	}
+	template <class T> const ComponentTypeInfo& GetComponentTypeInfo();
+
 	// コンポーネントの型名を宣言するマクロ（クラス定義の先頭に書く）
-#define RD_COMPONENT(Type)                                              \
-public:                                                                 \
-	static constexpr const char* kTypeName = #Type;                     \
-	const char* GetTypeName() const override { return kTypeName; }      \
+#define RD_COMPONENT(Type)                                                                          \
+public:                                                                                             \
+	static constexpr const char* kTypeName = #Type;                                                 \
+	const char* GetTypeName() const override { return kTypeName; }                                  \
+	const ::rd::ComponentTypeInfo& GetTypeInfo() const override { return ::rd::GetComponentTypeInfo<Type>(); } \
+	template <class> friend constexpr uint32_t (::rd::detail::ComputeCallbacks)();                  \
 private:
 
 	// コンポーネント基底
@@ -30,6 +62,7 @@ private:
 	public:
 		virtual ~Component() = default;
 		virtual const char* GetTypeName() const = 0;
+		virtual const ComponentTypeInfo& GetTypeInfo() const = 0;
 
 		// プロパティ（保存・インスペクタ・Undo に使われる）
 		virtual void Reflect(PropertyVisitor& /*v*/) {}
@@ -69,6 +102,8 @@ private:
 		// 同じアクターの別コンポーネント
 		template <class T> T* GetComponent() const;
 
+		bool IsPendingDestroy() const { return mPendingDestroy; }
+
 	private:
 		friend class Actor;
 		friend class Scene;
@@ -77,4 +112,29 @@ private:
 		bool mStarted = false;
 		bool mPendingDestroy = false;
 	};
+
+	namespace detail
+	{
+		template <class T>
+		constexpr uint32_t ComputeCallbacks()
+		{
+			uint32_t flags = 0;
+			if (!std::is_same_v<decltype(&T::Update), decltype(&Component::Update)>) { flags |= kCallbackUpdate; }
+			if (!std::is_same_v<decltype(&T::FixedUpdate), decltype(&Component::FixedUpdate)>) { flags |= kCallbackFixedUpdate; }
+			if (!std::is_same_v<decltype(&T::LateUpdate), decltype(&Component::LateUpdate)>) { flags |= kCallbackLateUpdate; }
+			if (!std::is_same_v<decltype(&T::OnRender), decltype(&Component::OnRender)>) { flags |= kCallbackRender; }
+			if (!std::is_same_v<decltype(&T::OnEditorUpdate), decltype(&Component::OnEditorUpdate)>) { flags |= kCallbackEditorUpdate; }
+#if RD_EDITOR
+			if (!std::is_same_v<decltype(&T::OnDrawGizmos), decltype(&Component::OnDrawGizmos)>) { flags |= kCallbackGizmos; }
+#endif
+			return flags;
+		}
+	}
+
+	template <class T>
+	const ComponentTypeInfo& GetComponentTypeInfo()
+	{
+		static const ComponentTypeInfo info{ T::kTypeName, typeid(T), detail::ComputeCallbacks<T>() };
+		return info;
+	}
 }

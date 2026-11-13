@@ -26,12 +26,12 @@ namespace rd
 	namespace
 	{
 		// Win32 のファイルダイアログ（カレントディレクトリからの相対パスを返す）
-		std::string FileDialog(bool save, const wchar_t* filter, const wchar_t* defExt)
+		std::string FileDialog(HWND owner, bool save, const wchar_t* filter, const wchar_t* defExt)
 		{
 			wchar_t buffer[MAX_PATH] = {};
 			OPENFILENAMEW ofn = {};
 			ofn.lStructSize = sizeof(ofn);
-			ofn.hwndOwner = Engine::Get().GetWindow().GetHandle();
+			ofn.hwndOwner = owner;
 			ofn.lpstrFilter = filter;
 			ofn.lpstrFile = buffer;
 			ofn.nMaxFile = MAX_PATH;
@@ -58,7 +58,7 @@ namespace rd
 	void Editor::Initialize()
 	{
 		std::filesystem::create_directories("Logs");
-		mImGui.Initialize(Engine::Get().GetWindow().GetHandle());
+		mImGui.Initialize(mEngine.GetWindow().GetHandle());
 		// レイアウト保存ファイルがあればそれを使う
 		mFirstLayout = !std::filesystem::exists("Logs/imgui.ini");
 	}
@@ -80,35 +80,85 @@ namespace rd
 
 	void Editor::OnSceneChanged(bool keepSelection)
 	{
-		if (!keepSelection) { mSelectedId = 0; }
-		mUndo.Reset(Engine::Get().GetScene());
+		// プレイの停止（keepSelection）では同じ ID のシーンに戻るので履歴は残す。別のシーンを開いたら捨てる
+		if (!keepSelection)
+		{
+			mSelectedId = 0;
+			mHistory.Clear();
+		}
+		RefreshSnapshots();
+		UpdateTitle();
 	}
 
 	Actor* Editor::GetSelected() const
 	{
-		return mSelectedId ? Engine::Get().GetScene().FindActor(mSelectedId) : nullptr;
+		return mSelectedId ? mEngine.GetScene().FindActor(mSelectedId) : nullptr;
 	}
 
-	void Editor::Commit(const std::string& label)
+	void Editor::Select(Actor* actor)
+	{
+		mSelectedId = actor ? actor->GetId() : 0;
+		RefreshSnapshots();
+	}
+
+	// ==================================================
+	// Undo / Redo
+	// ==================================================
+	void Editor::RefreshSnapshots()
+	{
+		Scene& scene = mEngine.GetScene();
+		Actor* actor = GetSelected();
+		mSnapshotActor = actor ? actor->GetId() : 0;
+		mActorSnapshot = actor ? scene.SerializeActorState(actor) : Json();
+		mSettingsSnapshot = scene.SerializeSettings();
+	}
+
+	void Editor::CommitActorEdit(const std::string& label)
 	{
 		// プレイ中の変更は停止時に元に戻るので履歴に残さない
-		if (Engine::Get().IsPlaying()) { return; }
-		mUndo.Commit(Engine::Get().GetScene(), label, mSelectedId);
-		Engine::Get().SetWindowTitleSuffix(mUndo.IsDirty() ? " *" : "");
+		if (mEngine.IsPlaying()) { return; }
+		Actor* actor = GetSelected();
+		if (!actor || actor->GetId() != mSnapshotActor) { RefreshSnapshots(); return; }
+		Json after = mEngine.GetScene().SerializeActorState(actor);
+		if (after == mActorSnapshot) { return; }
+		PushCommand(std::make_unique<ActorStateCommand>(label, actor->GetId(), std::move(mActorSnapshot), after));
+	}
+
+	void Editor::CommitSettingsEdit(const std::string& label)
+	{
+		if (mEngine.IsPlaying()) { return; }
+		Json after = mEngine.GetScene().SerializeSettings();
+		if (after == mSettingsSnapshot) { return; }
+		PushCommand(std::make_unique<SceneSettingsCommand>(label, std::move(mSettingsSnapshot), after));
+	}
+
+	void Editor::PushCommand(std::unique_ptr<EditorCommand> command)
+	{
+		if (mEngine.IsPlaying()) { return; }
+		mHistory.Push(std::move(command));
+		RefreshSnapshots();
+		UpdateTitle();
 	}
 
 	void Editor::Undo()
 	{
-		if (Engine::Get().IsPlaying()) { return; }
-		mSelectedId = mUndo.Undo(Engine::Get().GetScene());
-		Engine::Get().SetWindowTitleSuffix(" *");
+		if (mEngine.IsPlaying() || !mHistory.CanUndo()) { return; }
+		mSelectedId = mHistory.Undo(mEngine.GetScene());
+		RefreshSnapshots();
+		UpdateTitle();
 	}
 
 	void Editor::Redo()
 	{
-		if (Engine::Get().IsPlaying()) { return; }
-		mSelectedId = mUndo.Redo(Engine::Get().GetScene());
-		Engine::Get().SetWindowTitleSuffix(" *");
+		if (mEngine.IsPlaying() || !mHistory.CanRedo()) { return; }
+		mSelectedId = mHistory.Redo(mEngine.GetScene());
+		RefreshSnapshots();
+		UpdateTitle();
+	}
+
+	void Editor::UpdateTitle()
+	{
+		mEngine.SetWindowTitleSuffix(mHistory.IsDirty() ? " *" : "");
 	}
 
 	void Editor::GetViewportSize(uint32_t& width, uint32_t& height) const
@@ -119,7 +169,19 @@ namespace rd
 
 	bool Editor::UseEditorCamera() const
 	{
-		return !Engine::Get().IsPlaying() || mSceneCameraInPlay;
+		return !mEngine.IsPlaying() || mSceneCameraInPlay;
+	}
+
+	bool Editor::OverrideCamera(float aspect, RenderCamera& camera) const
+	{
+		if (!UseEditorCamera()) { return false; }
+		camera = mCamera.GetRenderCamera(aspect);
+		return true;
+	}
+
+	Scene& Editor::GetScene() const
+	{
+		return mEngine.GetScene();
 	}
 
 	// ==================================================
@@ -170,7 +232,7 @@ namespace rd
 
 		// ゲームへの入力はビューポートにフォーカスがあるときだけ
 		ImGuiIO& io = ImGui::GetIO();
-		bool gameHasFocus = Engine::Get().IsPlaying() && mViewportFocused && !mCamera.IsControlling();
+		bool gameHasFocus = mEngine.IsPlaying() && mViewportFocused && !mCamera.IsControlling();
 		Input::SetBlocked(!gameHasFocus || io.WantTextInput, !gameHasFocus);
 	}
 
@@ -178,7 +240,7 @@ namespace rd
 	{
 		bool playView = !UseEditorCamera();
 		if (mShowGrid && !playView) { draw.Grid(50.0f, 1.0f, Color(0.5f, 0.5f, 0.5f, 0.25f)); }
-		Scene& scene = Engine::Get().GetScene();
+		Scene& scene = mEngine.GetScene();
 		if (mShowGizmos && !playView) { scene.DrawGizmos(draw, GetSelected()); }
 		else if (Actor* sel = GetSelected(); sel && !playView)
 		{
@@ -200,7 +262,7 @@ namespace rd
 	// ==================================================
 	void Editor::DrawMenuBar()
 	{
-		Engine& engine = Engine::Get();
+		Engine& engine = mEngine;
 		if (!ImGui::BeginMainMenuBar()) { return; }
 		if (ImGui::BeginMenu("File"))
 		{
@@ -212,7 +274,7 @@ namespace rd
 			if (ImGui::MenuItem("Reload Shaders", "Ctrl+R")) { Renderer::Get().ReloadShaders(); }
 			if (ImGui::MenuItem("Unload Unused Assets"))
 			{
-				Log::Info("Unloaded {} assets", AssetManager::Get().CollectGarbage());
+				Log::Info(LogCat::Editor, "Unloaded {} assets", AssetManager::Get().CollectGarbage());
 			}
 			ImGui::Separator();
 			if (ImGui::MenuItem("Exit")) { engine.Quit(); }
@@ -220,10 +282,10 @@ namespace rd
 		}
 		if (ImGui::BeginMenu("Edit"))
 		{
-			std::string undo = "Undo " + mUndo.GetUndoLabel();
-			std::string redo = "Redo " + mUndo.GetRedoLabel();
-			if (ImGui::MenuItem(undo.c_str(), "Ctrl+Z", false, mUndo.CanUndo())) { Undo(); }
-			if (ImGui::MenuItem(redo.c_str(), "Ctrl+Y", false, mUndo.CanRedo())) { Redo(); }
+			std::string undo = "Undo " + mHistory.GetUndoLabel();
+			std::string redo = "Redo " + mHistory.GetRedoLabel();
+			if (ImGui::MenuItem(undo.c_str(), "Ctrl+Z", false, mHistory.CanUndo())) { Undo(); }
+			if (ImGui::MenuItem(redo.c_str(), "Ctrl+Y", false, mHistory.CanRedo())) { Redo(); }
 			ImGui::Separator();
 			if (ImGui::MenuItem("Duplicate", "Ctrl+D", false, GetSelected() != nullptr)) { DuplicateSelected(); }
 			if (ImGui::MenuItem("Delete", "Del", false, GetSelected() != nullptr)) { DeleteSelected(); }
@@ -269,7 +331,7 @@ namespace rd
 
 	void Editor::DrawToolbar()
 	{
-		Engine& engine = Engine::Get();
+		Engine& engine = mEngine;
 		bool playing = engine.IsPlaying();
 
 		// プレイ操作
@@ -348,7 +410,7 @@ namespace rd
 		RenderCamera cam = UseEditorCamera() ? mCamera.GetRenderCamera(aspect) : RenderCamera();
 		if (!UseEditorCamera())
 		{
-			if (auto main = Engine::Get().GetScene().GetMainCamera()) { cam = main->GetRenderCamera(aspect); }
+			if (auto main = CameraComponent::FindMain(mEngine.GetScene())) { cam = main->GetRenderCamera(aspect); }
 		}
 
 		// ドラッグ&ドロップ（モデル・プレハブ・シーン）
@@ -384,7 +446,7 @@ namespace rd
 				selected->GetTransform().SetWorldMatrix(world);
 			}
 			usingGizmo = ImGuizmo::IsUsing();
-			if (mGizmoWasUsing && !usingGizmo) { Commit("Transform"); }
+			if (mGizmoWasUsing && !usingGizmo) { CommitActorEdit("Transform"); }
 			mGizmoWasUsing = usingGizmo;
 		}
 
@@ -404,17 +466,17 @@ namespace rd
 			ImGui::SetCursorScreenPos(ImVec2(pos.x + 10, pos.y + 10));
 			ImGui::TextColored(ImVec4(1, 0.8f, 0.3f, 1), "Loading %u assets...", loading);
 		}
-		if (Engine::Get().IsPlaying())
+		if (mEngine.IsPlaying())
 		{
 			ImGui::GetWindowDrawList()->AddRect(pos, ImVec2(pos.x + avail.x, pos.y + avail.y),
-				Engine::Get().IsPaused() ? IM_COL32(230, 180, 60, 255) : IM_COL32(60, 200, 90, 255), 0.0f, 0, 2.0f);
+				mEngine.IsPaused() ? IM_COL32(230, 180, 60, 255) : IM_COL32(60, 200, 90, 255), 0.0f, 0, 2.0f);
 		}
 		ImGui::End();
 	}
 
 	Actor* Editor::Pick(const Ray& ray)
 	{
-		Scene& scene = Engine::Get().GetScene();
+		Scene& scene = mEngine.GetScene();
 		Actor* best = nullptr;
 		float bestDist = math::kInfinity;
 		scene.ForEachActor([&](Actor* actor)
@@ -443,7 +505,7 @@ namespace rd
 			});
 		// コライダーにも当てる
 		RaycastHit hit;
-		if (scene.GetPhysics().Raycast(ray, bestDist, hit, ~0u, true) && hit.distance < bestDist)
+		if (scene.GetSystem<PhysicsWorld>().Raycast(ray, bestDist, hit, ~0u, true) && hit.distance < bestDist)
 		{
 			best = hit.collider->GetActor();
 		}
@@ -452,7 +514,7 @@ namespace rd
 
 	void Editor::HandleViewportDrop(const std::string& path, const Ray& ray)
 	{
-		Engine& engine = Engine::Get();
+		Engine& engine = mEngine;
 		Scene& scene = engine.GetScene();
 		std::string ext = GetExtension(path);
 		if (ext == ".scene")
@@ -463,7 +525,7 @@ namespace rd
 		// 置く位置: 何かに当たればそこ、なければ地面（y=0）か前方
 		Vector3 place = ray.GetPoint(10.0f);
 		RaycastHit hit;
-		if (scene.GetPhysics().Raycast(ray, 500.0f, hit)) { place = hit.point; }
+		if (scene.GetSystem<PhysicsWorld>().Raycast(ray, 500.0f, hit)) { place = hit.point; }
 		else if (ray.direction.y < -0.01f) { place = ray.GetPoint(-ray.origin.y / ray.direction.y); }
 
 		Actor* actor = nullptr;
@@ -478,14 +540,14 @@ namespace rd
 		}
 		else
 		{
-			Log::Warning("Cannot drop '{}' into the viewport", path);
+			Log::Warning(LogCat::Editor, "Cannot drop '{}' into the viewport", path);
 			return;
 		}
 		if (actor)
 		{
 			actor->GetTransform().SetPosition(place);
 			Select(actor);
-			Commit("Drop " + GetFileName(path));
+			PushCommand(ActorLifetimeCommand::Created("Drop " + GetFileName(path), scene, { actor }));
 		}
 	}
 
@@ -505,7 +567,7 @@ namespace rd
 		if (ctrl && ImGui::IsKeyPressed(ImGuiKey_R, false)) { Renderer::Get().ReloadShaders(); }
 		if (ctrl && ImGui::IsKeyPressed(ImGuiKey_P, false))
 		{
-			Engine::Get().IsPlaying() ? Engine::Get().EndPlay() : Engine::Get().BeginPlay();
+			mEngine.IsPlaying() ? mEngine.EndPlay() : mEngine.BeginPlay();
 		}
 		if (ImGui::IsKeyPressed(ImGuiKey_Delete, false) && (mViewportFocused || ImGui::IsWindowFocused(ImGuiFocusedFlags_AnyWindow)))
 		{
@@ -533,7 +595,7 @@ namespace rd
 	// ==================================================
 	Actor* Editor::CreatePrimitive(const std::string& name, const std::string& model)
 	{
-		Scene& scene = Engine::Get().GetScene();
+		Scene& scene = mEngine.GetScene();
 		Actor* actor = scene.CreateActor(name);
 		actor->AddComponent<MeshRenderer>()->SetModel(model);
 		return actor;
@@ -541,7 +603,7 @@ namespace rd
 
 	Actor* Editor::CreateActorFromMenu(const std::string& kind)
 	{
-		Scene& scene = Engine::Get().GetScene();
+		Scene& scene = mEngine.GetScene();
 		Actor* actor = nullptr;
 		if (kind == "Empty") { actor = scene.CreateActor("Actor"); }
 		else if (kind == "Cube") { actor = CreatePrimitive("Cube", "Engine/Cube"); actor->AddComponent<BoxCollider>(); }
@@ -564,7 +626,7 @@ namespace rd
 		RenderCamera cam = mCamera.GetRenderCamera(1.0f);
 		if (kind != "Directional Light") { actor->GetTransform().SetPosition(cam.position + cam.GetForward() * 6.0f); }
 		Select(actor);
-		Commit("Create " + kind);
+		PushCommand(ActorLifetimeCommand::Created("Create " + kind, scene, { actor }));
 		return actor;
 	}
 
@@ -572,11 +634,13 @@ namespace rd
 	{
 		if (Actor* sel = GetSelected())
 		{
+			Scene& scene = mEngine.GetScene();
+			// 消す前に中身を覚えておく
+			auto command = ActorLifetimeCommand::Deleting("Delete " + sel->GetName(), scene, { sel });
 			sel->Destroy();
-			mSelectedId = 0;
-			// 破棄はシーン更新の最後に行われるので、その後で確定する
-			Engine::Get().GetScene().FlushPendingDestroy();
-			Commit("Delete");
+			scene.FlushPendingDestroy();
+			Select(nullptr);
+			PushCommand(std::move(command));
 		}
 	}
 
@@ -584,42 +648,43 @@ namespace rd
 	{
 		if (Actor* sel = GetSelected())
 		{
-			if (Actor* copy = Engine::Get().GetScene().Duplicate(sel))
+			Scene& scene = mEngine.GetScene();
+			if (Actor* copy = scene.Duplicate(sel))
 			{
 				Select(copy);
-				Commit("Duplicate");
+				PushCommand(ActorLifetimeCommand::Created("Duplicate " + sel->GetName(), scene, { copy }));
 			}
 		}
 	}
 
 	void Editor::SaveScene(bool saveAs)
 	{
-		if (Engine::Get().IsPlaying())
+		if (mEngine.IsPlaying())
 		{
-			Log::Warning("Stop play mode before saving");
+			Log::Warning(LogCat::Editor, "Stop play mode before saving");
 			return;
 		}
-		Scene& scene = Engine::Get().GetScene();
+		Scene& scene = mEngine.GetScene();
 		std::string path = scene.GetPath();
 		if (saveAs || path.empty())
 		{
-			path = FileDialog(true, L"Scene (*.scene)\0*.scene\0", L"scene");
+			path = FileDialog(mEngine.GetWindow().GetHandle(), true, L"Scene (*.scene)\0*.scene\0", L"scene");
 			if (path.empty()) { return; }
 		}
 		if (scene.SaveToFile(path))
 		{
-			mUndo.ClearDirty();
-			Engine::Get().SetWindowTitleSuffix("");
+			mHistory.MarkSaved();
+			UpdateTitle();
 		}
 	}
 
 	void Editor::OpenScene()
 	{
-		std::string path = FileDialog(false, L"Scene (*.scene)\0*.scene\0", L"scene");
+		std::string path = FileDialog(mEngine.GetWindow().GetHandle(), false, L"Scene (*.scene)\0*.scene\0", L"scene");
 		if (!path.empty())
 		{
-			if (Engine::Get().IsPlaying()) { Engine::Get().EndPlay(); }
-			Engine::Get().LoadScene(path);
+			if (mEngine.IsPlaying()) { mEngine.EndPlay(); }
+			mEngine.LoadScene(path);
 		}
 	}
 }

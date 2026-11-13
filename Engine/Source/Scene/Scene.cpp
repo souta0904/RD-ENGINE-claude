@@ -1,12 +1,11 @@
 #include "RdPch.h"
 #include "Scene/Scene.h"
-#include "Components/CameraComponent.h"
 #include "Core/StringUtil.h"
 #include "Core/Time.h"
-#include "Physics/PhysicsWorld.h"
 #include "Render/DebugDraw.h"
 #include "Scene/ComponentRegistry.h"
 #include "Scene/ObjectRef.h"
+#include <unordered_set>
 
 namespace rd
 {
@@ -22,8 +21,9 @@ namespace rd
 			RefFixupVisitor(Scene* scene, const std::unordered_map<ActorId, Actor*>& idMap, bool remap, bool keepExternal)
 				: mScene(scene), mIdMap(idMap), mRemap(remap), mKeepExternal(keepExternal) {}
 
-			bool Property(const char*, ObjectRef& value, const PropertyMeta&) override
+			bool Property(const char*, ObjectRefBase& base, const PropertyMeta&) override
 			{
+				auto& value = static_cast<ObjectRef&>(base);// 参照プロパティはすべて ObjectRef の派生
 				value.SetScene(mScene);
 				if (value.GetId() == 0 || !mRemap) { return false; }
 				if (auto it = mIdMap.find(value.GetId()); it != mIdMap.end())
@@ -61,10 +61,7 @@ namespace rd
 		};
 	}
 
-	Scene::Scene()
-		: mPhysics(std::make_unique<PhysicsWorld>())
-	{
-	}
+	Scene::Scene() = default;
 
 	Scene::~Scene()
 	{
@@ -78,6 +75,10 @@ namespace rd
 		{
 			for (auto& c : (*it)->mComponents) { c->OnDestroy(); }
 		}
+		mBuckets.clear();
+		mBucketIndex.clear();
+		mCallbacks = {};
+		mPendingStart.clear();
 		mRootActors.clear();
 		mIdMap.clear();
 		mActors.clear();
@@ -126,63 +127,139 @@ namespace rd
 	// ==================================================
 	// 更新
 	// ==================================================
+	namespace
+	{
+		// 呼び出し中に追加されたものは次のフレームから（呼ぶ前の数だけ回す）
+		template <class Func>
+		void CallEach(const std::vector<Component*>& list, Func&& func)
+		{
+			for (size_t i = 0, n = list.size(); i < n; ++i)
+			{
+				Component* c = list[i];
+				if (c->HasStarted() && c->IsActiveAndEnabled()) { func(c); }
+			}
+		}
+	}
+
 	void Scene::Update(float dt, bool playing)
 	{
 		mPlaying = playing;
 
-		// 途中で増減しても安全なように対象を確定させておく
-		std::vector<Component*> comps;
-		comps.reserve(mActors.size() * 3);
-		for (auto& a : mActors)
-		{
-			if (!a->IsActive()) { continue; }
-			for (auto& c : a->mComponents)
-			{
-				if (c->mEnabled && !c->mPendingDestroy) { comps.push_back(c.get()); }
-			}
-		}
-
 		if (playing)
 		{
-			for (Component* c : comps)
-			{
-				if (!c->mStarted && !c->mPendingDestroy)
-				{
-					c->mStarted = true;
-					c->Start();
-				}
-			}
-			for (Component* c : comps) { if (!c->mPendingDestroy) { c->Update(dt); } }
+			StartPendingComponents();
+			CallEach(mCallbacks.update, [dt](Component* c) { c->Update(dt); });
+			for (size_t i = 0; i < mSystems.size(); ++i) { mSystems[i]->Update(*this, dt); }
 
-			// 固定時間ステップで物理を進める
+			// 固定時間ステップ（物理などのシステムはコンポーネントの後）
 			float fixed = Time::FixedDeltaTime();
 			mFixedAccumulator = std::min(mFixedAccumulator + dt, fixed * kMaxFixedStepsPerFrame);
 			while (mFixedAccumulator >= fixed)
 			{
-				for (Component* c : comps) { if (!c->mPendingDestroy) { c->FixedUpdate(fixed); } }
-				mPhysics->Step(*this, fixed);
+				CallEach(mCallbacks.fixedUpdate, [fixed](Component* c) { c->FixedUpdate(fixed); });
+				for (size_t i = 0; i < mSystems.size(); ++i) { mSystems[i]->FixedUpdate(*this, fixed); }
 				mFixedAccumulator -= fixed;
 			}
 
-			for (Component* c : comps) { if (!c->mPendingDestroy) { c->LateUpdate(dt); } }
+			CallEach(mCallbacks.lateUpdate, [dt](Component* c) { c->LateUpdate(dt); });
+			for (size_t i = 0; i < mSystems.size(); ++i) { mSystems[i]->LateUpdate(*this, dt); }
 		}
 		else
 		{
-			for (Component* c : comps) { c->OnEditorUpdate(dt); }
+			auto& list = mCallbacks.editorUpdate;
+			for (size_t i = 0, n = list.size(); i < n; ++i)
+			{
+				if (list[i]->IsActiveAndEnabled()) { list[i]->OnEditorUpdate(dt); }
+			}
 		}
 
 		if (mHasPendingDestroy) { FlushDestroyed(); }
 	}
 
+	void Scene::StartPendingComponents()
+	{
+		if (mPendingStart.empty()) { return; }
+		// Start の中で追加されたものは次のフレームに回す
+		std::vector<Component*> pending;
+		pending.swap(mPendingStart);
+		for (Component* c : pending)
+		{
+			if (c->mPendingDestroy || c->mStarted) { continue; }
+			if (c->IsActiveAndEnabled())
+			{
+				c->mStarted = true;
+				c->Start();
+			}
+			else
+			{
+				mPendingStart.push_back(c);// 有効になるまで待つ
+			}
+		}
+	}
+
+	// ==================================================
+	// コンポーネントの登録
+	// ==================================================
+	void Scene::RegisterComponent(Component* component)
+	{
+		const ComponentTypeInfo& info = component->GetTypeInfo();
+		auto [it, inserted] = mBucketIndex.try_emplace(info.type, mBuckets.size());
+		if (inserted) { mBuckets.push_back({ info.type, {} }); }
+		mBuckets[it->second].components.push_back(component);
+
+		if (info.callbacks & kCallbackUpdate) { mCallbacks.update.push_back(component); }
+		if (info.callbacks & kCallbackFixedUpdate) { mCallbacks.fixedUpdate.push_back(component); }
+		if (info.callbacks & kCallbackLateUpdate) { mCallbacks.lateUpdate.push_back(component); }
+		if (info.callbacks & kCallbackRender) { mCallbacks.render.push_back(component); }
+		if (info.callbacks & kCallbackEditorUpdate) { mCallbacks.editorUpdate.push_back(component); }
+		if (info.callbacks & kCallbackGizmos) { mCallbacks.gizmos.push_back(component); }
+		mPendingStart.push_back(component);
+	}
+
+	void Scene::UnregisterComponents(const std::vector<Component*>& components)
+	{
+		if (components.empty()) { return; }
+		std::unordered_set<Component*> removed(components.begin(), components.end());
+		auto erase = [&](std::vector<Component*>& list)
+			{
+				list.erase(std::remove_if(list.begin(), list.end(), [&](Component* c) { return removed.contains(c); }), list.end());
+			};
+		for (auto& bucket : mBuckets) { erase(bucket.components); }
+		erase(mCallbacks.update);
+		erase(mCallbacks.fixedUpdate);
+		erase(mCallbacks.lateUpdate);
+		erase(mCallbacks.render);
+		erase(mCallbacks.editorUpdate);
+		erase(mCallbacks.gizmos);
+		erase(mPendingStart);
+	}
+
 	void Scene::FlushDestroyed()
 	{
 		mHasPendingDestroy = false;
+		std::vector<Component*> destroyed;
 		// コンポーネント単位の破棄
+		for (auto& a : mActors)
+		{
+			if (a->mPendingDestroy) { continue; }
+			for (auto& c : a->mComponents)
+			{
+				if (c->mPendingDestroy) { destroyed.push_back(c.get()); }
+			}
+		}
+		// アクター単位の破棄
+		for (auto& a : mActors)
+		{
+			if (!a->mPendingDestroy) { continue; }
+			for (auto& c : a->mComponents) { destroyed.push_back(c.get()); }
+		}
+		// 呼び出しリストから外してから破棄する
+		UnregisterComponents(destroyed);
+
 		for (auto& a : mActors)
 		{
 			if (!a->mPendingDestroy) { a->FlushDestroyedComponents(); }
 		}
-		// アクター単位の破棄
 		for (auto& a : mActors)
 		{
 			if (!a->mPendingDestroy) { continue; }
@@ -207,54 +284,30 @@ namespace rd
 
 	void Scene::CollectRender(RenderList& list)
 	{
-		for (auto& a : mActors)
+		for (Component* c : mCallbacks.render)
 		{
-			if (!a->IsActive()) { continue; }
-			for (auto& c : a->mComponents)
-			{
-				if (c->mEnabled && !c->mPendingDestroy) { c->OnRender(list); }
-			}
+			if (c->IsActiveAndEnabled()) { c->OnRender(list); }
 		}
 	}
 
 #if RD_EDITOR
 	void Scene::DrawGizmos(DebugDraw& draw, const Actor* selected)
 	{
-		for (auto& a : mActors)
+		// ギズモは無効なコンポーネントでも表示する（アクターが非アクティブなら出さない）
+		for (Component* c : mCallbacks.gizmos)
 		{
-			if (!a->IsActive()) { continue; }
-			bool isSelected = a.get() == selected;
-			for (auto& c : a->mComponents)
-			{
-				if (!c->mPendingDestroy) { c->OnDrawGizmos(draw, isSelected); }
-			}
+			if (!c->mPendingDestroy && c->GetActor()->IsActive()) { c->OnDrawGizmos(draw, c->GetActor() == selected); }
 		}
 	}
 #endif
 
-	CameraComponent* Scene::GetMainCamera() const
-	{
-		CameraComponent* best = nullptr;
-		for (auto& a : mActors)
-		{
-			if (!a->IsActive()) { continue; }
-			for (auto* cam : a->GetComponents<CameraComponent>())
-			{
-				if (cam->IsEnabled() && (!best || cam->GetPriority() > best->GetPriority())) { best = cam; }
-			}
-		}
-		return best;
-	}
-
 	// ==================================================
 	// シリアライズ
 	// ==================================================
-	void Scene::SerializeActor(const Actor* actor, Json& out) const
+	Json Scene::SerializeActorState(const Actor* actor) const
 	{
 		Json j = Json::object();
-		j["Id"] = actor->GetId();
 		j["Name"] = actor->GetName();
-		j["Parent"] = actor->GetParent() ? actor->GetParent()->GetId() : 0;
 		j["Active"] = actor->IsActiveSelf();
 		if (!actor->GetTag().empty()) { j["Tag"] = actor->GetTag(); }
 		if (actor->GetLayer() != 0) { j["Layer"] = actor->GetLayer(); }
@@ -276,6 +329,94 @@ namespace rd
 			comps.push_back(std::move(cj));
 		}
 		j["Components"] = std::move(comps);
+		return j;
+	}
+
+	void Scene::ApplyActorState(Actor* actor, const Json& state)
+	{
+		actor->SetName(state.value("Name", actor->GetName()));
+		actor->SetActive(state.value("Active", true));
+		actor->SetTag(state.value("Tag", std::string()));
+		actor->SetLayer(state.value("Layer", 0u));
+		if (auto t = state.find("Transform"); t != state.end())
+		{
+			JsonReader r(*t);
+			actor->GetTransform().Reflect(r);
+		}
+
+		const Json& comps = state.contains("Components") ? state["Components"] : Json::array();
+		// コンポーネントの並びが同じなら、その場で値だけ書き戻す（Awake / OnDestroy を呼ばない）
+		bool sameLayout = comps.size() == actor->mComponents.size();
+		for (size_t i = 0; sameLayout && i < comps.size(); ++i)
+		{
+			sameLayout = comps[i].value("Type", std::string()) == actor->mComponents[i]->GetTypeName() && !actor->mComponents[i]->mPendingDestroy;
+		}
+		if (sameLayout)
+		{
+			for (size_t i = 0; i < comps.size(); ++i)
+			{
+				Component* c = actor->mComponents[i].get();
+				c->SetEnabled(comps[i].value("Enabled", true));
+				JsonReader r(comps[i]);
+				c->Reflect(r);
+				c->OnValidate();
+			}
+			return;
+		}
+
+		// 追加・削除・並び替えがあったときは作り直す
+		std::vector<Component*> old;
+		for (auto& c : actor->mComponents) { old.push_back(c.get()); }
+		UnregisterComponents(old);
+		for (auto& c : actor->mComponents)
+		{
+			c->mPendingDestroy = true;
+			c->OnDestroy();
+		}
+		actor->mComponents.clear();
+
+		std::unordered_map<ActorId, Actor*> noRemap;
+		RefFixupVisitor fixup(this, noRemap, false, true);
+		for (const auto& cj : comps)
+		{
+			auto comp = ComponentRegistry::Create(cj.value("Type", std::string()));
+			if (!comp) { continue; }
+			comp->SetEnabled(cj.value("Enabled", true));
+			JsonReader r(cj);
+			comp->Reflect(r);
+			comp->Reflect(fixup);
+			actor->AddComponent(std::move(comp), false);
+		}
+		for (auto& c : actor->mComponents) { c->Awake(); }
+	}
+
+	Json Scene::SerializeSettings() const
+	{
+		Json j = Json::object();
+		Json env = Json::object();
+		JsonWriter w(env);
+		const_cast<Environment&>(mEnvironment).Reflect(w);
+		j["Environment"] = std::move(env);
+		j["Gravity"] = mGravity;
+		return j;
+	}
+
+	void Scene::ApplySettings(const Json& json)
+	{
+		if (auto env = json.find("Environment"); env != json.end())
+		{
+			JsonReader r(*env);
+			mEnvironment.Reflect(r);
+		}
+		if (auto g = json.find("Gravity"); g != json.end() && g->is_array()) { mGravity = g->get<Vector3>(); }
+	}
+
+	void Scene::SerializeActor(const Actor* actor, Json& out) const
+	{
+		Json j = Json::object();
+		j["Id"] = actor->GetId();
+		j["Parent"] = actor->GetParent() ? actor->GetParent()->GetId() : 0;
+		j.update(SerializeActorState(actor));
 		out.push_back(std::move(j));
 
 		for (const Actor* child : actor->GetChildren())
@@ -376,10 +517,7 @@ namespace rd
 		Json j = Json::object();
 		j["Version"] = kSceneVersion;
 		j["Name"] = mName;
-		Json env = Json::object();
-		JsonWriter w(env);
-		const_cast<Environment&>(mEnvironment).Reflect(w);
-		j["Environment"] = std::move(env);
+		j.update(SerializeSettings());
 		j["Actors"] = SerializeActors(mRootActors);
 		return j;
 	}
@@ -389,11 +527,7 @@ namespace rd
 		Clear();
 		mNextId = 1;
 		mName = json.value("Name", std::string("Untitled"));
-		if (auto env = json.find("Environment"); env != json.end())
-		{
-			JsonReader r(*env);
-			mEnvironment.Reflect(r);
-		}
+		ApplySettings(json);
 		if (auto actors = json.find("Actors"); actors != json.end())
 		{
 			DeserializeActors(*actors, false);
@@ -405,11 +539,11 @@ namespace rd
 	{
 		if (!SaveJsonFile(path, Serialize()))
 		{
-			Log::Error("Failed to save scene: {}", path);
+			Log::Error(LogCat::Scene, "Failed to save scene: {}", path);
 			return false;
 		}
 		mPath = path;
-		Log::Info("Saved scene: {}", path);
+		Log::Info(LogCat::Scene, "Saved scene: {}", path);
 		return true;
 	}
 
@@ -418,12 +552,12 @@ namespace rd
 		Json json;
 		if (!LoadJsonFile(path, json))
 		{
-			Log::Error("Failed to load scene: {}", path);
+			Log::Error(LogCat::Scene, "Failed to load scene: {}", path);
 			return false;
 		}
 		Deserialize(json);
 		mPath = path;
-		Log::Info("Loaded scene: {} ({} actors)", path, mActors.size());
+		Log::Info(LogCat::Scene, "Loaded scene: {} ({} actors)", path, mActors.size());
 		return true;
 	}
 
@@ -432,7 +566,7 @@ namespace rd
 		Json json;
 		if (!LoadJsonFile(prefabPath, json))
 		{
-			Log::Error("Prefab not found: {}", prefabPath);
+			Log::Error(LogCat::Scene, "Prefab not found: {}", prefabPath);
 			return nullptr;
 		}
 		// プレハブの外を指していた参照は、このシーンでは意味がないので外す

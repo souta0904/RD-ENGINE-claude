@@ -1,5 +1,5 @@
 #include "RdPch.h"
-#include "Audio/AudioClip.h"
+#include "Asset/AudioClip.h"
 #include "Core/StringUtil.h"
 
 namespace rd
@@ -10,7 +10,7 @@ namespace rd
 		if (!ReadBinaryFile(mPath, file) || file.size() < 12 ||
 			std::memcmp(file.data(), "RIFF", 4) != 0 || std::memcmp(file.data() + 8, "WAVE", 4) != 0)
 		{
-			Log::Error("Failed to load audio (WAV only): {}", mPath);
+			Log::Error(LogCat::Audio, "Failed to load audio (WAV only): {}", mPath);
 			SetState(AssetState::Failed);
 			return;
 		}
@@ -41,7 +41,7 @@ namespace rd
 
 		if (mFormat.empty() || mData.empty())
 		{
-			Log::Error("Invalid WAV file: {}", mPath);
+			Log::Error(LogCat::Audio, "Invalid WAV file: {}", mPath);
 			SetState(AssetState::Failed);
 			return;
 		}

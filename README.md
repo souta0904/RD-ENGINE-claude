@@ -36,17 +36,57 @@ claude/
 │     ├─ RHI/         D3D12 デバイス・デスクリプタ・テクスチャ・パイプライン・シェーダコンパイラ
 │     ├─ Asset/       非同期アセット管理・テクスチャ・モデル(assimp)・アニメーション
 │     ├─ Render/      レンダラー（PBR・影・空・パーティクル・ブルーム・トーンマップ・スプライト・デバッグ線）
-│     ├─ Scene/       Actor・Component・Transform・Scene・コンポーネント登録
+│     ├─ Scene/       Actor・Component・Transform・Scene・参照（ActorRef）・SceneSystem
 │     ├─ Components/  MeshRenderer / Animator / Camera / Lights / Sprite / Particle / AudioSource
-│     ├─ Physics/     コライダー・剛体・物理ワールド
+│     ├─ Physics/     コライダー・剛体・物理ワールド（SceneSystem として動く）
 │     ├─ Audio/       XAudio2
-│     ├─ Editor/      ImGui エディタ（Undo/Redo・ギズモ・インスペクタ・アセットブラウザ）
-│     └─ Engine.h/.cpp メインループ
+│     ├─ Runtime/     シーン切替・プレイ状態・フレームの組み立て・組み込みコンポーネント登録
+│     ├─ Editor/      ImGui エディタ（コマンド式 Undo/Redo・ギズモ・インスペクタ・アセットブラウザ）
+│     └─ Engine.h/.cpp サブシステムの所有とメインループ
+├─ Tools/CheckDependencies.ps1  モジュール間の依存が層の決まりを守っているか調べる
 ├─ Sandbox/                  サンプルゲーム（エンジンの使い方の例）
 └─ Assets/
    ├─ Engine/   シェーダ・フォント・アイコン
    └─ Sample/   サンプル用のモデル・テクスチャ・音・シーン
 ```
+
+## 設計のポイント
+
+### モジュールの層
+下の層は上の層を `#include` しない。`Tools/CheckDependencies.ps1` で確認できる（違反があると終了コード 1）。
+
+```
+Math / Core → Platform / RHI → Asset → Render / Audio → Scene → Components → Physics → Runtime → Editor
+```
+- `Scene` はコンポーネントや物理の具体的な型を知らない。物理ワールドは `SceneSystem` として `scene.GetSystem<PhysicsWorld>()` で使う。
+- `Runtime` はエディタを知らない。エディタは `FrameOverlay` インターフェースを実装して、カメラ・ギズモ・UI を差し込む。
+- エディタは作るときに `Engine&` を受け取り、`Engine::Get()` に頼らない。
+
+### コンポーネントの更新
+アクターを全部回して仮想関数を呼ぶのではなく、シーンが**型ごとのリスト**と**コールバックごとのリスト**を持つ。
+- `RD_COMPONENT` が、そのコンポーネントが `Update` / `FixedUpdate` / `LateUpdate` / `OnRender` などを上書きしているかを自動で調べる。上書きしていないもの（ライトの `Update` など）は呼ばない。
+- `scene.FindComponents<T>()` は型ごとのリストから集めるので、全アクターを調べない。順番は追加した順で毎回同じ。
+
+### Undo / Redo（コマンドパターン）
+操作ごとに `EditorCommand` を作って `CommandHistory` に積む。変更した部分だけを保存する。
+| コマンド | 内容 |
+|---|---|
+| `ActorStateCommand` | アクター 1 つの変更前後（名前・Transform・コンポーネントの値・追加・削除・並び替え） |
+| `ActorLifetimeCommand` | アクターの作成 / 削除（子ごと。ID はそのままなので参照も復活する） |
+| `ReparentCommand` | 親子の付け替え（兄弟の順番も戻す） |
+| `SceneSettingsCommand` | 環境・重力の変更 |
+| `CompositeCommand` | 複数のコマンドを 1 回の操作にまとめる |
+
+短い間隔で同じ操作が続いたら 1 つにまとめる。プレイを停止しても履歴は残る。保存した位置を覚えていて、タイトルの `*` に反映する。
+
+### ログ
+```cpp
+Log::Info(LogCat::Render, "Loaded {}", path);   // カテゴリを省略すると General
+```
+- レベル: Trace / Debug / Info / Warning / Error / Fatal。`-loglevel debug` で実行時に変更。Game ビルドでは Debug 以下をコンパイル時に除く。
+- 出力先（`LogSink`）: Visual Studio の出力ウィンドウ（Warning 以上はダブルクリックで該当行へ）、ファイル、エディタのコンソール。書き込みはログ専用スレッドで行い、Error 以上は書き出しまで待つ。
+- ファイル: `Logs/RdEngine.log`。前回分は `Logs/History/` に日時付きで 10 個まで残す。各行に時刻・経過秒・レベル・カテゴリ・スレッド・発生場所が付く。
+- クラッシュ時: 未処理の例外で Fatal ログを書き出し、`Logs/Crash_日時.dmp` を残す。
 
 ## 旧エンジンからの主な変更
 
@@ -56,7 +96,7 @@ claude/
 - **レンダラーとエディタの分離**: 旧 `Renderer` は ImGui や `gEngine` を直接触っていた。新版の Renderer は描画リスト（`RenderList`）を受け取って描くだけで、エディタのことを知らない。
 - **所有権の明確化**: Actor / Component は `unique_ptr` で Scene / Actor が所有。破棄はフレーム末に遅延実行。GPU リソースはフェンスを待ってから解放（`DeferRelease`）。
 - **アニメーション状態の分離**: 旧版は姿勢を共有の `Mesh` に書き込んでいたため、同じモデルを複数置くと全員が同じ動きになった。新版は `Animator` コンポーネントごとに姿勢を持つ。
-- **グローバル変数の削減**: `gEngine` / `gGraphicsEngine` / エディタの extern 群を整理し、各サブシステムは `Xxx::Get()` で取得。
+- **グローバル変数の削減**: `gEngine` / `gGraphicsEngine` / エディタの extern 群を整理した。エディタ・シーン切替・フレームの組み立ては必要なものを受け取る形にし、`Xxx::Get()` は描画やアセットなど、コンポーネントから使うサービスに限っている。
 
 ### 見つけて直した旧版のバグ
 - `Matrix3` の行列式・逆行列の計算式の誤り（積が引き算になっていた）

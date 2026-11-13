@@ -2,9 +2,7 @@
 
 namespace rd
 {
-#if RD_EDITOR
-	class Editor;
-#endif
+	class FrameOverlay;
 	class GraphicsDevice;
 	class Renderer;
 	class Scene;
@@ -17,10 +15,8 @@ namespace rd
 	{
 	public:
 		void Initialize(Window& window, GraphicsDevice& device, Renderer& renderer);
-#if RD_EDITOR
-		// エディタがあるときはエディタカメラ・ギズモ・エディタ UI を使う（nullptr でゲーム表示）
-		void SetEditor(Editor* editor) { mEditor = editor; }
-#endif
+		// エディタなどの割り込み層（nullptr でゲーム画面をそのまま表示）
+		void SetOverlay(FrameOverlay* overlay) { mOverlay = overlay; }
 		void Render(Scene& scene, float realTime);
 
 	private:
@@ -29,8 +25,6 @@ namespace rd
 		Window* mWindow = nullptr;
 		GraphicsDevice* mDevice = nullptr;
 		Renderer* mRenderer = nullptr;
-#if RD_EDITOR
-		Editor* mEditor = nullptr;
-#endif
+		FrameOverlay* mOverlay = nullptr;
 	};
 }

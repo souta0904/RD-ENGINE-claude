@@ -1,7 +1,6 @@
 #include "RdPch.h"
 #include "Core/JsonArchive.h"
 #include "Core/StringUtil.h"
-#include "Scene/ObjectRef.h"
 
 namespace rd
 {
@@ -58,7 +57,7 @@ namespace rd
 					return true;
 				}
 			}
-			Log::Warning("JSON: unknown enum value '{}' for '{}'", str, name);
+			Log::Warning(LogCat::Core, "JSON: unknown enum value '{}' for '{}'", str, name);
 			return false;
 		}
 		if (it->is_number_integer())
@@ -70,20 +69,20 @@ namespace rd
 	}
 
 	// 参照は { "$ref": ActorId } として保存する（0 は未設定）
-	bool JsonWriter::Property(const char* name, ObjectRef& value, const PropertyMeta&)
+	bool JsonWriter::Property(const char* name, ObjectRefBase& value, const PropertyMeta&)
 	{
 		Top()[name] = Json{ { kRefKey, value.GetId() } };
 		return false;
 	}
 
-	bool JsonReader::Property(const char* name, ObjectRef& value, const PropertyMeta&)
+	bool JsonReader::Property(const char* name, ObjectRefBase& value, const PropertyMeta&)
 	{
 		const Json& top = *mStack.back();
 		auto it = top.find(name);
 		if (it == top.end() || !it->is_object()) { return false; }
 		auto ref = it->find(kRefKey);
 		if (ref == it->end() || !ref->is_number_unsigned()) { return false; }
-		value.SetId(ref->get<ActorId>());
+		value.SetId(ref->get<uint64_t>());
 		return true;
 	}
 
@@ -103,7 +102,7 @@ namespace rd
 		}
 		catch (const std::exception& e)
 		{
-			Log::Error("Failed to parse JSON '{}': {}", path, e.what());
+			Log::Error(LogCat::Core, "Failed to parse JSON '{}': {}", path, e.what());
 			return false;
 		}
 	}

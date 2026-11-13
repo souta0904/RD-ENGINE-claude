@@ -1,10 +1,8 @@
 #include "RdPch.h"
 #include "SceneManager.h"
-#include "Audio/AudioSystem.h"
 #include "Components/CameraComponent.h"
 #include "Components/Lights.h"
 #include "Core/StringUtil.h"
-#include "RHI/GraphicsDevice.h"
 #include "Scene/Scene.h"
 
 namespace rd
@@ -58,15 +56,14 @@ namespace rd
 			mPendingScenePath.clear();
 		}
 		if (!mPendingScene) { return false; }
-		GraphicsDevice::Get().WaitIdle();
-		AudioSystem::Get().StopAll();
+		if (mBeforeSwap) { mBeforeSwap(); }
 		mScene = std::move(mPendingScene);
 		return true;
 	}
 
 	void SceneManager::SetScene(std::unique_ptr<Scene> scene)
 	{
-		GraphicsDevice::Get().WaitIdle();
+		if (mBeforeSwap) { mBeforeSwap(); }
 		mScene = std::move(scene);
 	}
 

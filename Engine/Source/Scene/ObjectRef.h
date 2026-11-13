@@ -11,12 +11,11 @@ namespace rd
 	//    - エディタではヒエラルキーからドラッグ&ドロップ、または右の ◎ ボタンの一覧から設定できる
 	//  中身は ActorId なので、相手が破棄されると Get() は nullptr を返す（ダングリングポインタにならない）。
 	//  複製・プレハブ化したときは、コピーした範囲の中を指す参照はコピー先へ付け替えられる。
-	class ObjectRef
+	class ObjectRef : public ObjectRefBase
 	{
 	public:
 		// 参照先のアクター（未設定・破棄済みなら nullptr）
 		Actor* GetActor() const;
-		ActorId GetId() const { return mId; }
 		Scene* GetScene() const { return mScene; }
 		// 参照先が今も生きているか
 		explicit operator bool() const { return GetActor() != nullptr; }
@@ -27,10 +26,7 @@ namespace rd
 		bool Accepts(const Actor* actor) const { return actor && (!mAccepts || mAccepts(actor)); }
 
 		void SetActor(Actor* actor);
-		void Clear() { mId = 0; }
-
-		// シリアライズ用（ID だけ差し替える / 所属シーンを決める）
-		void SetId(ActorId id) { mId = id; }
+		// 読み込み後に所属シーンを決める（ID の読み書きは ObjectRefBase）
 		void SetScene(Scene* scene) { mScene = scene; }
 
 	protected:
@@ -38,7 +34,6 @@ namespace rd
 		ObjectRef(const char* typeName, AcceptFunc accepts) : mTypeName(typeName), mAccepts(accepts) {}
 
 	private:
-		ActorId mId = 0;
 		Scene* mScene = nullptr;
 		const char* mTypeName;
 		AcceptFunc mAccepts;

@@ -109,7 +109,7 @@ namespace rd
 		{
 			gState->workers.emplace_back(WorkerMain, i);
 		}
-		Log::Info("JobSystem: {} worker threads", workerCount);
+		Log::Info(LogCat::Core, "JobSystem: {} worker threads", workerCount);
 	}
 
 	void JobSystem::Shutdown()

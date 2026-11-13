@@ -37,7 +37,7 @@ namespace rd
 		{
 			if (e.name == name) { return e.create(); }
 		}
-		Log::Error("Unknown component type: {}", name);
+		Log::Error(LogCat::Scene, "Unknown component type: {}", name);
 		return nullptr;
 	}
 

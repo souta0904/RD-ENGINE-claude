@@ -57,7 +57,7 @@ namespace rd
 		HRESULT hr = D3D12SerializeVersionedRootSignature(&desc, &blob, &error);
 		if (FAILED(hr))
 		{
-			Log::Error("Root signature error: {}", error ? static_cast<const char*>(error->GetBufferPointer()) : "unknown");
+			Log::Error(LogCat::RHI, "Root signature error: {}", error ? static_cast<const char*>(error->GetBufferPointer()) : "unknown");
 			return nullptr;
 		}
 		ComPtr<ID3D12RootSignature> rs;
@@ -230,7 +230,7 @@ namespace rd
 	{
 		if (!mValid || !mDesc.pRootSignature)
 		{
-			Log::Error("Pipeline build skipped (invalid shader or root signature)");
+			Log::Error(LogCat::RHI, "Pipeline build skipped (invalid shader or root signature)");
 			return nullptr;
 		}
 		// ビルダーがコピーされてもよいように、ここでポインタを結び直す
@@ -239,7 +239,7 @@ namespace rd
 		HRESULT hr = device->CreateGraphicsPipelineState(&mDesc, IID_PPV_ARGS(&pso));
 		if (FAILED(hr))
 		{
-			Log::Error("CreateGraphicsPipelineState failed (0x{:08X})", uint32_t(hr));
+			Log::Error(LogCat::RHI, "CreateGraphicsPipelineState failed (0x{:08X})", uint32_t(hr));
 			return nullptr;
 		}
 		SetDebugName(pso.Get(), name);

@@ -2,7 +2,7 @@
 #include "Engine.h"
 #include "Asset/AssetManager.h"
 #include "Audio/AudioSystem.h"
-#include "Components/BuiltinComponents.h"
+#include "Runtime/BuiltinComponents.h"
 #include "Components/CameraComponent.h"
 #include "Core/JobSystem.h"
 #include "Core/Time.h"
@@ -65,8 +65,10 @@ namespace rd
 
 	bool Engine::Initialize()
 	{
+		Log::Initialize(mConfig.log);
 		CoInitializeEx(nullptr, COINIT_MULTITHREADED);
-		Log::Info("{} {}{}", kName, kVersion, RD_EDITOR ? "" : " (Game)");
+		Log::Info(LogCat::Core, "{} {}{}", kName, kVersion, RD_EDITOR ? "" : " (Game)");
+		Log::Debug(LogCat::Core, "Log file: {}", Log::GetFilePath());
 
 		JobSystem::Initialize();
 
@@ -100,12 +102,19 @@ namespace rd
 #if RD_EDITOR
 		if (mConfig.enableEditor)
 		{
-			mEditor = std::make_unique<Editor>();
+			mEditor = std::make_unique<Editor>(*this);
 			mEditor->Initialize();
 			mWindow.SetMessageHook([this](HWND h, UINT m, WPARAM w, LPARAM l) { return mEditor->HandleMessage(h, m, w, l); });
-			mComposer.SetEditor(mEditor.get());
+			mComposer.SetOverlay(mEditor.get());
 		}
 #endif
+
+		// シーンを差し替える前に、GPU が古いシーンのリソースを使い終わるのを待ち、音を止める
+		mScenes.SetBeforeSwap([this]
+			{
+				mDevice->WaitIdle();
+				mAudio->StopAll();
+			});
 
 		// 初期シーン
 		mScenes.CreateInitial(mConfig.startScene, mConfig.buildDefaultScene);
@@ -138,6 +147,8 @@ namespace rd
 		if (mDevice) { mDevice->Shutdown(); mDevice.reset(); }
 		mWindow.Destroy();
 		CoUninitialize();
+		Log::Info(LogCat::Core, "Shutdown complete");
+		Log::Shutdown();
 	}
 
 	void Engine::Frame(float dt)
@@ -177,7 +188,7 @@ namespace rd
 
 		if (mCapture.AfterPresent(*mRenderer, mFrameCount))
 		{
-			Log::Info("Capture finished, quitting");
+			Log::Info(LogCat::Core, "Capture finished, quitting");
 			Quit();
 		}
 		++mFrameCount;
@@ -186,7 +197,7 @@ namespace rd
 	void Engine::UpdateAudio(Scene& scene)
 	{
 		// リスナーはゲームカメラ
-		if (CameraComponent* mainCam = scene.GetMainCamera())
+		if (CameraComponent* mainCam = CameraComponent::FindMain(scene))
 		{
 			mAudio->SetListener(mainCam->GetTransform().GetPosition(), mainCam->GetTransform().GetRight());
 		}
@@ -200,7 +211,7 @@ namespace rd
 	void Engine::BeginPlay()
 	{
 		if (!mPlay.Begin(mScenes.GetScene())) { return; }
-		Log::Info("Play");
+		Log::Info(LogCat::Core, "Play");
 	}
 
 	void Engine::EndPlay()
@@ -209,7 +220,7 @@ namespace rd
 		mAudio->StopAll();
 		mScenes.SetScene(mPlay.End(mScenes.GetScene()));
 		mEditor->OnSceneChanged(true);
-		Log::Info("Stop");
+		Log::Info(LogCat::Core, "Stop");
 	}
 #endif
 

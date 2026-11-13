@@ -1,6 +1,6 @@
 #include "RdPch.h"
 #include "Audio/AudioSystem.h"
-#include "Audio/AudioClip.h"
+#include "Asset/AudioClip.h"
 #include <xaudio2.h>
 
 #pragma comment(lib, "xaudio2.lib")
@@ -25,12 +25,12 @@ namespace rd
 		sInstance = this;
 		if (FAILED(XAudio2Create(&mXAudio, 0, XAUDIO2_DEFAULT_PROCESSOR)))
 		{
-			Log::Error("XAudio2Create failed (audio disabled)");
+			Log::Error(LogCat::Audio, "XAudio2Create failed (audio disabled)");
 			return false;
 		}
 		if (FAILED(mXAudio->CreateMasteringVoice(&mMaster)))
 		{
-			Log::Error("No audio device (audio disabled)");
+			Log::Error(LogCat::Audio, "No audio device (audio disabled)");
 			mXAudio->Release();
 			mXAudio = nullptr;
 			return false;
@@ -89,7 +89,7 @@ namespace rd
 		XAUDIO2_VOICE_SENDS sends = { 1, &send };
 		if (FAILED(mXAudio->CreateSourceVoice(&voice->source, clip->GetFormat(), 0, XAUDIO2_MAX_FREQ_RATIO, nullptr, &sends)))
 		{
-			Log::Error("Failed to create source voice for {}", clip->GetPath());
+			Log::Error(LogCat::Audio, "Failed to create source voice for {}", clip->GetPath());
 			return kInvalidVoice;
 		}
 

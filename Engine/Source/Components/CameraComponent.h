@@ -21,5 +21,8 @@ namespace rd
 
 		RenderCamera GetRenderCamera(float aspect) const;
 		int32_t GetPriority() const { return priority; }
+
+		// ゲーム画面に使うカメラ（有効なものの中で priority が最も高いもの。同じなら先に追加されたもの）
+		static CameraComponent* FindMain(const Scene& scene);
 	};
 }

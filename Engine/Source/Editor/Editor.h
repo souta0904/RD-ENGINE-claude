@@ -1,7 +1,8 @@
 #pragma once
 #include "Editor/EditorCamera.h"
 #include "Editor/ImGuiLayer.h"
-#include "Editor/UndoSystem.h"
+#include "Editor/CommandHistory.h"
+#include "Runtime/FrameOverlay.h"
 #include "Scene/Actor.h"
 #include <string>
 #include <vector>
@@ -9,32 +10,47 @@
 namespace rd
 {
 	class DebugDraw;
+	class Engine;
 	class Scene;
 
 	// ImGui ベースのエディタ
-	class Editor
+	//  エンジンは作るときに渡される（グローバルの Engine::Get() には頼らない）
+	class Editor final : public FrameOverlay
 	{
 	public:
+		explicit Editor(Engine& engine) : mEngine(engine) {}
+
 		void Initialize();
 		void Shutdown();
 		bool HandleMessage(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 		void BeginFrame();
 		void Update(float dt);
-		void DrawGizmos(DebugDraw& draw);
-		void RenderUI();
 		// シーンが差し替わった（keepSelection=true なら選択を ID で復元）
 		void OnSceneChanged(bool keepSelection = false);
 
-		void GetViewportSize(uint32_t& width, uint32_t& height) const;
+		// FrameOverlay
+		void GetViewportSize(uint32_t& width, uint32_t& height) const override;
+		bool OverrideCamera(float aspect, RenderCamera& camera) const override;
+		void DrawGizmos(DebugDraw& draw) override;
+		void RenderUI() override;
+
 		bool UseEditorCamera() const;
 		RenderCamera GetEditorCamera(float aspect) const { return mCamera.GetRenderCamera(aspect); }
+		Engine& GetEngine() const { return mEngine; }
+		Scene& GetScene() const;
 
 		// 選択
 		Actor* GetSelected() const;
-		void Select(Actor* actor) { mSelectedId = actor ? actor->GetId() : 0; }
-		// 編集を確定して Undo 履歴に積む
-		void Commit(const std::string& label);
+		void Select(Actor* actor);
+
+		// --- Undo / Redo（操作した後に呼ぶ） ---
+		// 選択中のアクターの変更（インスペクタ・ギズモ・コンポーネントの追加/削除）を確定する
+		void CommitActorEdit(const std::string& label);
+		// シーン設定（環境・重力）の変更を確定する
+		void CommitSettingsEdit(const std::string& label);
+		// 実行済みのコマンドを履歴に積む
+		void PushCommand(std::unique_ptr<EditorCommand> command);
 
 	private:
 		// メイン
@@ -61,11 +77,19 @@ namespace rd
 		void OpenScene();
 		void Undo();
 		void Redo();
+		// 「変更前」の状態を取り直す（選択の変更・確定・Undo の後）
+		void RefreshSnapshots();
+		void UpdateTitle();
 
+		Engine& mEngine;
 		ImGuiLayer mImGui;
 		EditorCamera mCamera;
-		UndoSystem mUndo;
+		CommandHistory mHistory;
 		ActorId mSelectedId = 0;
+		// 変更前の状態（確定したときに変更後と比べてコマンドを作る）
+		ActorId mSnapshotActor = 0;
+		Json mActorSnapshot;
+		Json mSettingsSnapshot;
 
 		// ビューポート
 		uint32_t mViewportWidth = 1280;
@@ -96,15 +120,13 @@ namespace rd
 		std::string mAssetFilter;
 		// コンソール
 		std::string mConsoleFilter;
+		bool mConsoleShowDebug = false;// Trace / Debug
 		bool mConsoleShowInfo = true;
 		bool mConsoleShowWarn = true;
 		bool mConsoleShowError = true;
 		uint64_t mConsoleVersion = 0;
 		// 統計
 		std::vector<float> mFrameTimes;
-		std::string mRenameBuffer;
-		ActorId mRenamingId = 0;
-		ActorId mPendingDelete = 0;
 		std::string mAddComponentFilter;
 	};
 }

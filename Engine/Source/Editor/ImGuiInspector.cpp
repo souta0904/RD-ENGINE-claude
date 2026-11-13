@@ -2,7 +2,6 @@
 #include "Editor/ImGuiInspector.h"
 #include "Core/StringUtil.h"
 #include "Editor/Editor.h"
-#include "Engine.h"
 #include "Scene/ObjectRef.h"
 #include "Scene/Scene.h"
 #include <ImGui/imgui.h>
@@ -198,12 +197,21 @@ namespace rd
 	//  - ヒエラルキーのアクターをドラッグ&ドロップ（型が合わないものは受け付けない）
 	//  - [...] で候補の一覧から選ぶ / None に戻す
 	//  - ダブルクリックで参照先を選択
-	bool ImGuiInspector::Property(const char* name, ObjectRef& value, const PropertyMeta& meta)
+	bool ImGuiInspector::Property(const char* name, ObjectRefBase& base, const PropertyMeta& meta)
 	{
+		auto& value = static_cast<ObjectRef&>(base);// 参照プロパティはすべて ObjectRef の派生
 		ImGui::PushID(name);
 		Label(name, meta);
 		bool changed = false;
-		Scene& scene = value.GetScene() ? *value.GetScene() : Engine::Get().GetScene();
+		Scene* scenePtr = value.GetScene() ? value.GetScene() : (mEditor ? &mEditor->GetScene() : nullptr);
+		if (!scenePtr)
+		{
+			// どのシーンの参照か分からない（エディタなしで使われた）ので表示だけ
+			ImGui::TextDisabled("(no scene)");
+			ImGui::PopID();
+			return false;
+		}
+		Scene& scene = *scenePtr;
 		if (!value.GetScene()) { value.SetScene(&scene); }
 		Actor* target = value.GetActor();
 		bool readOnly = (meta.flags & PropertyMeta::ReadOnly) != 0;
@@ -228,7 +236,7 @@ namespace rd
 
 		if (target && ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
 		{
-			if (Editor* editor = Engine::Get().GetEditor()) { editor->Select(target); }
+			if (mEditor) { mEditor->Select(target); }
 		}
 
 		// ヒエラルキーからのドラッグ&ドロップ

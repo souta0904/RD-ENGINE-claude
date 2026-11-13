@@ -72,6 +72,7 @@ namespace rd
 	void PhysicsWorld::Step(Scene& scene, float dt)
 	{
 		std::unordered_map<Rigidbody*, BodyState> states;
+		const Vector3 gravity = scene.GetGravity();
 
 		// ---------------- 1. 力の積分 ----------------
 		for (Rigidbody* rb : scene.FindComponents<Rigidbody>())

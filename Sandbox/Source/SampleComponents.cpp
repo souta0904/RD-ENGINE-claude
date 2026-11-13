@@ -50,7 +50,7 @@ namespace sample
 
 		// カメラの向きを基準に移動方向を決める
 		Vector3 forward = Vector3::kUnitZ, right = Vector3::kUnitX;
-		if (auto cam = GetScene()->GetMainCamera())
+		if (auto cam = CameraComponent::FindMain(*GetScene()))
 		{
 			forward = Normalize(ProjectOnPlane(cam->GetTransform().GetForward(), Vector3::kUnitY));
 			right = Cross(Vector3::kUnitY, forward);
@@ -110,7 +110,7 @@ namespace sample
 		Vector3 dir = desired - focus;
 		float len = Length(dir);
 		RaycastHit hit;
-		if (len > 0.01f && GetScene()->GetPhysics().Raycast({ focus, dir / len }, len, hit) && hit.collider->GetActor() != followed)
+		if (len > 0.01f && GetScene()->GetSystem<PhysicsWorld>().Raycast({ focus, dir / len }, len, hit) && hit.collider->GetActor() != followed)
 		{
 			desired = hit.point - dir / len * 0.3f;
 		}
@@ -165,7 +165,7 @@ namespace sample
 		if (other->GetActor()->GetTag() != "Player") { return; }
 		AudioSystem::Get().Play(AssetManager::Get().LoadAudio(sound));
 		++sCollected;
-		Log::Info("Collected {} item(s)", sCollected);
+		Log::Info(LogCat::Game, "Collected {} item(s)", sCollected);
 		GetActor()->Destroy();
 	}
 

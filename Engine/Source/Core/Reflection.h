@@ -8,7 +8,20 @@
 
 namespace rd
 {
-	class ObjectRef;
+	// 参照プロパティの基底（中身は参照先の ID だけ）
+	//  Core はシーンを知らないので、ここでは ID の読み書きだけを扱う。
+	//  実際に使うのは Scene/ObjectRef.h の ActorRef / ComponentRef<T>。
+	class ObjectRefBase
+	{
+	public:
+		uint64_t GetId() const { return mId; }
+		void SetId(uint64_t id) { mId = id; }
+		void Clear() { mId = 0; }
+
+	protected:
+		ObjectRefBase() = default;
+		uint64_t mId = 0;
+	};
 
 	// プロパティの付加情報（エディタ表示用）
 	struct PropertyMeta
@@ -53,7 +66,7 @@ namespace rd
 		virtual bool Property(const char* name, Color& value, const PropertyMeta& meta = {}) = 0;
 		virtual bool Property(const char* name, std::string& value, const PropertyMeta& meta = {}) = 0;
 		// アクター/コンポーネントへの参照（ActorRef / ComponentRef<T>。Scene/ObjectRef.h）
-		virtual bool Property(const char* name, ObjectRef& value, const PropertyMeta& meta = {}) = 0;
+		virtual bool Property(const char* name, ObjectRefBase& value, const PropertyMeta& meta = {}) = 0;
 
 		// 列挙型（名前で保存されるので並び替えに強い）
 		template <class E> requires std::is_enum_v<E>

@@ -112,7 +112,7 @@ namespace rd
 			}
 		}
 		RD_VERIFY(mDevice, "No D3D12 capable GPU found");
-		Log::Info("GPU: {}", mAdapterName);
+		Log::Info(LogCat::RHI, "GPU: {}", mAdapterName);
 
 		BOOL tearing = FALSE;
 		if (SUCCEEDED(mFactory->CheckFeatureSupport(DXGI_FEATURE_PRESENT_ALLOW_TEARING, &tearing, sizeof(tearing))))
@@ -134,10 +134,14 @@ namespace rd
 				if (SUCCEEDED(infoQueue.As(&infoQueue1)))
 				{
 					DWORD cookie = 0;
-					infoQueue1->RegisterMessageCallback([](D3D12_MESSAGE_CATEGORY, D3D12_MESSAGE_SEVERITY severity, D3D12_MESSAGE_ID, LPCSTR desc, void*)
+					infoQueue1->RegisterMessageCallback([](D3D12_MESSAGE_CATEGORY, D3D12_MESSAGE_SEVERITY severity, D3D12_MESSAGE_ID id, LPCSTR desc, void*)
 						{
-							if (severity <= D3D12_MESSAGE_SEVERITY_ERROR) { Log::Error("D3D12: {}", desc); }
-							else if (severity == D3D12_MESSAGE_SEVERITY_WARNING) { Log::Warning("D3D12: {}", desc); }
+							std::string_view text = desc;
+							while (!text.empty() && (text.back() == '\n' || text.back() == '\r')) { text.remove_suffix(1); }
+							// 終了時の生存オブジェクト一覧（デバイス自身が必ず出る）はデバッグ扱い
+							if (id == D3D12_MESSAGE_ID_LIVE_DEVICE || id == D3D12_MESSAGE_ID_LIVE_OBJECT_SUMMARY) { Log::Debug(LogCat::RHI, "D3D12: {}", text); }
+							else if (severity <= D3D12_MESSAGE_SEVERITY_ERROR) { Log::Error(LogCat::RHI, "D3D12: {}", text); }
+							else if (severity == D3D12_MESSAGE_SEVERITY_WARNING) { Log::Warning(LogCat::RHI, "D3D12: {}", text); }
 						}, D3D12_MESSAGE_CALLBACK_FLAG_NONE, nullptr, &cookie);
 				}
 				D3D12_MESSAGE_ID denyIds[] = {

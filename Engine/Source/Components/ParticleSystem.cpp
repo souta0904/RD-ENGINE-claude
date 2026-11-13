@@ -7,7 +7,6 @@
 #include "RHI/GraphicsDevice.h"
 #include "Scene/Actor.h"
 #include "Scene/Scene.h"
-#include "Physics/PhysicsWorld.h"
 #if RD_EDITOR
 #include <ImGui/imgui.h>
 #endif
@@ -184,7 +183,7 @@ namespace rd
 		}
 
 		// 移動（多ければ並列）
-		Vector3 gravity = GetScene()->GetPhysics().gravity * gravityScale;
+		Vector3 gravity = GetScene()->GetGravity() * gravityScale;
 		float dragFactor = 1.0f / (1.0f + drag * dt);
 		auto update = [this, dt, gravity, dragFactor](uint32_t begin, uint32_t end)
 			{

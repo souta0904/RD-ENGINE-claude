@@ -1,4 +1,5 @@
 #pragma once
+#include "Core/Log.h"
 #include "Platform/Window.h"
 #include <functional>
 #include <string>
@@ -24,7 +25,10 @@ namespace rd
 		int captureFrame = -1;
 		std::string capturePath = "Logs/capture.png";
 
-		// コマンドライン（-novsync -fullscreen -windowed -capture <frame> <path> -scene <path>）を反映
+		LogSettings log;
+
+		// コマンドライン（-novsync -fullscreen -windowed -capture <frame> <path> -scene <path>
+		//  -loglevel trace|debug|info|warn|error）を反映
 		//  エディタ入りのビルドでは -noeditor -play も使える
 		void ParseCommandLine();
 	};

@@ -15,6 +15,9 @@ namespace rd
 		SceneManager();
 		~SceneManager();
 
+		// シーンを差し替える直前に呼ばれる（GPU の完了待ちや音の停止。エンジンが設定する）
+		void SetBeforeSwap(std::function<void()> callback) { mBeforeSwap = std::move(callback); }
+
 		// 起動時のシーン（path のファイルがあれば読み、なければ build で組み立てる）
 		void CreateInitial(const std::string& path, const std::function<void(Scene&)>& build);
 
@@ -28,7 +31,7 @@ namespace rd
 
 		// 予約された切り替えを反映する。切り替えたら true
 		bool ApplyPending();
-		// GPU の完了を待ってから即座に差し替える
+		// 即座に差し替える（BeforeSwap は呼ぶ）
 		void SetScene(std::unique_ptr<Scene> scene);
 		// すべてのシーンを破棄（終了時）
 		void Clear();
@@ -37,5 +40,6 @@ namespace rd
 		std::unique_ptr<Scene> mScene;
 		std::unique_ptr<Scene> mPendingScene;
 		std::string mPendingScenePath;
+		std::function<void()> mBeforeSwap;
 	};
 }

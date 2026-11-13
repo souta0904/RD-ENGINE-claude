@@ -2,7 +2,7 @@
 #include "Asset/AssetManager.h"
 #include "Asset/Model.h"
 #include "Asset/Texture.h"
-#include "Audio/AudioClip.h"
+#include "Asset/AudioClip.h"
 #include "Core/StringUtil.h"
 
 namespace rd
@@ -111,7 +111,7 @@ namespace rd
 		}
 		catch (const std::exception& e)
 		{
-			Log::Error("Exception while loading '{}': {}", asset->GetPath(), e.what());
+			Log::Error(LogCat::Asset, "Exception while loading '{}': {}", asset->GetPath(), e.what());
 			asset->SetState(AssetState::Failed);
 		}
 		--mLoadingCount;

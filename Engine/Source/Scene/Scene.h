@@ -2,16 +2,16 @@
 #include "Core/JsonArchive.h"
 #include "Render/RenderTypes.h"
 #include "Scene/Actor.h"
+#include "Scene/SceneSystem.h"
 #include <memory>
 #include <string>
+#include <typeindex>
 #include <unordered_map>
 #include <vector>
 
 namespace rd
 {
-	class CameraComponent;
 	class DebugDraw;
-	class PhysicsWorld;
 
 	// アクターの集合（レベル）
 	class Scene
@@ -38,19 +38,34 @@ namespace rd
 		{
 			for (Actor* root : mRootActors) { VisitActor(root, func); }
 		}
-		// 指定型のコンポーネントをすべて集める
+		// 指定型（派生型を含む）の有効なコンポーネントをすべて集める
+		//  コンポーネントは具体的な型ごとのリストで管理しているので、全アクターを調べずに済む
 		template <class T>
 		std::vector<T*> FindComponents() const
 		{
 			std::vector<T*> result;
-			for (auto& a : mActors)
+			ForEachComponent<T>([&](T* c) { result.push_back(c); });
+			return result;
+		}
+		template <class T>
+		T* FindComponent() const
+		{
+			T* found = nullptr;
+			ForEachComponent<T>([&](T* c) { if (!found) { found = c; } });
+			return found;
+		}
+		template <class T, class Func>
+		void ForEachComponent(Func&& func) const
+		{
+			for (const TypeBucket& bucket : mBuckets)
 			{
-				for (auto& c : a->GetAllComponents())
+				// 同じリストの中身はすべて同じ型なので、先頭だけ調べればよい
+				if (bucket.components.empty() || !dynamic_cast<T*>(bucket.components.front())) { continue; }
+				for (Component* c : bucket.components)
 				{
-					if (auto p = dynamic_cast<T*>(c.get()); p && p->IsActiveAndEnabled()) { result.push_back(p); }
+					if (c->IsActiveAndEnabled()) { func(static_cast<T*>(c)); }
 				}
 			}
-			return result;
 		}
 
 		// 更新（playing=false なら編集中の更新だけ行う）
@@ -61,7 +76,26 @@ namespace rd
 #if RD_EDITOR
 		void DrawGizmos(DebugDraw& draw, const Actor* selected);
 #endif
-		CameraComponent* GetMainCamera() const;
+
+		// シーンごとのシステム（初めて呼んだときに作られる）
+		template <class T> requires std::derived_from<T, SceneSystem>
+		T& GetSystem()
+		{
+			auto it = mSystemMap.find(typeid(T));
+			if (it != mSystemMap.end()) { return static_cast<T&>(*it->second); }
+			auto system = std::make_unique<T>();
+			T& ref = *system;
+			mSystemMap.emplace(typeid(T), system.get());
+			mSystems.push_back(std::move(system));
+			return ref;
+		}
+		// 作られていなければ nullptr
+		template <class T> requires std::derived_from<T, SceneSystem>
+		T* FindSystem() const
+		{
+			auto it = mSystemMap.find(typeid(T));
+			return it != mSystemMap.end() ? static_cast<T*>(it->second) : nullptr;
+		}
 
 		// シリアライズ
 		Json Serialize() const;
@@ -74,13 +108,23 @@ namespace rd
 		//  ObjectRef のうち、一緒に生成したアクターを指すものは新しい ID へ付け替える。
 		//  それ以外を指す参照は keepExternalRefs=true なら残し（複製）、false なら外す（プレハブ）。
 		std::vector<Actor*> DeserializeActors(const Json& actors, bool remapIds, Actor* parent = nullptr, bool keepExternalRefs = true);
+		// アクター自身の状態（名前・Transform・コンポーネント。子と親は含まない）
+		//  エディタの Undo が「変更前 / 変更後」を保存して戻すのに使う
+		Json SerializeActorState(const Actor* actor) const;
+		void ApplyActorState(Actor* actor, const Json& state);
+		// シーンの設定（環境・重力）
+		Json SerializeSettings() const;
+		void ApplySettings(const Json& json);
+
 		// プレハブ
 		Actor* Instantiate(const std::string& prefabPath, Actor* parent = nullptr);
 		Actor* Duplicate(Actor* actor);
 		static bool SavePrefab(const Actor* actor, const std::string& path);
 
 		Environment& GetEnvironment() { return mEnvironment; }
-		PhysicsWorld& GetPhysics() { return *mPhysics; }
+		// 重力（物理とパーティクルが使う。シーンに保存される）
+		const Vector3& GetGravity() const { return mGravity; }
+		void SetGravity(const Vector3& gravity) { mGravity = gravity; }
 		bool IsPlaying() const { return mPlaying; }
 
 	private:
@@ -95,6 +139,27 @@ namespace rd
 		void FlushDestroyed();
 		void Clear();
 
+		// コンポーネントの登録（Actor が追加・破棄のときに呼ぶ）
+		void RegisterComponent(Component* component);
+		void UnregisterComponents(const std::vector<Component*>& components);
+		void StartPendingComponents();
+
+		struct TypeBucket
+		{
+			std::type_index type;
+			std::vector<Component*> components;// 追加された順
+		};
+		// コールバックごとの呼び出しリスト（上書きしているコンポーネントだけ、追加された順）
+		struct CallbackLists
+		{
+			std::vector<Component*> update;
+			std::vector<Component*> fixedUpdate;
+			std::vector<Component*> lateUpdate;
+			std::vector<Component*> render;
+			std::vector<Component*> editorUpdate;
+			std::vector<Component*> gizmos;
+		};
+
 		std::string mName = "Untitled";
 		std::string mPath;
 		std::vector<std::unique_ptr<Actor>> mActors;
@@ -104,7 +169,14 @@ namespace rd
 		bool mHasPendingDestroy = false;
 		bool mPlaying = false;
 		float mFixedAccumulator = 0.0f;
+		std::vector<TypeBucket> mBuckets;// 型が最初に登録された順（列挙順を毎回同じにするため）
+		std::unordered_map<std::type_index, size_t> mBucketIndex;
+		CallbackLists mCallbacks;
+		std::vector<Component*> mPendingStart;// まだ Start を呼んでいないもの
 		Environment mEnvironment;
-		std::unique_ptr<PhysicsWorld> mPhysics;
+		Vector3 mGravity = { 0.0f, -9.81f, 0.0f };
+		// システムはアクターより後に破棄する（アクターの OnDestroy からシステムを使うため）
+		std::vector<std::unique_ptr<SceneSystem>> mSystems;
+		std::unordered_map<std::type_index, SceneSystem*> mSystemMap;
 	};
 }

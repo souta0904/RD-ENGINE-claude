@@ -47,7 +47,7 @@ namespace rd
 		if (!model || !model->IsReady()) { return nullptr; }
 		mResolvedSkeleton = model->GetSkeleton();
 		auto result = model->FindClip(name);
-		if (!result && !name.empty()) { Log::Warning("Animator: clip '{}' not found in {}", name, model->GetPath()); }
+		if (!result && !name.empty()) { Log::Warning(LogCat::Scene, "Animator: clip '{}' not found in {}", name, model->GetPath()); }
 		return result;
 	}
 

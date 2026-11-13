@@ -30,7 +30,7 @@ namespace rd
 		}
 		if (FAILED(hr))
 		{
-			Log::Error("Failed to load texture: {}", path);
+			Log::Error(LogCat::Asset, "Failed to load texture: {}", path);
 			SetState(AssetState::Failed);
 			return;
 		}
@@ -48,7 +48,7 @@ namespace rd
 		}
 		if (FAILED(hr) || !UploadScratch(&image, srgb))
 		{
-			Log::Error("Failed to load texture from memory: {}", mPath);
+			Log::Error(LogCat::Asset, "Failed to load texture from memory: {}", mPath);
 			SetState(AssetState::Failed);
 		}
 	}

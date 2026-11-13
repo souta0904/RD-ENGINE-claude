@@ -40,7 +40,7 @@ namespace rd
 			nullptr, nullptr, hinst, this);
 		if (!mHwnd)
 		{
-			Log::Error("Failed to create window");
+			Log::Error(LogCat::Platform, "Failed to create window");
 			return false;
 		}
 		ShowWindow(mHwnd, desc.maximized ? SW_SHOWMAXIMIZED : SW_SHOW);
@@ -115,7 +115,7 @@ namespace rd
 			SetWindowPos(mHwnd, nullptr, 0, 0, 0, 0,
 				SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER);
 		}
-		Log::Info("Fullscreen: {}", mFullscreen ? "on" : "off");
+		Log::Info(LogCat::Platform, "Fullscreen: {}", mFullscreen ? "on" : "off");
 	}
 
 	LRESULT CALLBACK Window::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)

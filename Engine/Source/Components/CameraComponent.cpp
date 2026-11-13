@@ -1,7 +1,7 @@
 #include "RdPch.h"
 #include "Components/CameraComponent.h"
 #include "Render/DebugDraw.h"
-#include "Scene/Actor.h"
+#include "Scene/Scene.h"
 
 namespace rd
 {
@@ -11,6 +11,16 @@ namespace rd
 		v.Property("Near", nearZ, { .speed = 0.01f, .min = 0.001f, .max = 100.0f });
 		v.Property("Far", farZ, { .speed = 1.0f, .min = 1.0f, .max = 100000.0f });
 		v.Property("Priority", priority);
+	}
+
+	CameraComponent* CameraComponent::FindMain(const Scene& scene)
+	{
+		CameraComponent* best = nullptr;
+		scene.ForEachComponent<CameraComponent>([&](CameraComponent* cam)
+			{
+				if (!best || cam->GetPriority() > best->GetPriority()) { best = cam; }
+			});
+		return best;
 	}
 
 	RenderCamera CameraComponent::GetRenderCamera(float aspect) const

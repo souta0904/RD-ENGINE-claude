@@ -107,7 +107,7 @@ namespace rd
 		GraphicsDevice::Get().GetShaderCompiler().ClearCache();
 		mMeshPipelines.clear();
 		CreatePipelines();
-		Log::Info("Shaders reloaded");
+		Log::Info(LogCat::Render, "Shaders reloaded");
 	}
 
 	void Renderer::CreateRootSignatures()
@@ -677,8 +677,8 @@ namespace rd
 			HRESULT hr = DirectX::SaveToWICFile(image, DirectX::WIC_FLAGS_NONE,
 				DirectX::GetWICCodec(DirectX::WIC_CODEC_PNG), path.c_str());
 			mCaptureBuffer->Unmap(0, nullptr);
-			if (SUCCEEDED(hr)) { Log::Info("Saved screenshot: {}", mPendingCapturePath); }
-			else { Log::Error("Failed to save screenshot: {}", mPendingCapturePath); }
+			if (SUCCEEDED(hr)) { Log::Info(LogCat::Render, "Saved screenshot: {}", mPendingCapturePath); }
+			else { Log::Error(LogCat::Render, "Failed to save screenshot: {}", mPendingCapturePath); }
 		}
 		mPendingCapturePath.clear();
 		mCaptureBuffer.Reset();

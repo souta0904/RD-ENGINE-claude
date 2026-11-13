@@ -1,5 +1,6 @@
 #pragma once
 #include "Physics/Shapes.h"
+#include "Scene/SceneSystem.h"
 #include <map>
 #include <vector>
 
@@ -7,7 +8,6 @@ namespace rd
 {
 	class Collider;
 	class Rigidbody;
-	class Scene;
 
 	struct RaycastHit
 	{
@@ -20,18 +20,19 @@ namespace rd
 	// 物理ワールド
 	//  1. 力の積分 2. ブロードフェーズ（X 軸のスイープ&プルーン）3. 狭域判定
 	//  4. 逐次インパルス法で速度を解く 5. 位置の積分と押し出し 6. 接触イベントの通知
-	class PhysicsWorld
+	//  シーンのシステムとして動く（scene.GetSystem<PhysicsWorld>()）。重力はシーンの設定を使う
+	class PhysicsWorld final : public SceneSystem
 	{
 	public:
 		void Register(Collider* collider);
 		void Unregister(Collider* collider);
 
+		void FixedUpdate(Scene& scene, float dt) override { Step(scene, dt); }
 		void Step(Scene& scene, float dt);
 
 		bool Raycast(const Ray& ray, float maxDistance, RaycastHit& hit, uint32_t layerMask = ~0u, bool hitTriggers = false);
 		std::vector<Collider*> OverlapSphere(const Vector3& center, float radius, uint32_t layerMask = ~0u);
 
-		Vector3 gravity = { 0.0f, -9.81f, 0.0f };
 		int solverIterations = 10;
 
 		// レイヤー同士が衝突するか

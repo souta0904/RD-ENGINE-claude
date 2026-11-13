@@ -24,12 +24,12 @@ namespace rd
 
 	void Collider::Awake()
 	{
-		GetScene()->GetPhysics().Register(this);
+		GetScene()->GetSystem<PhysicsWorld>().Register(this);
 	}
 
 	void Collider::OnDestroy()
 	{
-		GetScene()->GetPhysics().Unregister(this);
+		GetScene()->GetSystem<PhysicsWorld>().Unregister(this);
 	}
 
 	Rigidbody* Collider::GetAttachedRigidbody() const

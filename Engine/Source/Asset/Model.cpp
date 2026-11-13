@@ -95,7 +95,7 @@ namespace rd
 			else if (mPath == "Engine/Capsule") { Primitives::Capsule(v, i); }
 			else
 			{
-				Log::Error("Unknown built-in model: {}", mPath);
+				Log::Error(LogCat::Asset, "Unknown built-in model: {}", mPath);
 				SetState(AssetState::Failed);
 				return;
 			}
@@ -119,7 +119,7 @@ namespace rd
 		const aiScene* scene = importer.ReadFile(path, flags);
 		if (!scene || !scene->mRootNode)
 		{
-			Log::Error("Failed to load model '{}': {}", path, importer.GetErrorString());
+			Log::Error(LogCat::Asset, "Failed to load model '{}': {}", path, importer.GetErrorString());
 			SetState(AssetState::Failed);
 			return;
 		}
@@ -383,7 +383,7 @@ namespace rd
 		mCollisionIndices = indices;
 
 		CreateGpuBuffers(vertices, mHasSkinning ? skins : std::vector<SkinVertex>{}, indices);
-		Log::Info("Loaded model: {} ({} meshes, {} verts, {} clips)", path, mSubMeshes.size(), vertices.size(), mClips.size());
+		Log::Info(LogCat::Asset, "Loaded model: {} ({} meshes, {} verts, {} clips)", path, mSubMeshes.size(), vertices.size(), mClips.size());
 	}
 
 	void Model::BuildFromData(std::vector<MeshVertex> vertices, std::vector<uint32_t> indices)

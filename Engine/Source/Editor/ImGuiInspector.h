@@ -5,9 +5,14 @@ namespace rd
 {
 	// Reflect の内容を ImGui のウィジェットとして表示・編集するビジター
 	//  Undo のために「編集の開始/終了」を記録する
+	class Editor;
+
 	class ImGuiInspector final : public PropertyVisitor
 	{
 	public:
+		// editor は参照フィールドの候補一覧と、ダブルクリックでの選択に使う
+		explicit ImGuiInspector(Editor* editor = nullptr) : mEditor(editor) {}
+
 		bool Property(const char* name, bool& value, const PropertyMeta& meta = {}) override;
 		bool Property(const char* name, int32_t& value, const PropertyMeta& meta = {}) override;
 		bool Property(const char* name, uint32_t& value, const PropertyMeta& meta = {}) override;
@@ -18,7 +23,7 @@ namespace rd
 		bool Property(const char* name, Quaternion& value, const PropertyMeta& meta = {}) override;
 		bool Property(const char* name, Color& value, const PropertyMeta& meta = {}) override;
 		bool Property(const char* name, std::string& value, const PropertyMeta& meta = {}) override;
-		bool Property(const char* name, ObjectRef& value, const PropertyMeta& meta = {}) override;
+		bool Property(const char* name, ObjectRefBase& value, const PropertyMeta& meta = {}) override;
 		using PropertyVisitor::Property;
 
 		bool BeginGroup(const char* name) override;
@@ -39,6 +44,7 @@ namespace rd
 		void Label(const char* name, const PropertyMeta& meta);
 		bool Track(bool changed, bool discrete = false);
 
+		Editor* mEditor = nullptr;
 		bool mChanged = false;
 		bool mCommitted = false;
 	};

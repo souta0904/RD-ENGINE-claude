@@ -51,7 +51,7 @@ namespace rd
 	void Editor::DrawHierarchy()
 	{
 		ImGui::Begin("Hierarchy", &mShowHierarchy);
-		Scene& scene = Engine::Get().GetScene();
+		Scene& scene = mEngine.GetScene();
 
 		if (ImGui::Button("+ Create")) { ImGui::OpenPopup("CreateActor"); }
 		if (ImGui::BeginPopup("CreateActor"))
@@ -86,20 +86,28 @@ namespace rd
 				std::string path = static_cast<const char*>(p->Data);
 				if (GetExtension(path) == ".prefab")
 				{
-					Select(scene.Instantiate(path));
-					Commit("Instantiate");
+					if (Actor* instance = scene.Instantiate(path))
+					{
+						Select(instance);
+						PushCommand(ActorLifetimeCommand::Created("Instantiate " + GetStem(path), scene, { instance }));
+					}
 				}
 			}
 			ImGui::EndDragDropTarget();
 		}
-		if (ImGui::IsItemClicked()) { mSelectedId = 0; }
+		if (ImGui::IsItemClicked()) { Select(nullptr); }
 		ImGui::EndChild();
 
 		// 後回しにした操作
 		if (gOps.reparent && (gOps.newParent || gOps.toRoot))
 		{
-			gOps.reparent->SetParent(gOps.toRoot ? nullptr : gOps.newParent);
-			Commit("Reparent");
+			Actor* newParent = gOps.toRoot ? nullptr : gOps.newParent;
+			if (gOps.reparent->GetParent() != newParent)
+			{
+				auto command = std::make_unique<ReparentCommand>("Reparent " + gOps.reparent->GetName(), gOps.reparent, newParent);
+				command->Redo(scene);
+				PushCommand(std::move(command));
+			}
 		}
 		if (gOps.duplicate) { Select(gOps.duplicate); DuplicateSelected(); }
 		if (gOps.remove) { Select(gOps.remove); DeleteSelected(); }
@@ -107,19 +115,19 @@ namespace rd
 		{
 			Actor* child = scene.CreateActor("Actor", gOps.createChildOf);
 			Select(child);
-			Commit("Create Child");
+			PushCommand(ActorLifetimeCommand::Created("Create Child", scene, { child }));
 		}
 		if (gOps.savePrefab)
 		{
 			std::string path = "Assets/Prefabs/" + gOps.savePrefab->GetName() + ".prefab";
-			if (Scene::SavePrefab(gOps.savePrefab, path)) { Log::Info("Saved prefab: {}", path); }
+			if (Scene::SavePrefab(gOps.savePrefab, path)) { Log::Info(LogCat::Editor, "Saved prefab: {}", path); }
 		}
 		ImGui::End();
 	}
 
 	void Editor::DrawHierarchyNode(Actor* actor)
 	{
-		Scene& scene = Engine::Get().GetScene();
+		Scene& scene = mEngine.GetScene();
 		ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_OpenOnDoubleClick;
 		if (actor->GetChildren().empty()) { flags |= ImGuiTreeNodeFlags_Leaf; }
 		if (actor->GetId() == mSelectedId) { flags |= ImGuiTreeNodeFlags_Selected; }
@@ -189,7 +197,7 @@ namespace rd
 			return;
 		}
 
-		ImGuiInspector inspector;
+		ImGuiInspector inspector(this);
 		bool commit = false;
 
 		// アクターの基本情報
@@ -251,9 +259,16 @@ namespace rd
 		}
 		commit |= inspector.AnyCommitted();
 
-		if (toRemove) { actor->RemoveComponent(toRemove); Engine::Get().GetScene().FlushPendingDestroy(); commit = true; }
-		if (toMoveUp) { actor->MoveComponent(toMoveUp, -1); commit = true; }
-		if (toMoveDown) { actor->MoveComponent(toMoveDown, 1); commit = true; }
+		std::string label = "Edit " + actor->GetName();
+		if (toRemove)
+		{
+			label = std::format("Remove {}", toRemove->GetTypeName());
+			actor->RemoveComponent(toRemove);
+			mEngine.GetScene().FlushPendingDestroy();
+			commit = true;
+		}
+		if (toMoveUp) { actor->MoveComponent(toMoveUp, -1); label = "Move Component"; commit = true; }
+		if (toMoveDown) { actor->MoveComponent(toMoveDown, 1); label = "Move Component"; commit = true; }
 		if (toReset)
 		{
 			// 新品のインスタンスのプロパティで上書き
@@ -265,6 +280,7 @@ namespace rd
 				JsonReader r(j);
 				toReset->Reflect(r);
 				toReset->OnValidate();
+				label = std::format("Reset {}", toReset->GetTypeName());
 				commit = true;
 			}
 		}
@@ -293,6 +309,7 @@ namespace rd
 				if (ImGui::Selectable(entry.name.c_str()))
 				{
 					actor->AddComponent(entry.name);
+					label = "Add " + entry.name;
 					commit = true;
 					ImGui::CloseCurrentPopup();
 				}
@@ -300,7 +317,7 @@ namespace rd
 			ImGui::EndPopup();
 		}
 
-		if (commit) { Commit("Edit " + actor->GetName()); }
+		if (commit) { CommitActorEdit(label); }
 		ImGui::End();
 	}
 
@@ -363,7 +380,7 @@ namespace rd
 				if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
 				{
 					if (isDir) { mAssetDir = path; }
-					else if (ext == ".scene") { Engine::Get().LoadScene(path); }
+					else if (ext == ".scene") { mEngine.LoadScene(path); }
 				}
 				(void)clicked;
 				if (!isDir && ImGui::BeginDragDropSource())
@@ -392,6 +409,8 @@ namespace rd
 		ImGui::Begin("Console", &mShowConsole);
 		if (ImGui::Button("Clear")) { Log::Clear(); }
 		ImGui::SameLine();
+		ImGui::Checkbox("Debug", &mConsoleShowDebug);
+		ImGui::SameLine();
 		ImGui::Checkbox("Info", &mConsoleShowInfo);
 		ImGui::SameLine();
 		ImGui::Checkbox("Warning", &mConsoleShowWarn);
@@ -404,18 +423,28 @@ namespace rd
 
 		ImGui::BeginChild("log", ImVec2(0, 0), false, ImGuiWindowFlags_HorizontalScrollbar);
 		std::string filter = ToLower(mConsoleFilter);
-		Log::ForEach([&](const LogEntry& e)
+		Log::ForEach([&](const LogRecord& e)
 			{
-				if ((e.level == LogLevel::Info && !mConsoleShowInfo) || (e.level == LogLevel::Warning && !mConsoleShowWarn) ||
-					(e.level == LogLevel::Error && !mConsoleShowError)) { return; }
-				if (!filter.empty() && ToLower(e.message).find(filter) == std::string::npos) { return; }
-				ImVec4 color = e.level == LogLevel::Error ? ImVec4(1.0f, 0.4f, 0.4f, 1.0f)
-					: (e.level == LogLevel::Warning ? ImVec4(1.0f, 0.8f, 0.3f, 1.0f) : ImVec4(0.85f, 0.85f, 0.85f, 1.0f));
-				ImGui::TextDisabled("%8.2f", e.time);
+				bool show = e.level <= LogLevel::Debug ? mConsoleShowDebug
+					: e.level == LogLevel::Info ? mConsoleShowInfo
+					: e.level == LogLevel::Warning ? mConsoleShowWarn
+					: mConsoleShowError;
+				if (!show) { return; }
+				if (!filter.empty() && ToLower(e.message).find(filter) == std::string::npos &&
+					ToLower(e.category).find(filter) == std::string::npos) { return; }
+				ImVec4 color = e.level >= LogLevel::Error ? ImVec4(1.0f, 0.4f, 0.4f, 1.0f)
+					: e.level == LogLevel::Warning ? ImVec4(1.0f, 0.8f, 0.3f, 1.0f)
+					: e.level == LogLevel::Info ? ImVec4(0.85f, 0.85f, 0.85f, 1.0f)
+					: ImVec4(0.6f, 0.6f, 0.6f, 1.0f);
+				ImGui::TextDisabled("%8.2f %-8s", e.time, e.category);
 				ImGui::SameLine();
 				ImGui::PushStyleColor(ImGuiCol_Text, color);
 				ImGui::TextUnformatted(e.message.c_str());
 				ImGui::PopStyleColor();
+				if (ImGui::IsItemHovered())
+				{
+					ImGui::SetTooltip("%s  %s:%u", ToString(e.level), e.location.file_name(), unsigned(e.location.line()));
+				}
 			});
 		// 新しいログが来たら一番下へ
 		if (Log::GetVersion() != mConsoleVersion)
@@ -433,7 +462,7 @@ namespace rd
 	void Editor::DrawStats()
 	{
 		ImGui::Begin("Stats", &mShowStats);
-		Engine& engine = Engine::Get();
+		Engine& engine = mEngine;
 		auto& device = GraphicsDevice::Get();
 		const auto& rs = Renderer::Get().GetStats();
 		Scene& scene = engine.GetScene();
@@ -462,7 +491,8 @@ namespace rd
 			auto assets = AssetManager::Get().GetAllAssets();
 			ImGui::Text("Assets: %zu (loading %u)", assets.size(), AssetManager::Get().GetLoadingCount());
 			ImGui::Text("Actors: %zu", scene.GetActorCount());
-			ImGui::Text("Physics: %u colliders, %u contacts", scene.GetPhysics().GetBodyCount(), scene.GetPhysics().GetContactCount());
+			auto& physics = scene.GetSystem<PhysicsWorld>();
+			ImGui::Text("Physics: %u colliders, %u contacts", physics.GetBodyCount(), physics.GetContactCount());
 			ImGui::Text("Time: %.2f s  (scale %.2f)", Time::TotalTime(), Time::TimeScale());
 		}
 		if (ImGui::CollapsingHeader("Loaded Assets"))
@@ -482,26 +512,27 @@ namespace rd
 	void Editor::DrawRenderSettings()
 	{
 		ImGui::Begin("Render Settings", &mShowRenderSettings);
-		ImGuiInspector inspector;
+		ImGuiInspector inspector(this);
 		if (ImGui::CollapsingHeader("Renderer", ImGuiTreeNodeFlags_DefaultOpen))
 		{
 			Renderer::Get().GetSettings().Reflect(inspector);
 		}
 		inspector.ResetFrameState();
 
-		Scene& scene = Engine::Get().GetScene();
+		Scene& scene = mEngine.GetScene();
 		if (ImGui::CollapsingHeader("Environment (Scene)", ImGuiTreeNodeFlags_DefaultOpen))
 		{
 			scene.GetEnvironment().Reflect(inspector);
 		}
 		if (ImGui::CollapsingHeader("Physics / Time"))
 		{
-			inspector.Property("Gravity", scene.GetPhysics().gravity);
-			inspector.Property("Solver Iterations", scene.GetPhysics().solverIterations, { .speed = 0.1f, .min = 1.0f, .max = 50.0f });
+			Vector3 gravity = scene.GetGravity();
+			if (inspector.Property("Gravity", gravity)) { scene.SetGravity(gravity); }
+			inspector.Property("Solver Iterations", scene.GetSystem<PhysicsWorld>().solverIterations, { .speed = 0.1f, .min = 1.0f, .max = 50.0f });
 			float timeScale = Time::TimeScale();
 			if (inspector.Property("Time Scale", timeScale, { .speed = 0.01f, .min = 0.0f, .max = 10.0f })) { Time::SetTimeScale(timeScale); }
 		}
-		if (inspector.AnyCommitted()) { Commit("Environment"); }
+		if (inspector.AnyCommitted()) { CommitSettingsEdit("Environment"); }
 		ImGui::End();
 	}
 }

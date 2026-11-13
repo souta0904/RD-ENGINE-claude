@@ -37,7 +37,7 @@ namespace rd
 	{
 		if (parent == this || (parent && parent->IsDescendantOf(this)))
 		{
-			Log::Warning("Cannot parent '{}' to its own descendant", mName);
+			Log::Warning(LogCat::Scene, "Cannot parent '{}' to its own descendant", mName);
 			return;
 		}
 		Matrix4 world = mTransform.GetWorldMatrix();
@@ -90,6 +90,7 @@ namespace rd
 		Component* raw = component.get();
 		raw->mActor = this;
 		mComponents.push_back(std::move(component));
+		mScene->RegisterComponent(raw);// 型ごとのリストと呼び出しリストへ
 		if (awake) { raw->Awake(); }
 		return raw;
 	}
