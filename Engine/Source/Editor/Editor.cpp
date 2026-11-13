@@ -251,6 +251,10 @@ namespace rd
 			ImGui::MenuItem("Gizmos", nullptr, &mShowGizmos);
 			ImGui::MenuItem("Physics Shapes", nullptr, &mShowPhysics);
 			ImGui::Separator();
+			{
+				Window& window = engine.GetWindow();
+				if (ImGui::MenuItem("Fullscreen", "F11", window.IsFullscreen())) { window.ToggleFullscreen(); }
+			}
 			if (ImGui::MenuItem("Reset Layout")) { mFirstLayout = true; }
 			ImGui::MenuItem("ImGui Demo", nullptr, &mShowDemo);
 			ImGui::EndMenu();

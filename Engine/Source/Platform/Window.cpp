@@ -33,6 +33,8 @@ namespace rd
 
 		mWidth = desc.width;
 		mHeight = desc.height;
+		mWindowedStyle = style;
+		mFullscreenHotkeys = desc.fullscreenHotkeys;
 		mHwnd = CreateWindowExW(0, kClassName, ToWide(desc.title).c_str(), style,
 			CW_USEDEFAULT, CW_USEDEFAULT, rc.right - rc.left, rc.bottom - rc.top,
 			nullptr, nullptr, hinst, this);
@@ -42,6 +44,7 @@ namespace rd
 			return false;
 		}
 		ShowWindow(mHwnd, desc.maximized ? SW_SHOWMAXIMIZED : SW_SHOW);
+		if (desc.fullscreen) { SetFullscreen(true); }
 		UpdateWindow(mHwnd);
 
 		RECT client;
@@ -81,6 +84,38 @@ namespace rd
 	void Window::RequestClose()
 	{
 		PostMessageW(mHwnd, WM_CLOSE, 0, 0);
+	}
+
+	void Window::SetFullscreen(bool fullscreen)
+	{
+		if (!mHwnd || fullscreen == mFullscreen) { return; }
+
+		if (fullscreen)
+		{
+			// 戻すときのために今の状態を覚えておく
+			mWindowedPlacement.length = sizeof(WINDOWPLACEMENT);
+			GetWindowPlacement(mHwnd, &mWindowedPlacement);
+
+			// ウィンドウがいちばん重なっているモニタ全体を覆う（タスクバーも隠す）
+			MONITORINFO mi = { sizeof(MONITORINFO) };
+			GetMonitorInfoW(MonitorFromWindow(mHwnd, MONITOR_DEFAULTTONEAREST), &mi);
+			const RECT& r = mi.rcMonitor;
+
+			mFullscreen = true;
+			SetWindowLongW(mHwnd, GWL_STYLE, WS_POPUP | WS_VISIBLE);
+			SetWindowPos(mHwnd, HWND_TOP, r.left, r.top, r.right - r.left, r.bottom - r.top,
+				SWP_FRAMECHANGED | SWP_NOOWNERZORDER | SWP_SHOWWINDOW);
+		}
+		else
+		{
+			mFullscreen = false;
+			SetWindowLongW(mHwnd, GWL_STYLE, mWindowedStyle | WS_VISIBLE);
+			// SetWindowPlacement は最大化状態も含めて復元する
+			SetWindowPlacement(mHwnd, &mWindowedPlacement);
+			SetWindowPos(mHwnd, nullptr, 0, 0, 0, 0,
+				SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER);
+		}
+		Log::Info("Fullscreen: {}", mFullscreen ? "on" : "off");
 	}
 
 	LRESULT CALLBACK Window::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
@@ -137,8 +172,22 @@ namespace rd
 			info->ptMinTrackSize = { 320, 240 };
 			return 0;
 		}
+		case WM_KEYDOWN:
+			// F11（押しっぱなしのリピートは無視）
+			if (mFullscreenHotkeys && wParam == VK_F11 && !(lParam & (1 << 30)))
+			{
+				ToggleFullscreen();
+				return 0;
+			}
+			break;
 		case WM_SYSKEYDOWN:
-			// Alt+Enter などのシステムキーで止まらないようにする
+			// Alt+Enter
+			if (mFullscreenHotkeys && wParam == VK_RETURN && (lParam & (1 << 29)) && !(lParam & (1 << 30)))
+			{
+				ToggleFullscreen();
+				return 0;
+			}
+			// Alt などのシステムキーでメニューに入って止まらないようにする（Alt+F4 だけは通す）
 			if (wParam == VK_F4 && (lParam & (1 << 29))) { break; }
 			return 0;
 		case WM_SYSCHAR:

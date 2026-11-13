@@ -13,6 +13,8 @@ namespace rd
 		uint32_t height = 900;
 		bool resizable = true;
 		bool maximized = false;
+		bool fullscreen = false;// ボーダーレスフルスクリーンで起動
+		bool fullscreenHotkeys = true;// Alt+Enter / F11 で切り替え
 	};
 
 	// Win32 ウィンドウ
@@ -33,6 +35,12 @@ namespace rd
 		void SetResizeCallback(ResizeCallback callback) { mOnResize = std::move(callback); }
 		void RequestClose();
 
+		// ボーダーレスフルスクリーン（ウィンドウが今いるモニタ全体を覆う）
+		// サイズが変わるので WM_SIZE 経由で ResizeCallback が呼ばれ、スワップチェインも追従する
+		void SetFullscreen(bool fullscreen);
+		void ToggleFullscreen() { SetFullscreen(!mFullscreen); }
+		bool IsFullscreen() const { return mFullscreen; }
+
 		HWND GetHandle() const { return mHwnd; }
 		uint32_t GetWidth() const { return mWidth; }
 		uint32_t GetHeight() const { return mHeight; }
@@ -48,6 +56,10 @@ namespace rd
 		uint32_t mHeight = 0;
 		bool mMinimized = false;
 		bool mFocused = true;
+		bool mFullscreen = false;
+		bool mFullscreenHotkeys = true;
+		DWORD mWindowedStyle = 0;// フルスクリーンから戻すときのスタイル
+		WINDOWPLACEMENT mWindowedPlacement = { sizeof(WINDOWPLACEMENT) };// 戻すときの位置・大きさ・最大化状態
 		MessageHook mHook;
 		ResizeCallback mOnResize;
 	};
