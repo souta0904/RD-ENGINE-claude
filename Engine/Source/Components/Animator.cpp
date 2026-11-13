@@ -188,7 +188,7 @@ namespace rd
 					for (size_t i = 0; i < count; ++i) { mLocal[i] = TransformTRS::Blend(mBlend[i], mLocal[i], weight); }
 				}
 				ComputeSkinningPalette(*sk, mLocal, mGlobal, mPalette);
-			});
+			}, JobPriority::High, "Animator Pose");
 	}
 
 	D3D12_GPU_VIRTUAL_ADDRESS Animator::GetPaletteGpu(const Model* skinModel)

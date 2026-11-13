@@ -9,6 +9,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Engine", "Engine\Engine.vcx
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Sandbox", "Sandbox\Sandbox.vcxproj", "{6A1D2F0B-3C4E-4B8A-9F11-0A1B2C3D4E03}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Tests", "Tests\Tests.vcxproj", "{6A1D2F0B-3C4E-4B8A-9F11-0A1B2C3D4E04}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -34,6 +36,12 @@ Global
 		{6A1D2F0B-3C4E-4B8A-9F11-0A1B2C3D4E03}.Release|x64.Build.0 = Release|x64
 		{6A1D2F0B-3C4E-4B8A-9F11-0A1B2C3D4E03}.Game|x64.ActiveCfg = Game|x64
 		{6A1D2F0B-3C4E-4B8A-9F11-0A1B2C3D4E03}.Game|x64.Build.0 = Game|x64
+		{6A1D2F0B-3C4E-4B8A-9F11-0A1B2C3D4E04}.Debug|x64.ActiveCfg = Debug|x64
+		{6A1D2F0B-3C4E-4B8A-9F11-0A1B2C3D4E04}.Debug|x64.Build.0 = Debug|x64
+		{6A1D2F0B-3C4E-4B8A-9F11-0A1B2C3D4E04}.Release|x64.ActiveCfg = Release|x64
+		{6A1D2F0B-3C4E-4B8A-9F11-0A1B2C3D4E04}.Release|x64.Build.0 = Release|x64
+		{6A1D2F0B-3C4E-4B8A-9F11-0A1B2C3D4E04}.Game|x64.ActiveCfg = Game|x64
+		{6A1D2F0B-3C4E-4B8A-9F11-0A1B2C3D4E04}.Game|x64.Build.0 = Game|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

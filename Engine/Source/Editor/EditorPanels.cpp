@@ -1,6 +1,7 @@
 #include "RdPch.h"
 #include "Editor/Editor.h"
 #include "Asset/AssetManager.h"
+#include "Asset/AudioClip.h"
 #include "Asset/Texture.h"
 #include "Core/JobSystem.h"
 #include "Core/JsonArchive.h"
@@ -37,7 +38,7 @@ namespace rd
 		{
 			if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".bmp" || ext == ".tga" || ext == ".dds" || ext == ".hdr") { return "IMG"; }
 			if (ext == ".obj" || ext == ".gltf" || ext == ".glb" || ext == ".fbx") { return "MDL"; }
-			if (ext == ".wav") { return "SND"; }
+			if (AudioClip::IsSupportedExtension(ext)) { return "SND"; }
 			if (ext == ".scene") { return "SCN"; }
 			if (ext == ".prefab") { return "PFB"; }
 			if (ext == ".hlsl" || ext == ".hlsli") { return "SHD"; }

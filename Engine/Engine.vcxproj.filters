@@ -50,6 +50,10 @@
     <ClCompile Include="Source\Core\JsonArchive.cpp"><Filter>Source\Core</Filter></ClCompile>
     <ClInclude Include="Source\Core\JsonArchive.h"><Filter>Source\Core</Filter></ClInclude>
     <ClCompile Include="Source\Core\Log.cpp"><Filter>Source\Core</Filter></ClCompile>
+    <ClCompile Include="Source\Core\CrashHandler.cpp"><Filter>Source\Core</Filter></ClCompile>
+    <ClInclude Include="Source\Core\CrashHandler.h"><Filter>Source\Core</Filter></ClInclude>
+    <ClCompile Include="Source\Core\Profiler.cpp"><Filter>Source\Core</Filter></ClCompile>
+    <ClInclude Include="Source\Core\Profiler.h"><Filter>Source\Core</Filter></ClInclude>
     <ClInclude Include="Source\Core\Log.h"><Filter>Source\Core</Filter></ClInclude>
     <ClInclude Include="Source\Core\Reflection.h"><Filter>Source\Core</Filter></ClInclude>
     <ClCompile Include="Source\Core\StringUtil.cpp"><Filter>Source\Core</Filter></ClCompile>
@@ -59,6 +63,11 @@
     <ClCompile Include="Source\Editor\CommandHistory.cpp"><Filter>Source\Editor</Filter></ClCompile>
     <ClInclude Include="Source\Editor\CommandHistory.h"><Filter>Source\Editor</Filter></ClInclude>
     <ClCompile Include="Source\Editor\Editor.cpp"><Filter>Source\Editor</Filter></ClCompile>
+    <ClCompile Include="Source\Editor\AIAssistant.cpp"><Filter>Source\Editor</Filter></ClCompile>
+    <ClInclude Include="Source\Editor\AIAssistant.h"><Filter>Source\Editor</Filter></ClInclude>
+    <ClCompile Include="Source\Editor\AssistantTools.cpp"><Filter>Source\Editor</Filter></ClCompile>
+    <ClInclude Include="Source\Editor\AssistantTools.h"><Filter>Source\Editor</Filter></ClInclude>
+    <ClCompile Include="Source\Editor\ProfilerPanel.cpp"><Filter>Source\Editor</Filter></ClCompile>
     <ClInclude Include="Source\Editor\Editor.h"><Filter>Source\Editor</Filter></ClInclude>
     <ClCompile Include="Source\Editor\EditorCommands.cpp"><Filter>Source\Editor</Filter></ClCompile>
     <ClInclude Include="Source\Editor\EditorCommands.h"><Filter>Source\Editor</Filter></ClInclude>
@@ -87,6 +96,8 @@
     <ClCompile Include="Source\Physics\Shapes.cpp"><Filter>Source\Physics</Filter></ClCompile>
     <ClInclude Include="Source\Physics\Shapes.h"><Filter>Source\Physics</Filter></ClInclude>
     <ClCompile Include="Source\Platform\Input.cpp"><Filter>Source\Platform</Filter></ClCompile>
+    <ClCompile Include="Source\Platform\HttpClient.cpp"><Filter>Source\Platform</Filter></ClCompile>
+    <ClInclude Include="Source\Platform\HttpClient.h"><Filter>Source\Platform</Filter></ClInclude>
     <ClInclude Include="Source\Platform\Input.h"><Filter>Source\Platform</Filter></ClInclude>
     <ClCompile Include="Source\Platform\Window.cpp"><Filter>Source\Platform</Filter></ClCompile>
     <ClInclude Include="Source\Platform\Window.h"><Filter>Source\Platform</Filter></ClInclude>

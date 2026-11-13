@@ -81,20 +81,25 @@ namespace rd
 		Vector3 GetApproxSize() const override;
 	};
 
-	// 静的な三角形メッシュ（地形など）。動くものには使えない
+	// 三角形メッシュのコライダー
+	//  静的（地形・建物）: 三角形の面そのもので当たる。凹んだ形もそのまま使える
+	//  動く物体（動的な Rigidbody 付き）または convex: 凸包として当たる（Unity の Convex と同じ考え方）
+	//  凸包でないメッシュ同士は「頂点が相手の面より内側に入ったか」で調べるので、辺と辺だけの交差は拾えない。
 	class MeshCollider final : public Collider
 	{
 		RD_COMPONENT(MeshCollider)
 	public:
 		std::string modelPath;// 空なら同じアクターの MeshRenderer のモデル
+		bool convex = false;// 凸包として扱う（動的な Rigidbody が付いていれば常に凸包）
 		void Reflect(PropertyVisitor& v) override;
 		bool UpdateShape(WorldShape& out) override;
-		Vector3 GetApproxSize() const override { return Vector3::kOne; }
+		Vector3 GetApproxSize() const override;
 
 	private:
 		AssetRef<Model> mModel;
-		MeshCollisionData mData;
-		Matrix4 mBuiltMatrix;
+		MeshCollisionData mData;// ローカル座標（center と拡大縮小は焼き込み済み）
+		Vector3 mBuiltScale;
+		Vector3 mBuiltCenter;
 		const Model* mBuiltModel = nullptr;
 	};
 }

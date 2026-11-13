@@ -1,16 +1,12 @@
 #include "RdPch.h"
 #include "Core/Log.h"
 #include "Core/StringUtil.h"
-#include <DbgHelp.h>
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
-#include <csignal>
 #include <deque>
 #include <fstream>
 #include <thread>
-
-#pragma comment(lib, "dbghelp.lib")
 
 namespace rd
 {
@@ -170,7 +166,6 @@ namespace rd
 			std::string directory = "Logs";
 			const std::chrono::steady_clock::time_point startTime = std::chrono::steady_clock::now();
 			const DWORD mainThreadId = GetCurrentThreadId();
-			bool crashHandlerInstalled = false;
 		};
 
 		constexpr size_t kMaxHistory = 2000;
@@ -225,48 +220,6 @@ namespace rd
 			}
 		}
 
-		// 未処理例外: ログを書き出してミニダンプを残す
-		LONG WINAPI OnUnhandledException(EXCEPTION_POINTERS* info)
-		{
-			static std::atomic<bool> entered = false;
-			if (entered.exchange(true)) { return EXCEPTION_CONTINUE_SEARCH; }
-
-			LogState& s = State();
-			SYSTEMTIME now;
-			GetLocalTime(&now);
-			std::filesystem::path dump = std::filesystem::path(ToWide(s.directory)) / ToWide("Crash_" + Timestamp(now) + ".dmp");
-			HANDLE file = CreateFileW(dump.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
-			bool dumped = false;
-			if (file != INVALID_HANDLE_VALUE)
-			{
-				MINIDUMP_EXCEPTION_INFORMATION mei = { GetCurrentThreadId(), info, FALSE };
-				dumped = MiniDumpWriteDump(GetCurrentProcess(), GetCurrentProcessId(), file,
-					MINIDUMP_TYPE(MiniDumpWithIndirectlyReferencedMemory | MiniDumpWithThreadInfo), &mei, nullptr, nullptr);
-				CloseHandle(file);
-			}
-			Log::Write(LogLevel::Fatal, LogCat::Core, std::source_location::current(),
-				std::format("Unhandled exception 0x{:08X} at {}{}", info->ExceptionRecord->ExceptionCode,
-					info->ExceptionRecord->ExceptionAddress, dumped ? " (dump: " + ToUtf8(dump.wstring()) + ")" : ""));
-			return EXCEPTION_CONTINUE_SEARCH;
-		}
-
-		void OnAbortSignal(int)
-		{
-			Log::Write(LogLevel::Fatal, LogCat::Core, std::source_location::current(), "abort() was called");
-		}
-
-		void OnTerminate()
-		{
-			std::string what = "std::terminate was called";
-			if (auto e = std::current_exception())
-			{
-				try { std::rethrow_exception(e); }
-				catch (const std::exception& ex) { what += std::format(" (uncaught exception: {})", ex.what()); }
-				catch (...) { what += " (uncaught unknown exception)"; }
-			}
-			Log::Write(LogLevel::Fatal, LogCat::Core, std::source_location::current(), what);
-			std::abort();
-		}
 	}
 
 	// ==================================================
@@ -290,14 +243,6 @@ namespace rd
 			for (const auto& r : s.history) { file->Write(r); }
 		}
 		AddSink(file);
-
-		if (settings.crashHandler && !s.crashHandlerInstalled)
-		{
-			s.crashHandlerInstalled = true;
-			SetUnhandledExceptionFilter(OnUnhandledException);
-			std::set_terminate(OnTerminate);
-			std::signal(SIGABRT, OnAbortSignal);
-		}
 		std::atexit([] { Log::Shutdown(); });
 	}
 

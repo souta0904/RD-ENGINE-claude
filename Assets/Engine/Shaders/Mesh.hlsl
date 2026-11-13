@@ -126,6 +126,7 @@ float4 PSMain(VSOutput input, bool frontFace : SV_IsFrontFace) : SV_TARGET
     }
 
     color += gMaterial.emissive;
+    if (gFrame.debugCascades != 0 && gFrame.shadowEnabled != 0) { color *= CascadeDebugColor(input.worldPos); }
     color = ApplyFog(color, input.worldPos);
     return float4(color, base.a);
 }

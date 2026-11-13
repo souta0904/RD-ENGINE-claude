@@ -39,10 +39,11 @@ namespace rd
 		static void Initialize(uint32_t workerCount = 0);
 		static void Shutdown();
 
-		static JobHandle Schedule(JobFunc func, JobPriority priority = JobPriority::High);
+		// name はプロファイラに出る名前（文字列リテラル）
+		static JobHandle Schedule(JobFunc func, JobPriority priority = JobPriority::High, const char* name = "Job");
 		// [0, count) を batchSize ごとに分割して並列実行する
 		static JobHandle ParallelFor(uint32_t count, uint32_t batchSize, RangeFunc func,
-			JobPriority priority = JobPriority::High);
+			JobPriority priority = JobPriority::High, const char* name = "ParallelFor");
 		static void Wait(const JobHandle& handle);
 
 		// メインスレッドで実行する処理を登録（フレーム先頭で実行される）

@@ -1,5 +1,6 @@
 #include "RdPch.h"
 #include "RHI/GraphicsDevice.h"
+#include "Core/Profiler.h"
 #include "Core/StringUtil.h"
 
 namespace rd
@@ -44,8 +45,82 @@ namespace rd
 		CreateSwapChain(desc.hwnd);
 		CreateBackBufferViews();
 
+		// GPU 計測用のタイムスタンプ（フレームごとに kMaxGpuQueries 個ずつ使う）
+		D3D12_QUERY_HEAP_DESC queryDesc = {};
+		queryDesc.Type = D3D12_QUERY_HEAP_TYPE_TIMESTAMP;
+		queryDesc.Count = kMaxGpuQueries * kFrameCount;
+		RD_CHECK_HR(mDevice->CreateQueryHeap(&queryDesc, IID_PPV_ARGS(&mTimestampHeap)));
+		CD3DX12_HEAP_PROPERTIES readbackHeap(D3D12_HEAP_TYPE_READBACK);
+		auto readbackDesc = CD3DX12_RESOURCE_DESC::Buffer(sizeof(uint64_t) * queryDesc.Count);
+		RD_CHECK_HR(mDevice->CreateCommittedResource(&readbackHeap, D3D12_HEAP_FLAG_NONE, &readbackDesc,
+			D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&mTimestampReadback)));
+		SetDebugName(mTimestampReadback.Get(), L"TimestampReadback");
+		RD_CHECK_HR(mQueue->GetTimestampFrequency(&mTimestampFrequency));
+
 		mShaderCompiler.Initialize();
 		return true;
+	}
+
+	// ==================================================
+	// GPU の区間計測
+	// ==================================================
+	void GraphicsDevice::BeginGpuScope(const char* name)
+	{
+		// PIX / RenderDoc のイベント名（Metadata 1 = ANSI 文字列）
+		mCmdList->BeginEvent(1, name, UINT(std::strlen(name) + 1));
+		FrameContext& frame = mFrames[mFrameIndex];
+		if (frame.queryCount + 2 > kMaxGpuQueries)
+		{
+			mGpuScopeStack.push_back(UINT32_MAX);// 数が多すぎるときは計測しない（イベント名だけ付ける）
+			return;
+		}
+		uint32_t query = mFrameIndex * kMaxGpuQueries + frame.queryCount++;
+		mCmdList->EndQuery(mTimestampHeap.Get(), D3D12_QUERY_TYPE_TIMESTAMP, query);
+		mGpuScopeStack.push_back(uint32_t(frame.gpuScopes.size()));
+		frame.gpuScopes.push_back({ name, query, query, uint16_t(mGpuScopeStack.size() - 1) });
+	}
+
+	void GraphicsDevice::EndGpuScope()
+	{
+		mCmdList->EndEvent();
+		if (mGpuScopeStack.empty()) { return; }
+		uint32_t index = mGpuScopeStack.back();
+		mGpuScopeStack.pop_back();
+		if (index == UINT32_MAX) { return; }
+		FrameContext& frame = mFrames[mFrameIndex];
+		uint32_t query = mFrameIndex * kMaxGpuQueries + frame.queryCount++;
+		mCmdList->EndQuery(mTimestampHeap.Get(), D3D12_QUERY_TYPE_TIMESTAMP, query);
+		frame.gpuScopes[index].end = query;
+	}
+
+	void GraphicsDevice::CollectGpuTimings(FrameContext& frame)
+	{
+		// フェンスを待った後なので、このフレームのタイムスタンプは読み戻し済み
+		if (!frame.gpuScopes.empty() && mTimestampFrequency != 0)
+		{
+			uint32_t base = uint32_t(&frame - mFrames) * kMaxGpuQueries;
+			D3D12_RANGE range{ base * sizeof(uint64_t), (base + frame.queryCount) * sizeof(uint64_t) };
+			uint64_t* data = nullptr;
+			if (SUCCEEDED(mTimestampReadback->Map(0, &range, reinterpret_cast<void**>(&data))))
+			{
+				uint64_t origin = data[frame.gpuScopes.front().begin];
+				for (auto& s : frame.gpuScopes) { origin = std::min(origin, data[s.begin]); }
+				auto toMs = [&](uint32_t q) { return double(data[q] - origin) * 1000.0 / double(mTimestampFrequency); };
+				std::vector<GpuProfileEvent> events;
+				events.reserve(frame.gpuScopes.size());
+				for (auto& s : frame.gpuScopes)
+				{
+					if (s.end == s.begin) { continue; }// 閉じられなかった区間
+					events.push_back({ s.name, toMs(s.begin), toMs(s.end), s.depth });
+				}
+				D3D12_RANGE noWrite{ 0, 0 };
+				mTimestampReadback->Unmap(0, &noWrite);
+				Profiler::SubmitGpu(frame.profilerFrame, std::move(events));
+			}
+		}
+		frame.gpuScopes.clear();
+		frame.queryCount = 0;
+		frame.profilerFrame = Profiler::GetFrameNumber();
 	}
 
 	void GraphicsDevice::Shutdown()
@@ -69,6 +144,8 @@ namespace rd
 		mSrvHeap.Destroy();
 		if (mFenceEvent) { CloseHandle(mFenceEvent); mFenceEvent = nullptr; }
 		mSwapChain.Reset();
+		mTimestampHeap.Reset();
+		mTimestampReadback.Reset();
 		mCmdList.Reset();
 		mQueue.Reset();
 		mFence.Reset();
@@ -201,8 +278,12 @@ namespace rd
 	{
 		FrameContext& frame = mFrames[mFrameIndex];
 		// このフレームのコマンドアロケータを GPU が使い終わるまで待つ
-		WaitForFence(frame.fenceValue);
+		{
+			RD_PROFILE_SCOPE("Wait GPU");
+			WaitForFence(frame.fenceValue);
+		}
 		ProcessDeferredReleases(false);
+		CollectGpuTimings(frame);
 
 		RD_CHECK_HR(frame.allocator->Reset());
 		RD_CHECK_HR(mCmdList->Reset(frame.allocator.Get(), nullptr));
@@ -220,12 +301,24 @@ namespace rd
 	void GraphicsDevice::EndFrame()
 	{
 		FrameContext& frame = mFrames[mFrameIndex];
+		RD_ASSERT(mGpuScopeStack.empty(), "BeginGpuScope / EndGpuScope do not match");
+		mGpuScopeStack.clear();
+		if (frame.queryCount > 0)
+		{
+			uint32_t base = mFrameIndex * kMaxGpuQueries;
+			mCmdList->ResolveQueryData(mTimestampHeap.Get(), D3D12_QUERY_TYPE_TIMESTAMP, base, frame.queryCount,
+				mTimestampReadback.Get(), base * sizeof(uint64_t));
+		}
 		RD_CHECK_HR(mCmdList->Close());
 		ID3D12CommandList* lists[] = { mCmdList.Get() };
 		mQueue->ExecuteCommandLists(1, lists);
 
 		UINT flags = (!mVSync && mTearingSupported) ? DXGI_PRESENT_ALLOW_TEARING : 0;
-		HRESULT hr = mSwapChain->Present(mVSync ? 1 : 0, flags);
+		HRESULT hr;
+		{
+			RD_PROFILE_SCOPE("Present");
+			hr = mSwapChain->Present(mVSync ? 1 : 0, flags);
+		}
 		if (hr == DXGI_ERROR_DEVICE_REMOVED || hr == DXGI_ERROR_DEVICE_RESET)
 		{
 			RD_VERIFY(false, "GPU device removed (0x{:08X})", uint32_t(mDevice->GetDeviceRemovedReason()));

@@ -34,24 +34,33 @@ namespace rd
 	};
 	static_assert(sizeof(GpuObjectData) == 144);
 
+	// カスケードシャドウの最大数（シャドウマップは 2x2 のタイルに分けて 1 枚にまとめる）
+	inline constexpr uint32_t kMaxShadowCascades = 4;
+
 	struct GpuFrameData
 	{
 		Matrix4 view;
 		Matrix4 proj;
 		Matrix4 viewProj;
 		Matrix4 invViewProj;
-		Matrix4 shadowViewProj;
+		Matrix4 shadowViewProj[kMaxShadowCascades];// カスケードごと（タイルへの配置込み）
+		Vector4 cascadeSplits;// 各カスケードの奥の境界（ビュー空間の深さ）
+		Vector4 cascadeTexelSizes;// 各カスケードの 1 テクセルのワールドでの大きさ
 		Vector3 cameraPos; float time = 0.0f;
 		Vector3 cameraRight; float shadowBias = 0.0f;
 		Vector3 cameraUp; float shadowStrength = 1.0f;
-		Vector3 ambientSky; float shadowTexelSize = 0.0f;
+		Vector3 ambientSky; uint32_t cascadeCount = 0;
 		Vector3 ambientGround; float fogDensity = 0.0f;
 		Vector3 fogColor; float fogStart = 0.0f;
 		Vector3 skyZenith; uint32_t dirLightCount = 0;
 		Vector3 skyHorizon; uint32_t pointLightCount = 0;
 		Vector2 screenSize; uint32_t spotLightCount = 0; uint32_t shadowEnabled = 0;
+		uint32_t shadowCascade = 0;// シャドウパスで描いているカスケード
+		uint32_t debugCascades = 0;// カスケードを色分けして表示
+		float shadowFadeStart = 0.0f;// ここから shadowDistance までで影を薄くする
+		float pad = 0.0f;
 	};
-	static_assert(sizeof(GpuFrameData) == 464);
+	static_assert(sizeof(GpuFrameData) == 704);
 
 	struct GpuMaterialData
 	{
@@ -225,10 +234,13 @@ namespace rd
 	struct RenderSettings
 	{
 		bool shadows = true;
-		uint32_t shadowMapSize = 2048;
-		float shadowDistance = 40.0f;
+		uint32_t shadowMapSize = 1024;// カスケード 1 つ分（実際のテクスチャはこの 2 倍四方）
+		uint32_t shadowCascades = 4;// 1～4。近くほど細かい影になる
+		float shadowDistance = 80.0f;
+		float cascadeSplitLambda = 0.75f;// 0: 等間隔 / 1: 対数（近くに細かく割り当てる）
 		float shadowBias = 0.0005f;
 		float shadowStrength = 0.9f;
+		bool debugCascades = false;
 		bool bloom = true;
 		float bloomThreshold = 1.0f;
 		float bloomKnee = 0.5f;

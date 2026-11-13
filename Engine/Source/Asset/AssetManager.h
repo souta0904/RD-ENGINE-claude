@@ -34,7 +34,7 @@ namespace rd
 			asset->mPath = key;
 			mAssets.emplace(key, asset);
 			++mLoadingCount;
-			JobSystem::Schedule([this, asset] { RunLoad(asset); }, JobPriority::Low);
+			JobSystem::Schedule([this, asset] { RunLoad(asset); }, JobPriority::Low, "Asset Load");
 			return asset;
 		}
 

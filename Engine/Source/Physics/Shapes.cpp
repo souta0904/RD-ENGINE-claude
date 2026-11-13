@@ -96,7 +96,7 @@ namespace rd
 			bounds = AABB(Min(p0, p1) - Vector3(radius, radius, radius), Max(p0, p1) + Vector3(radius, radius, radius));
 			break;
 		case ShapeType::Mesh:
-			bounds = mesh ? mesh->GetBounds() : AABB();
+			bounds = mesh ? mesh->GetBounds().Transform(Matrix4::CreateRotate(meshRotation) * Matrix4::CreateTranslate(meshPosition)) : AABB();
 			break;
 		}
 	}
@@ -123,6 +123,76 @@ namespace rd
 		mNodes.clear();
 		mNodes.reserve(size_t(triCount) / 2 + 1);
 		if (triCount > 0) { BuildNode(0, triCount, 0); }
+		BuildHull();
+	}
+
+	void MeshCollisionData::BuildHull()
+	{
+		constexpr size_t kMaxPoints = 256;
+		constexpr size_t kMaxPlanes = 64;
+		mHullPoints.clear();
+		mHullPlanes.clear();
+		if (mPositions.empty()) { return; }
+
+		// 同じ位置の頂点をまとめる（UV や法線の違いで分かれている頂点が多い）
+		std::vector<Vector3> unique;
+		for (const Vector3& p : mPositions)
+		{
+			bool found = false;
+			for (const Vector3& q : unique)
+			{
+				if (LengthSq(p - q) < 1.0e-8f) { found = true; break; }
+			}
+			if (!found) { unique.push_back(p); }
+			if (unique.size() > 4096) { break; }// 大きすぎるメッシュは下で方向ごとの端の点に絞る
+		}
+		if (unique.size() <= kMaxPoints && unique.size() < 4096)
+		{
+			mHullPoints = std::move(unique);
+		}
+		else
+		{
+			// 球面上に均等に並べた方向ごとに、いちばん外側の点だけ残す（凸包の近似）
+			std::vector<Vector3> source = mPositions;
+			for (size_t i = 0; i < 162; ++i)
+			{
+				float y = 1.0f - 2.0f * (float(i) + 0.5f) / 162.0f;
+				float r = std::sqrt(std::max(0.0f, 1.0f - y * y));
+				float phi = float(i) * 2.39996323f;// 黄金角
+				Vector3 dir(std::cos(phi) * r, y, std::sin(phi) * r);
+				const Vector3* best = &source[0];
+				for (const Vector3& p : source) { if (Dot(p, dir) > Dot(*best, dir)) { best = &p; } }
+				bool found = false;
+				for (const Vector3& q : mHullPoints) { if (LengthSq(*best - q) < 1.0e-8f) { found = true; break; } }
+				if (!found) { mHullPoints.push_back(*best); }
+			}
+		}
+
+		// 面の向き（外向き）を集める。同じ向きはまとめ、面積の大きいものを優先する
+		struct Candidate { Vector3 normal; float area; };
+		std::vector<Candidate> candidates;
+		for (size_t t = 0; t + 2 < mIndices.size(); t += 3)
+		{
+			Vector3 a = mPositions[mIndices[t]], b = mPositions[mIndices[t + 1]], c = mPositions[mIndices[t + 2]];
+			Vector3 n = Cross(c - a, b - a);
+			float len = Length(n);
+			if (len < 1.0e-10f) { continue; }
+			n /= len;
+			bool merged = false;
+			for (auto& cand : candidates)
+			{
+				if (Dot(cand.normal, n) > 0.999f) { cand.area += len; merged = true; break; }
+			}
+			if (!merged) { candidates.push_back({ n, len }); }
+		}
+		std::sort(candidates.begin(), candidates.end(), [](auto& x, auto& y) { return x.area > y.area; });
+		if (candidates.size() > kMaxPlanes) { candidates.resize(kMaxPlanes); }
+		for (auto& cand : candidates)
+		{
+			float d = -math::kInfinity;
+			for (const Vector3& p : mHullPoints) { d = std::max(d, Dot(p, cand.normal)); }
+			mHullPlanes.push_back({ cand.normal, d });
+		}
 	}
 
 	void MeshCollisionData::GetTriangle(uint32_t index, Vector3& a, Vector3& b, Vector3& c) const
@@ -445,6 +515,284 @@ namespace rd
 			return true;
 		}
 
+		// 形状をメッシュのローカル座標へ移す（回転と移動だけなので形は変わらない）
+		WorldShape ToMeshSpace(const WorldShape& s, const WorldShape& mesh)
+		{
+			WorldShape local = s;
+			Quaternion inv = Conjugate(mesh.meshRotation);
+			local.center = mesh.WorldToMesh(s.center);
+			local.p0 = mesh.WorldToMesh(s.p0);
+			local.p1 = mesh.WorldToMesh(s.p1);
+			for (auto& axis : local.axes) { axis = axis * inv; }
+			local.ComputeBounds();
+			return local;
+		}
+
+		void LimitContacts(std::vector<ContactPoint>& out, size_t before, size_t max)
+		{
+			// 接触点が多すぎると不安定になるので深いものから絞る
+			if (out.size() - before > max)
+			{
+				std::sort(out.begin() + ptrdiff_t(before), out.end(), [](auto& x, auto& y) { return x.depth > y.depth; });
+				out.resize(before + max);
+			}
+		}
+
+		bool CollideWithMesh(const WorldShape& s, const MeshCollisionData& mesh, std::vector<ContactPoint>& out);
+
+		// 形状とメッシュ（動いていてもよい）: ローカル座標で調べてワールドへ戻す
+		bool CollideWithMeshShape(const WorldShape& s, const WorldShape& meshShape, std::vector<ContactPoint>& out)
+		{
+			if (!meshShape.mesh) { return false; }
+			size_t before = out.size();
+			if (!CollideWithMesh(ToMeshSpace(s, meshShape), *meshShape.mesh, out)) { return false; }
+			for (size_t i = before; i < out.size(); ++i)
+			{
+				out[i].point = meshShape.MeshToWorld(out[i].point);
+				out[i].normal = out[i].normal * meshShape.meshRotation;
+			}
+			return true;
+		}
+
+		// メッシュ同士: 片方の頂点がもう片方の面より内側に入っていたら接触とみなす（両方向に調べる）
+		//  辺と辺だけが交差する場合は拾えないが、箱のような物を地形に置く用途には十分
+		void MeshVerticesIntoMesh(const WorldShape& from, const WorldShape& into, bool flip, std::vector<ContactPoint>& out)
+		{
+			const auto& verts = from.mesh->GetPositions();
+			if (verts.empty()) { return; }
+			// めり込みとみなす深さの上限（これより深いと裏側の面と区別がつかない）
+			Vector3 size = from.mesh->GetBounds().GetExtents();
+			float margin = std::clamp(std::min(size.x, std::min(size.y, size.z)) * 0.5f, 0.02f, 0.5f);
+			AABB intoBounds = into.bounds;
+			intoBounds.min -= Vector3(margin, margin, margin);
+			intoBounds.max += Vector3(margin, margin, margin);
+			// 頂点が多いメッシュは間引く
+			size_t step = std::max<size_t>(1, verts.size() / 512);
+			for (size_t i = 0; i < verts.size(); i += step)
+			{
+				Vector3 world = from.MeshToWorld(verts[i]);
+				if (!intoBounds.Contains(world)) { continue; }
+				Vector3 p = into.WorldToMesh(world);
+				float bestDist = margin;
+				Vector3 bestPoint, bestNormal;
+				bool found = false;
+				into.mesh->Query(AABB::FromCenterExtents(p, Vector3(margin, margin, margin)), [&](uint32_t tri)
+					{
+						Vector3 a, b, c;
+						into.mesh->GetTriangle(tri, a, b, c);
+						Vector3 n = Cross(c - a, b - a);// 外向き
+						float len = Length(n);
+						if (len < 1.0e-12f) { return; }
+						n /= len;
+						Vector3 q = ClosestPointOnTriangle(p, a, b, c);
+						float behind = Dot(q - p, n);// 面の裏側（内側）にいれば正
+						float dist = Length(q - p);
+						if (behind > 0.0f && dist < bestDist)
+						{
+							bestDist = dist;
+							bestPoint = q;
+							bestNormal = n;
+							found = true;
+						}
+					});
+				if (!found) { continue; }
+				// into の面は from を外向き (+n) に押し返す。法線は「A から B へ」なので from が A なら -n
+				Vector3 n = bestNormal * into.meshRotation;
+				out.push_back({ into.MeshToWorld(bestPoint), flip ? n : -n, bestDist });
+			}
+		}
+
+		// --------------------------------------------------
+		// 凸な形同士（箱・凸包として扱うメッシュ）
+		//  分離軸（両方の面の向き）に点を投影して重なりを調べ、いちばん浅い軸で押し返す。
+		//  面ではなく体積として扱うので、深くめり込んでも押し返す向きが逆にならない。
+		// --------------------------------------------------
+		struct ConvexProxy
+		{
+			std::vector<Vector3> points;
+			std::vector<MeshCollisionData::Plane> planes;
+
+			bool Contains(const Vector3& p, float tolerance) const
+			{
+				for (const auto& pl : planes)
+				{
+					if (Dot(p, pl.normal) > pl.d + tolerance) { return false; }
+				}
+				return true;
+			}
+			// 押し返す向き n に対して横の面だけで調べる（薄い板を突き抜けた点も接触として拾うため）
+			bool ContainsSideways(const Vector3& p, const Vector3& n, float tolerance) const
+			{
+				for (const auto& pl : planes)
+				{
+					if (std::fabs(Dot(pl.normal, n)) > 0.7f) { continue; }
+					if (Dot(p, pl.normal) > pl.d + tolerance) { return false; }
+				}
+				return true;
+			}
+			float Radius() const
+			{
+				Vector3 c;
+				for (const Vector3& p : points) { c += p; }
+				c /= float(std::max<size_t>(points.size(), 1));
+				float r = 0.0f;
+				for (const Vector3& p : points) { r = std::max(r, LengthSq(p - c)); }
+				return std::sqrt(r);
+			}
+			void Project(const Vector3& axis, float& mn, float& mx) const
+			{
+				mn = math::kInfinity;
+				mx = -math::kInfinity;
+				for (const Vector3& p : points)
+				{
+					float d = Dot(p, axis);
+					mn = std::min(mn, d);
+					mx = std::max(mx, d);
+				}
+			}
+		};
+
+		ConvexProxy MakeBoxProxy(const WorldShape& box)
+		{
+			ConvexProxy c;
+			c.points.resize(8);
+			BoxVertices(box, c.points.data());
+			for (int i = 0; i < 3; ++i)
+			{
+				float center = Dot(box.center, box.axes[i]);
+				c.planes.push_back({ box.axes[i], center + box.halfExtents[i] });
+				c.planes.push_back({ -box.axes[i], -center + box.halfExtents[i] });
+			}
+			return c;
+		}
+
+		ConvexProxy MakeMeshProxy(const WorldShape& mesh)
+		{
+			ConvexProxy c;
+			for (const Vector3& p : mesh.mesh->GetHullPoints()) { c.points.push_back(mesh.MeshToWorld(p)); }
+			for (const auto& pl : mesh.mesh->GetHullPlanes())
+			{
+				Vector3 n = pl.normal * mesh.meshRotation;
+				c.planes.push_back({ n, pl.d + Dot(n, mesh.meshPosition) });
+			}
+			return c;
+		}
+
+		bool ConvexConvex(const ConvexProxy& a, const ConvexProxy& b, std::vector<ContactPoint>& out)
+		{
+			if (a.points.empty() || b.points.empty()) { return false; }
+			float best = math::kInfinity;
+			Vector3 n;
+			auto test = [&](const Vector3& axis)
+				{
+					float minA, maxA, minB, maxB;
+					a.Project(axis, minA, maxA);
+					b.Project(axis, minB, maxB);
+					float o1 = maxA - minB;// B が +axis 側
+					float o2 = maxB - minA;// B が -axis 側
+					if (o1 < 0.0f || o2 < 0.0f) { return false; }
+					float o = std::min(o1, o2);
+					if (o < best)
+					{
+						best = o;
+						n = o1 < o2 ? axis : -axis;
+					}
+					return true;
+				};
+			for (const auto& pl : a.planes) { if (!test(pl.normal)) { return false; } }
+			for (const auto& pl : b.planes) { if (!test(pl.normal)) { return false; } }
+
+			// 接触点: 相手の中に入っている頂点（n は A → B）
+			size_t before = out.size();
+			float minA, maxA, minB, maxB;
+			a.Project(n, minA, maxA);
+			b.Project(n, minB, maxB);
+			constexpr float kTolerance = 0.01f;
+			for (const Vector3& p : a.points)
+			{
+				float depth = Dot(p, n) - minB;
+				if (depth > 0.0f && b.ContainsSideways(p, n, kTolerance)) { out.push_back({ p, n, std::min(depth, best) }); }
+			}
+			for (const Vector3& q : b.points)
+			{
+				float depth = maxA - Dot(q, n);
+				if (depth > 0.0f && a.ContainsSideways(q, n, kTolerance)) { out.push_back({ q, n, std::min(depth, best) }); }
+			}
+			if (out.size() == before)
+			{
+				// 辺と辺だけが当たっているとき: 小さい方の形のいちばん出ている点
+				//  （大きい床の角などを使うと、接触点が遠く離れて回転ばかりしてしまう）
+				if (a.Radius() <= b.Radius())
+				{
+					const Vector3* pa = &a.points[0];
+					for (const Vector3& p : a.points) { if (Dot(p, n) > Dot(*pa, n)) { pa = &p; } }
+					out.push_back({ *pa, n, best });
+				}
+				else
+				{
+					const Vector3* pb = &b.points[0];
+					for (const Vector3& q : b.points) { if (Dot(q, n) < Dot(*pb, n)) { pb = &q; } }
+					out.push_back({ *pb, n, best });
+				}
+			}
+			LimitContacts(out, before, 4);
+			return true;
+		}
+
+		// 球と凸包: 外にいるときは面との最近点（正確）、中に入ったら面の向きで押し返す
+		bool SphereConvex(const WorldShape& sphere, const WorldShape& mesh, std::vector<ContactPoint>& out)
+		{
+			ConvexProxy hull = MakeMeshProxy(mesh);
+			if (hull.planes.empty() || !hull.Contains(sphere.center, 0.0f)) { return CollideWithMeshShape(sphere, mesh, out); }
+			float best = math::kInfinity;
+			Vector3 n;
+			for (const auto& pl : hull.planes)
+			{
+				float pen = pl.d - Dot(sphere.center, pl.normal) + sphere.radius;
+				if (pen < best) { best = pen; n = pl.normal; }
+			}
+			out.push_back({ sphere.center, -n, best });// 球（A）→ メッシュ（B）
+			return true;
+		}
+
+		// カプセルと凸包: 線分が中に入っていなければ面との最近点、入っていれば面の向きで押し返す
+		bool CapsuleConvex(const WorldShape& capsule, const WorldShape& mesh, std::vector<ContactPoint>& out)
+		{
+			ConvexProxy hull = MakeMeshProxy(mesh);
+			Vector3 mid = (capsule.p0 + capsule.p1) * 0.5f;
+			if (hull.planes.empty() || (!hull.Contains(capsule.p0, 0.0f) && !hull.Contains(capsule.p1, 0.0f) && !hull.Contains(mid, 0.0f)))
+			{
+				return CollideWithMeshShape(capsule, mesh, out);
+			}
+			float best = math::kInfinity;
+			Vector3 n;
+			float d = 0.0f;
+			for (const auto& pl : hull.planes)
+			{
+				float pen = pl.d - std::min(Dot(capsule.p0, pl.normal), Dot(capsule.p1, pl.normal)) + capsule.radius;
+				if (pen < best) { best = pen; n = pl.normal; d = pl.d; }
+			}
+			size_t before = out.size();
+			for (const Vector3& e : { capsule.p0, capsule.p1 })
+			{
+				float pen = d - Dot(e, n) + capsule.radius;
+				if (pen > 0.0f) { out.push_back({ e - n * capsule.radius, -n, std::min(pen, best) }); }
+			}
+			if (out.size() == before) { out.push_back({ mid, -n, best }); }
+			return true;
+		}
+
+		bool MeshMesh(const WorldShape& a, const WorldShape& b, std::vector<ContactPoint>& out)
+		{
+			if (a.mesh && b.mesh && a.meshConvex && b.meshConvex) { return ConvexConvex(MakeMeshProxy(a), MakeMeshProxy(b), out); }
+			if (!a.mesh || !b.mesh) { return false; }
+			size_t before = out.size();
+			MeshVerticesIntoMesh(a, b, false, out);
+			MeshVerticesIntoMesh(b, a, true, out);
+			LimitContacts(out, before, 4);
+			return out.size() > before;
+		}
+
 		bool CollideWithMesh(const WorldShape& s, const MeshCollisionData& mesh, std::vector<ContactPoint>& out)
 		{
 			size_t before = out.size();
@@ -475,7 +823,8 @@ namespace rd
 						if (dist2 < s.radius * s.radius)
 						{
 							float dist = std::sqrt(dist2);
-							Vector3 n = dist > 1.0e-6f ? d / dist : -Normalize(Cross(b - a, c - a));
+							// 線分が面に触れているときは、面の外向きの逆（カプセル → 面）
+							Vector3 n = dist > 1.0e-6f ? d / dist : Normalize(Cross(b - a, c - a));
 							out.push_back({ onTri, n, s.radius - dist });
 						}
 						break;
@@ -487,12 +836,7 @@ namespace rd
 						break;
 					}
 				});
-			// 接触点が多すぎると不安定になるので深いものから 4 つに絞る
-			if (out.size() - before > 4)
-			{
-				std::sort(out.begin() + ptrdiff_t(before), out.end(), [](auto& x, auto& y) { return x.depth > y.depth; });
-				out.resize(before + 4);
-			}
+			LimitContacts(out, before, 4);
 			return out.size() > before;
 		}
 
@@ -511,7 +855,7 @@ namespace rd
 					Vector3 q = ClosestPointOnSegment(a.center, b.p0, b.p1);
 					return SphereSphere(a.center, a.radius, q, b.radius, out);
 				}
-				case ShapeType::Mesh: return b.mesh && CollideWithMesh(a, *b.mesh, out);
+				case ShapeType::Mesh: return b.meshConvex ? SphereConvex(a, b, out) : CollideWithMeshShape(a, b, out);
 				}
 				break;
 			case ShapeType::Box:
@@ -529,7 +873,9 @@ namespace rd
 					for (size_t i = before; i < out.size(); ++i) { out[i].normal = -out[i].normal; }
 					return true;
 				}
-				case ShapeType::Mesh: return b.mesh && CollideWithMesh(a, *b.mesh, out);
+				case ShapeType::Mesh:
+					if (b.meshConvex) { return b.mesh && ConvexConvex(MakeBoxProxy(a), MakeMeshProxy(b), out); }
+					return CollideWithMeshShape(a, b, out);
 				default: break;
 				}
 				break;
@@ -542,10 +888,12 @@ namespace rd
 					ClosestPointsSegmentSegment(a.p0, a.p1, b.p0, b.p1, c1, c2);
 					return SphereSphere(c1, a.radius, c2, b.radius, out);
 				}
-				case ShapeType::Mesh: return b.mesh && CollideWithMesh(a, *b.mesh, out);
+				case ShapeType::Mesh: return b.meshConvex ? CapsuleConvex(a, b, out) : CollideWithMeshShape(a, b, out);
 				default: break;
 				}
 				break;
+			case ShapeType::Mesh:
+				return b.type == ShapeType::Mesh && MeshMesh(a, b, out);
 			default:
 				break;
 			}
@@ -654,7 +1002,14 @@ namespace rd
 		}
 
 		case ShapeType::Mesh:
-			return s.mesh && s.mesh->Raycast(ray, maxDist, outT, outNormal);
+		{
+			if (!s.mesh) { return false; }
+			// レイをメッシュのローカル座標へ（回転と移動だけなので距離は変わらない）
+			Ray local{ s.WorldToMesh(ray.origin), ray.direction * Conjugate(s.meshRotation) };
+			if (!s.mesh->Raycast(local, maxDist, outT, outNormal)) { return false; }
+			outNormal = outNormal * s.meshRotation;
+			return true;
+		}
 		}
 		return false;
 	}

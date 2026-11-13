@@ -170,6 +170,7 @@ namespace rd
 	{
 		Collider::Reflect(v);
 		v.Property("Model", modelPath, { .flags = PropertyMeta::AssetModel, .tooltip = "Empty = use MeshRenderer's model" });
+		v.Property("Convex", convex, { .tooltip = "Collide as the convex hull. Always on when a dynamic Rigidbody is attached" });
 	}
 
 	bool MeshCollider::UpdateShape(WorldShape& out)
@@ -187,22 +188,38 @@ namespace rd
 		}
 		if (!model || !model->IsReady() || model->GetCollisionIndices().empty()) { return false; }
 
-		// 変換やモデルが変わったときだけ作り直す（静的メッシュ前提）
+		// 三角形はローカル座標（オフセットと拡大縮小を焼き込む）で持つので、作り直すのは
+		// モデルか拡大縮小が変わったときだけ。移動と回転は形状の変換として渡す（動く物体にも使える）
 		const Matrix4& world = GetTransform().GetWorldMatrix();
-		if (model != mBuiltModel || std::memcmp(&world, &mBuiltMatrix, sizeof(Matrix4)) != 0)
+		Vector3 scale;
+		Quaternion rotation;
+		Vector3 position;
+		world.Decompose(scale, rotation, position);
+		if (model != mBuiltModel || LengthSq(scale - mBuiltScale) > 1.0e-10f || LengthSq(center - mBuiltCenter) > 1.0e-10f)
 		{
 			std::vector<Vector3> positions;
 			positions.reserve(model->GetCollisionPositions().size());
-			Matrix4 m = Matrix4::CreateTranslate(center) * world;
-			for (const auto& p : model->GetCollisionPositions()) { positions.push_back(TransformPoint(p, m)); }
+			for (const auto& p : model->GetCollisionPositions()) { positions.push_back((p + center) * scale); }
 			mData.Build(std::move(positions), model->GetCollisionIndices());
 			mBuiltModel = model;
-			mBuiltMatrix = world;
+			mBuiltScale = scale;
+			mBuiltCenter = center;
 		}
 		out.type = ShapeType::Mesh;
 		out.mesh = &mData;
-		out.center = world.GetTranslation();
+		out.meshRotation = rotation;
+		out.meshPosition = position;
+		// 動く物体は凸包として扱う（三角形の面のままだと、深くめり込んだときに押し返す向きが決まらない）
+		Rigidbody* rb = GetAttachedRigidbody();
+		out.meshConvex = convex || (rb && rb->IsDynamic());
+		out.center = position;
 		out.ComputeBounds();
 		return true;
+	}
+
+	Vector3 MeshCollider::GetApproxSize() const
+	{
+		// 慣性の計算用。まだ作っていなければ単位の箱とみなす
+		return mBuiltModel ? mData.GetBounds().GetExtents() * 2.0f : Vector3::kOne;
 	}
 }

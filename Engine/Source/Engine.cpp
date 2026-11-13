@@ -4,7 +4,9 @@
 #include "Audio/AudioSystem.h"
 #include "Runtime/BuiltinComponents.h"
 #include "Components/CameraComponent.h"
+#include "Core/CrashHandler.h"
 #include "Core/JobSystem.h"
+#include "Core/Profiler.h"
 #include "Core/Time.h"
 #include "Core/Timer.h"
 #include "Platform/Input.h"
@@ -40,6 +42,7 @@ namespace rd
 		Timer timer;
 		while (mRunning)
 		{
+			Profiler::BeginFrame();
 			Input::NewFrame();
 			if (!mWindow.PumpMessages()) { break; }
 			Input::LatchFrame();
@@ -66,7 +69,21 @@ namespace rd
 	bool Engine::Initialize()
 	{
 		Log::Initialize(mConfig.log);
+		if (mConfig.crashHandler)
+		{
+			CrashHandler::Settings crash = mConfig.crash;
+			crash.directory = mConfig.log.directory;
+			CrashHandler::Install(crash);
+			// レポートに載せる情報（落ちたときに呼ばれる）
+			CrashHandler::SetContext("Engine", [] { return std::format("{} {}{}", kName, kVersion, RD_EDITOR ? "" : " (Game)"); });
+			CrashHandler::SetContext("Frame", [this] { return std::to_string(mFrameCount); });
+			CrashHandler::SetContext("Scene", [this] { return mScenes.HasScene() ? mScenes.GetScene().GetPath() : std::string("(none)"); });
+			CrashHandler::SetContext("Playing", [this] { return mPlay.IsPlaying() ? std::string("yes") : std::string("no"); });
+			CrashHandler::SetContext("GPU", [this] { return mDevice ? mDevice->GetAdapterName() : std::string("(not created)"); });
+		}
 		CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+		Profiler::SetThreadName("Main");
+		if (mConfig.profileFrames > 0) { Profiler::RequestCapture(mConfig.profileFrames, mConfig.profilePath); }
 		Log::Info(LogCat::Core, "{} {}{}", kName, kVersion, RD_EDITOR ? "" : " (Game)");
 		Log::Debug(LogCat::Core, "Log file: {}", Log::GetFilePath());
 
@@ -153,10 +170,14 @@ namespace rd
 
 	void Engine::Frame(float dt)
 	{
+		RD_PROFILE_SCOPE("Frame");
 		mStats.Tick(dt);
 
-		JobSystem::ExecuteMainThreadTasks();
-		ApplyPendingScene();
+		{
+			RD_PROFILE_SCOPE("Main Thread Tasks");
+			JobSystem::ExecuteMainThreadTasks();
+			ApplyPendingScene();
+		}
 
 		PlayController::FrameTime time = mPlay.AdvanceTime(dt);
 
@@ -166,6 +187,7 @@ namespace rd
 		// エディタ UI（ビューポートの大きさやカメラもここで決まる。Stop でシーンが差し替わることもある）
 		if (mEditor)
 		{
+			RD_PROFILE_SCOPE("Editor");
 			mEditor->BeginFrame();
 			mEditor->Update(dt);
 		}
@@ -177,13 +199,21 @@ namespace rd
 
 		// シーン更新（プレイ中でなければ編集用の更新のみ）
 		Scene& scene = mScenes.GetScene();
-		scene.Update(time.advance ? time.gameDt : dt, time.advance);
-
-		UpdateAudio(scene);
+		{
+			RD_PROFILE_SCOPE("Scene Update");
+			scene.Update(time.advance ? time.gameDt : dt, time.advance);
+		}
+		{
+			RD_PROFILE_SCOPE("Audio");
+			UpdateAudio(scene);
+		}
 
 		// 描画 → バックバッファへ
 		mCapture.BeforeRender(*mRenderer, mFrameCount);
-		mComposer.Render(scene, float(Time::RealTime()));
+		{
+			RD_PROFILE_SCOPE("Render");
+			mComposer.Render(scene, float(Time::RealTime()));
+		}
 		mDevice->EndFrame();
 
 		if (mCapture.AfterPresent(*mRenderer, mFrameCount))

@@ -28,10 +28,17 @@ namespace rd
 					if (level == ToLower(ToString(LogLevel(l))) || (level == "warning" && l == int(LogLevel::Warning))) { log.minLevel = LogLevel(l); }
 				}
 			}
+			else if (arg == "-nocrashdialog") { crash.showDialog = false; }
 			else if (arg == "-capture" && i + 1 < argc)
 			{
+				crash.showDialog = false;// 自動テスト中は止めない
 				captureFrame = std::stoi(ToUtf8(argv[++i]));
 				if (i + 1 < argc && argv[i + 1][0] != L'-') { capturePath = ToUtf8(argv[++i]); }
+			}
+			else if (arg == "-profile" && i + 1 < argc)
+			{
+				profileFrames = size_t(std::stoul(ToUtf8(argv[++i])));
+				if (i + 1 < argc && argv[i + 1][0] != L'-') { profilePath = ToUtf8(argv[++i]); }
 			}
 		}
 		LocalFree(argv);

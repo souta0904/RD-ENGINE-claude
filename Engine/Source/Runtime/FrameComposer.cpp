@@ -39,8 +39,11 @@ namespace rd
 
 		// 描画
 		auto& renderer = *mRenderer;
-		scene.CollectRender(renderer.GetRenderList());
-		if (mOverlay) { mOverlay->DrawGizmos(renderer.GetDebugDraw()); }
+		{
+			RD_PROFILE_SCOPE("Collect Render");
+			scene.CollectRender(renderer.GetRenderList());
+			if (mOverlay) { mOverlay->DrawGizmos(renderer.GetDebugDraw()); }
+		}
 		renderer.Render(camera, scene.GetEnvironment(), viewW, viewH, realTime);
 
 		ComposeBackBuffer();
@@ -48,6 +51,7 @@ namespace rd
 
 	void FrameComposer::ComposeBackBuffer()
 	{
+		RD_GPU_SCOPE(mOverlay ? "Editor UI" : "Blit");
 		auto& device = *mDevice;
 		auto cmd = device.GetCommandList();
 		TransitionBarrier(cmd, device.GetBackBuffer(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);

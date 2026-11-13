@@ -1,5 +1,6 @@
 #include "RdPch.h"
 #include "Scene/Scene.h"
+#include "Core/Profiler.h"
 #include "Core/StringUtil.h"
 #include "Core/Time.h"
 #include "Render/DebugDraw.h"
@@ -147,20 +148,28 @@ namespace rd
 
 		if (playing)
 		{
-			StartPendingComponents();
-			CallEach(mCallbacks.update, [dt](Component* c) { c->Update(dt); });
-			for (size_t i = 0; i < mSystems.size(); ++i) { mSystems[i]->Update(*this, dt); }
+			{
+				RD_PROFILE_SCOPE("Start");
+				StartPendingComponents();
+			}
+			{
+				RD_PROFILE_SCOPE("Update");
+				CallEach(mCallbacks.update, [dt](Component* c) { c->Update(dt); });
+				for (size_t i = 0; i < mSystems.size(); ++i) { mSystems[i]->Update(*this, dt); }
+			}
 
 			// 固定時間ステップ（物理などのシステムはコンポーネントの後）
 			float fixed = Time::FixedDeltaTime();
 			mFixedAccumulator = std::min(mFixedAccumulator + dt, fixed * kMaxFixedStepsPerFrame);
 			while (mFixedAccumulator >= fixed)
 			{
+				RD_PROFILE_SCOPE("FixedUpdate");
 				CallEach(mCallbacks.fixedUpdate, [fixed](Component* c) { c->FixedUpdate(fixed); });
 				for (size_t i = 0; i < mSystems.size(); ++i) { mSystems[i]->FixedUpdate(*this, fixed); }
 				mFixedAccumulator -= fixed;
 			}
 
+			RD_PROFILE_SCOPE("LateUpdate");
 			CallEach(mCallbacks.lateUpdate, [dt](Component* c) { c->LateUpdate(dt); });
 			for (size_t i = 0; i < mSystems.size(); ++i) { mSystems[i]->LateUpdate(*this, dt); }
 		}
@@ -284,6 +293,7 @@ namespace rd
 
 	void Scene::CollectRender(RenderList& list)
 	{
+		RD_PROFILE_FUNCTION();
 		for (Component* c : mCallbacks.render)
 		{
 			if (c->IsActiveAndEnabled()) { c->OnRender(list); }

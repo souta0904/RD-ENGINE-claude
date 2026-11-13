@@ -1,4 +1,5 @@
 #pragma once
+#include "Core/Profiler.h"
 #include "RHI/D3D12Common.h"
 #include "RHI/DescriptorHeap.h"
 #include "RHI/ShaderCompiler.h"
@@ -64,6 +65,11 @@ namespace rd
 			return alloc.gpu;
 		}
 
+		// GPU の区間計測（結果はプロファイラへ。PIX / RenderDoc のイベント名にもなる）
+		//  name は文字列リテラル。RD_GPU_SCOPE("Shadow") を使うと閉じ忘れない
+		void BeginGpuScope(const char* name);
+		void EndGpuScope();
+
 		// 遅延解放（GPU が使い終わってから解放される）
 		void DeferRelease(ComPtr<ID3D12Resource> resource);
 		void DeferFreeDescriptor(DescriptorHeap& heap, DescriptorHandle& handle);
@@ -122,6 +128,13 @@ namespace rd
 			D3D12_GPU_VIRTUAL_ADDRESS gpu = 0;
 			uint64_t size = 0;
 		};
+		struct GpuScopeRecord
+		{
+			const char* name;
+			uint32_t begin;// タイムスタンプの番号
+			uint32_t end;
+			uint16_t depth;
+		};
 		struct FrameContext
 		{
 			ComPtr<ID3D12CommandAllocator> allocator;
@@ -130,7 +143,13 @@ namespace rd
 			uint32_t currentPage = 0;
 			uint64_t pageOffset = 0;
 			uint64_t bytesUsed = 0;
+			// GPU 計測
+			std::vector<GpuScopeRecord> gpuScopes;
+			uint32_t queryCount = 0;
+			uint64_t profilerFrame = 0;
 		};
+		static constexpr uint32_t kMaxGpuQueries = 128;// 1 フレームあたり（区間 64 個）
+		void CollectGpuTimings(FrameContext& frame);
 		struct DeferredItem
 		{
 			uint64_t fenceValue = 0;
@@ -171,6 +190,11 @@ namespace rd
 
 		ShaderCompiler mShaderCompiler;
 
+		ComPtr<ID3D12QueryHeap> mTimestampHeap;
+		ComPtr<ID3D12Resource> mTimestampReadback;
+		uint64_t mTimestampFrequency = 0;
+		std::vector<uint32_t> mGpuScopeStack;// 開いている区間（gpuScopes の番号）
+
 		uint32_t mWidth = 0;
 		uint32_t mHeight = 0;
 		bool mVSync = true;
@@ -178,4 +202,19 @@ namespace rd
 		uint64_t mLastDynamicBytes = 0;
 		std::string mAdapterName;
 	};
+
+	// GPU の区間計測（スコープを抜けると終わる）
+	class GpuScope
+	{
+	public:
+		explicit GpuScope(const char* name) { GraphicsDevice::Get().BeginGpuScope(name); }
+		~GpuScope() { GraphicsDevice::Get().EndGpuScope(); }
+		GpuScope(const GpuScope&) = delete;
+		GpuScope& operator=(const GpuScope&) = delete;
+	};
 }
+
+// CPU と GPU の両方を同じ名前で計測する
+#define RD_GPU_SCOPE(name)                                                       \
+	RD_PROFILE_SCOPE(name);                                                      \
+	::rd::GpuScope RD_PROFILE_CONCAT(rdGpuScope_, __LINE__)(name)

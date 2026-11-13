@@ -199,7 +199,7 @@ namespace rd
 		uint32_t count = uint32_t(mParticles.size());
 		if (count >= kParallelThreshold)
 		{
-			mJob = JobSystem::ParallelFor(count, kBatchSize, update);
+			mJob = JobSystem::ParallelFor(count, kBatchSize, update, JobPriority::High, "Particles");
 		}
 		else
 		{

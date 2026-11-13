@@ -9,6 +9,7 @@
 
 namespace rd
 {
+	class AIAssistant;
 	class DebugDraw;
 	class Engine;
 	class Scene;
@@ -18,7 +19,8 @@ namespace rd
 	class Editor final : public FrameOverlay
 	{
 	public:
-		explicit Editor(Engine& engine) : mEngine(engine) {}
+		explicit Editor(Engine& engine);
+		~Editor();
 
 		void Initialize();
 		void Shutdown();
@@ -68,6 +70,7 @@ namespace rd
 		void DrawConsole();
 		void DrawStats();
 		void DrawRenderSettings();
+		void DrawProfiler();// ProfilerPanel.cpp
 		// 操作
 		Actor* CreatePrimitive(const std::string& name, const std::string& model);
 		Actor* CreateActorFromMenu(const std::string& kind);
@@ -112,6 +115,9 @@ namespace rd
 		bool mShowConsole = true;
 		bool mShowStats = true;
 		bool mShowRenderSettings = true;
+		bool mShowProfiler = false;
+		bool mShowAssistant = false;
+		std::unique_ptr<AIAssistant> mAssistant;
 		bool mShowDemo = false;
 		bool mFirstLayout = true;
 
@@ -128,5 +134,9 @@ namespace rd
 		// 統計
 		std::vector<float> mFrameTimes;
 		std::string mAddComponentFilter;
+		// プロファイラ
+		int mProfilerSelected = -1;// 選んだフレーム（-1 なら最新付近）
+		int mProfilerAverage = 60;
+		float mProfilerZoom = 1.0f;
 	};
 }

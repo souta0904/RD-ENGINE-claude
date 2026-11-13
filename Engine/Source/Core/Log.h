@@ -82,7 +82,6 @@ namespace rd
 		std::string fileName = "RdEngine.log";// 今回のログ（前回分は History/ へ日時付きで移す）
 		uint32_t keepHistory = 10;// History/ に残す数
 		LogLevel minLevel = LogLevel::Debug;// 実行時に出すレベル
-		bool crashHandler = true;// 未処理例外でログを書き出し、ダンプ（.dmp）を残す
 	};
 
 	// フォーマット文字列と呼び出し位置をまとめて受け取る（Log::Info("x={}", x) の "x={}" の部分）

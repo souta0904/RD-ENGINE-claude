@@ -92,7 +92,8 @@ namespace rd
 		sInstance = this;
 		CreateRootSignatures();
 		CreatePipelines();
-		mShadowMap.Create(mSettings.shadowMapSize, mSettings.shadowMapSize, L"ShadowMap");
+		// 2x2 のタイルにカスケードを並べる
+		mShadowMap.Create(mSettings.shadowMapSize * 2, mSettings.shadowMapSize * 2, L"ShadowMap");
 	}
 
 	void Renderer::Shutdown()
@@ -265,13 +266,16 @@ namespace rd
 	// ==================================================
 	void Renderer::Render(const RenderCamera& camera, const Environment& env, uint32_t width, uint32_t height, float time)
 	{
+		RD_GPU_SCOPE("Render Scene");
 		auto& device = GraphicsDevice::Get();
 		auto cmd = device.GetCommandList();
 		mStats = {};
 		EnsureTargets(width, height);
-		if (mShadowMap.GetWidth() != mSettings.shadowMapSize)
+		mSettings.shadowMapSize = std::clamp(mSettings.shadowMapSize, 256u, 4096u);
+		mSettings.shadowCascades = std::clamp(mSettings.shadowCascades, 1u, kMaxShadowCascades);
+		if (mShadowMap.GetWidth() != mSettings.shadowMapSize * 2)
 		{
-			mShadowMap.Resize(mSettings.shadowMapSize, mSettings.shadowMapSize);
+			mShadowMap.Resize(mSettings.shadowMapSize * 2, mSettings.shadowMapSize * 2);
 		}
 
 		// ---------------- フレーム定数 ----------------
@@ -312,40 +316,31 @@ namespace rd
 		for (uint32_t i = 0; i < f.spotLightCount; ++i) { lights.spotLights[i] = mList.spotLights[i]; }
 		mStats.lights = f.dirLightCount + f.pointLightCount + f.spotLightCount;
 
-		// ---------------- シャドウ行列（テクセルにスナップしてちらつきを防ぐ） ----------------
+		// ---------------- カスケードシャドウ ----------------
 		mShadowActive = f.dirLightCount > 0 && lights.dirLights[0].castShadow;
-		if (mShadowActive)
-		{
-			Vector3 lightDir = Normalize(lights.dirLights[0].direction);
-			float radius = mSettings.shadowDistance * 0.5f;
-			Vector3 center = camera.position + camera.GetForward() * radius;
-			Vector3 up = std::fabs(lightDir.y) > 0.99f ? Vector3::kUnitZ : Vector3::kUnitY;
-			Matrix4 lightView = Matrix4::CreateLookAt(Vector3::kZero, lightDir, up);
-			Vector3 c = TransformPoint(center, lightView);
-			float texel = (radius * 2.0f) / float(mSettings.shadowMapSize);
-			c.x = std::floor(c.x / texel) * texel;
-			c.y = std::floor(c.y / texel) * texel;
-			Matrix4 lightProj = Matrix4::CreateOrthographicOffCenter(c.x - radius, c.x + radius, c.y - radius, c.y + radius,
-				c.z - radius * 4.0f, c.z + radius * 4.0f);
-			f.shadowViewProj = lightView * lightProj;
-			f.shadowTexelSize = texel;
-			f.shadowEnabled = 1;
-		}
+		if (mShadowActive) { SetupShadowCascades(camera, Normalize(lights.dirLights[0].direction), f); }
 
 		mFrameCB = device.UploadConstants(f);
 		mLightCB = device.UploadConstants(lights);
 
 		// ---------------- カリングと並び替え ----------------
+		RD_PROFILE_SCOPE("Cull & Sort");
 		Frustum frustum = Frustum::FromViewProj(f.viewProj);
-		Frustum shadowFrustum = Frustum::FromViewProj(f.shadowViewProj);
-		std::vector<const MeshDrawItem*> opaque, transparent, casters;
+		std::vector<const MeshDrawItem*> opaque, transparent;
+		std::array<std::vector<const MeshDrawItem*>, kMaxShadowCascades> casters;
+		uint32_t casterCount = 0;
 		for (auto& item : mList.meshes)
 		{
 			if (!item.model || !item.model->IsReady() || !item.material) { continue; }
-			if (mShadowActive && item.material->castShadows && item.material->blend == BlendMode::Opaque &&
-				shadowFrustum.Intersects(item.worldBounds))
+			if (mShadowActive && item.material->castShadows && item.material->blend == BlendMode::Opaque)
 			{
-				casters.push_back(&item);
+				// カスケードごとに、その範囲に入る物だけを描く
+				bool any = false;
+				for (uint32_t c = 0; c < f.cascadeCount; ++c)
+				{
+					if (mCascadeFrustums[c].Intersects(item.worldBounds)) { casters[c].push_back(&item); any = true; }
+				}
+				if (any) { ++casterCount; }
 			}
 			if (mSettings.frustumCulling && !frustum.Intersects(item.worldBounds))
 			{
@@ -363,40 +358,43 @@ namespace rd
 			});
 		std::sort(transparent.begin(), transparent.end(), [](auto a, auto b) { return a->sortKey > b->sortKey; });
 		mStats.meshesVisible = uint32_t(opaque.size() + transparent.size());
-		mStats.shadowCasters = uint32_t(casters.size());
+		mStats.shadowCasters = casterCount;
 
 		// ---------------- シャドウパス ----------------
 		if (mShadowActive) { ShadowPass(cmd, casters); }
 
 		// ---------------- メインパス（HDR） ----------------
-		mHdr.Transition(cmd, D3D12_RESOURCE_STATE_RENDER_TARGET);
-		mDepth.Transition(cmd, D3D12_RESOURCE_STATE_DEPTH_WRITE);
-		mShadowMap.Transition(cmd, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-		auto rtv = mHdr.GetRtv();
-		auto dsv = mDepth.GetDsv();
-		cmd->OMSetRenderTargets(1, &rtv, FALSE, &dsv);
-		Color clear(f.skyHorizon.x, f.skyHorizon.y, f.skyHorizon.z, 1.0f);
-		cmd->ClearRenderTargetView(rtv, clear.Data(), 0, nullptr);
-		mDepth.Clear(cmd);
-		SetViewport(cmd, width, height);
-
-		cmd->SetGraphicsRootSignature(mMeshRS.Get());
-		cmd->SetGraphicsRootConstantBufferView(kRootFrame, mFrameCB);
-		cmd->SetGraphicsRootConstantBufferView(kRootLights, mLightCB);
-		cmd->SetGraphicsRootDescriptorTable(kRootShadow, mShadowMap.GetGpuSrv());
-		cmd->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-
-		DrawMeshes(cmd, opaque, false);
-
-		if (env.drawSky && mSkyPSO)
 		{
-			cmd->SetPipelineState(mSkyPSO.Get());
-			cmd->DrawInstanced(3, 1, 0, 0);
-			++mStats.drawCalls;
-		}
+			RD_GPU_SCOPE("Main Pass");
+			mHdr.Transition(cmd, D3D12_RESOURCE_STATE_RENDER_TARGET);
+			mDepth.Transition(cmd, D3D12_RESOURCE_STATE_DEPTH_WRITE);
+			mShadowMap.Transition(cmd, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+			auto rtv = mHdr.GetRtv();
+			auto dsv = mDepth.GetDsv();
+			cmd->OMSetRenderTargets(1, &rtv, FALSE, &dsv);
+			Color clear(f.skyHorizon.x, f.skyHorizon.y, f.skyHorizon.z, 1.0f);
+			cmd->ClearRenderTargetView(rtv, clear.Data(), 0, nullptr);
+			mDepth.Clear(cmd);
+			SetViewport(cmd, width, height);
 
-		DrawMeshes(cmd, transparent, false);
-		DrawParticles(cmd);
+			cmd->SetGraphicsRootSignature(mMeshRS.Get());
+			cmd->SetGraphicsRootConstantBufferView(kRootFrame, mFrameCB);
+			cmd->SetGraphicsRootConstantBufferView(kRootLights, mLightCB);
+			cmd->SetGraphicsRootDescriptorTable(kRootShadow, mShadowMap.GetGpuSrv());
+			cmd->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+			DrawMeshes(cmd, opaque, false);
+
+			if (env.drawSky && mSkyPSO)
+			{
+				cmd->SetPipelineState(mSkyPSO.Get());
+				cmd->DrawInstanced(3, 1, 0, 0);
+				++mStats.drawCalls;
+			}
+
+			DrawMeshes(cmd, transparent, false);
+			DrawParticles(cmd);
+		}
 
 		// ---------------- ポストエフェクト ----------------
 		mHdr.Transition(cmd, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
@@ -430,18 +428,96 @@ namespace rd
 		mDebug.Clear();
 	}
 
-	void Renderer::ShadowPass(ID3D12GraphicsCommandList* cmd, const std::vector<const MeshDrawItem*>& casters)
+	void Renderer::SetupShadowCascades(const RenderCamera& camera, const Vector3& lightDir, GpuFrameData& f)
 	{
+		const uint32_t count = mSettings.shadowCascades;
+		const float nearZ = camera.nearZ;
+		const float farZ = std::max(nearZ + 0.1f, std::min(mSettings.shadowDistance, camera.farZ));
+		const float lambda = math::Clamp(mSettings.cascadeSplitLambda, 0.0f, 1.0f);
+		// 射影行列から縦横比と画角を取り出す（m[0][0] = 1/(aspect*tan), m[1][1] = 1/tan）
+		const float tanHalfY = 1.0f / camera.proj.m[1][1];
+		const float tanHalfX = 1.0f / camera.proj.m[0][0];
+		const Vector3 forward = camera.GetForward(), right = camera.GetRight(), up = camera.GetUp();
+
+		Vector3 lightUp = std::fabs(lightDir.y) > 0.99f ? Vector3::kUnitZ : Vector3::kUnitY;
+		Matrix4 lightView = Matrix4::CreateLookAt(Vector3::kZero, lightDir, lightUp);
+
+		float prevSplit = nearZ;
+		for (uint32_t i = 0; i < count; ++i)
+		{
+			// 分割位置: 等間隔と対数の間（実用分割法）
+			float t = float(i + 1) / float(count);
+			float logSplit = nearZ * std::pow(farZ / nearZ, t);
+			float uniSplit = nearZ + (farZ - nearZ) * t;
+			float split = math::Lerp(uniSplit, logSplit, lambda);
+
+			// この区間の視錐台の 8 頂点を包む球（カメラが回っても大きさが変わらないので影がちらつかない）
+			Vector3 corners[8];
+			int n = 0;
+			for (float d : { prevSplit, split })
+			{
+				for (float sy : { -1.0f, 1.0f })
+				{
+					for (float sx : { -1.0f, 1.0f })
+					{
+						corners[n++] = camera.position + forward * d + right * (sx * d * tanHalfX) + up * (sy * d * tanHalfY);
+					}
+				}
+			}
+			Vector3 center;
+			for (auto& c : corners) { center += c; }
+			center /= 8.0f;
+			float radius = 0.0f;
+			for (auto& c : corners) { radius = std::max(radius, Distance(c, center)); }
+			radius = std::ceil(radius * 16.0f) / 16.0f;
+
+			// 中心をテクセル単位にそろえる（カメラが動いても影の輪郭が揺れない）
+			float texel = radius * 2.0f / float(mSettings.shadowMapSize);
+			Vector3 c = TransformPoint(center, lightView);
+			c.x = std::floor(c.x / texel) * texel;
+			c.y = std::floor(c.y / texel) * texel;
+			// 光の手前側は広めに取る（範囲の外にある高い物の影も落とせるように）
+			constexpr float kCasterMargin = 100.0f;
+			Matrix4 lightProj = Matrix4::CreateOrthographicOffCenter(c.x - radius, c.x + radius, c.y - radius, c.y + radius,
+				c.z - radius - kCasterMargin, c.z + radius);
+			f.shadowViewProj[i] = lightView * lightProj;
+			(&f.cascadeSplits.x)[i] = split;
+			(&f.cascadeTexelSizes.x)[i] = texel;
+			mCascadeFrustums[i] = Frustum::FromViewProj(f.shadowViewProj[i]);
+			prevSplit = split;
+		}
+		f.cascadeCount = count;
+		f.shadowFadeStart = farZ * 0.9f;
+		f.shadowEnabled = 1;
+		f.debugCascades = mSettings.debugCascades ? 1u : 0u;
+	}
+
+	void Renderer::ShadowPass(ID3D12GraphicsCommandList* cmd, const std::array<std::vector<const MeshDrawItem*>, kMaxShadowCascades>& casters)
+	{
+		RD_GPU_SCOPE("Shadow");
+		auto& device = GraphicsDevice::Get();
 		mShadowMap.Transition(cmd, D3D12_RESOURCE_STATE_DEPTH_WRITE);
 		auto dsv = mShadowMap.GetDsv();
 		cmd->OMSetRenderTargets(0, nullptr, FALSE, &dsv);
 		mShadowMap.Clear(cmd);
-		SetViewport(cmd, mShadowMap.GetWidth(), mShadowMap.GetHeight());
 		cmd->SetGraphicsRootSignature(mMeshRS.Get());
-		cmd->SetGraphicsRootConstantBufferView(kRootFrame, mFrameCB);
 		cmd->SetGraphicsRootConstantBufferView(kRootLights, mLightCB);
 		cmd->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-		DrawMeshes(cmd, casters, true);
+
+		const float tile = float(mSettings.shadowMapSize);
+		for (uint32_t i = 0; i < mFrameData.cascadeCount; ++i)
+		{
+			// i 番目のタイル（左上・右上・左下・右下）に描く
+			D3D12_VIEWPORT vp{ float(i % 2) * tile, float(i / 2) * tile, tile, tile, 0.0f, 1.0f };
+			D3D12_RECT scissor{ LONG(vp.TopLeftX), LONG(vp.TopLeftY), LONG(vp.TopLeftX + tile), LONG(vp.TopLeftY + tile) };
+			cmd->RSSetViewports(1, &vp);
+			cmd->RSSetScissorRects(1, &scissor);
+			// どのカスケードの行列を使うかをシェーダに伝える
+			GpuFrameData frame = mFrameData;
+			frame.shadowCascade = i;
+			cmd->SetGraphicsRootConstantBufferView(kRootFrame, device.UploadConstants(frame));
+			DrawMeshes(cmd, casters[i], true);
+		}
 	}
 
 	void Renderer::DrawMeshes(ID3D12GraphicsCommandList* cmd, const std::vector<const MeshDrawItem*>& items, bool shadow)
@@ -540,6 +616,7 @@ namespace rd
 
 	void Renderer::BloomPass(ID3D12GraphicsCommandList* cmd)
 	{
+		RD_GPU_SCOPE("Bloom");
 		cmd->SetGraphicsRootSignature(mSimpleRS.Get());
 		if (!mSettings.bloom) { return; }
 
@@ -574,6 +651,7 @@ namespace rd
 
 	void Renderer::TonemapPass(ID3D12GraphicsCommandList* cmd)
 	{
+		RD_GPU_SCOPE("Tonemap");
 		cmd->SetGraphicsRootSignature(mSimpleRS.Get());
 		mOutput.Transition(cmd, D3D12_RESOURCE_STATE_RENDER_TARGET);
 		auto rtv = mOutput.GetRtv();
@@ -586,6 +664,7 @@ namespace rd
 
 	void Renderer::OverlayPass(ID3D12GraphicsCommandList* cmd, const Matrix4& viewProj)
 	{
+		RD_GPU_SCOPE("Overlay");
 		auto rtv = mOutput.GetRtv();
 		auto dsv = mDepth.GetDsv();
 		cmd->OMSetRenderTargets(1, &rtv, FALSE, &dsv);

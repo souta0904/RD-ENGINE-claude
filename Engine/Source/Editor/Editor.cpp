@@ -1,5 +1,6 @@
 #include "RdPch.h"
 #include "Editor/Editor.h"
+#include "Editor/AIAssistant.h"
 #include "Asset/AssetManager.h"
 #include "Asset/Model.h"
 #include "Components/CameraComponent.h"
@@ -55,6 +56,9 @@ namespace rd
 	// ==================================================
 	// 初期化
 	// ==================================================
+	Editor::Editor(Engine& engine) : mEngine(engine), mAssistant(std::make_unique<AIAssistant>(*this)) {}
+	Editor::~Editor() = default;
+
 	void Editor::Initialize()
 	{
 		std::filesystem::create_directories("Logs");
@@ -210,8 +214,10 @@ namespace rd
 			ImGui::DockBuilderDockWindow("Inspector", right);
 			ImGui::DockBuilderDockWindow("Render Settings", right);
 			ImGui::DockBuilderDockWindow("Stats", right);
+			ImGui::DockBuilderDockWindow("AI Assistant", right);
 			ImGui::DockBuilderDockWindow("Assets", bottom);
 			ImGui::DockBuilderDockWindow("Console", bottom);
+			ImGui::DockBuilderDockWindow("Profiler", bottom);
 			ImGui::DockBuilderDockWindow("Viewport", center);
 			ImGui::DockBuilderFinish(dockId);
 		}
@@ -224,6 +230,9 @@ namespace rd
 		if (mShowConsole) { DrawConsole(); }
 		if (mShowStats) { DrawStats(); }
 		if (mShowRenderSettings) { DrawRenderSettings(); }
+		if (mShowProfiler) { DrawProfiler(); }
+		mAssistant->Update();// パネルを閉じていても、届いた応答の処理は進める
+		if (mShowAssistant) { mAssistant->Draw(&mShowAssistant); }
 		if (mShowDemo) { ImGui::ShowDemoWindow(&mShowDemo); }
 		HandleShortcuts();
 
@@ -308,6 +317,8 @@ namespace rd
 			ImGui::MenuItem("Console", nullptr, &mShowConsole);
 			ImGui::MenuItem("Stats", nullptr, &mShowStats);
 			ImGui::MenuItem("Render Settings", nullptr, &mShowRenderSettings);
+			ImGui::MenuItem("Profiler", "F9", &mShowProfiler);
+			ImGui::MenuItem("AI Assistant", "F8", &mShowAssistant);
 			ImGui::Separator();
 			ImGui::MenuItem("Grid", nullptr, &mShowGrid);
 			ImGui::MenuItem("Gizmos", nullptr, &mShowGizmos);
@@ -563,6 +574,8 @@ namespace rd
 		if (ctrl && ImGui::IsKeyPressed(ImGuiKey_Y, false)) { Redo(); }
 		if (ctrl && ImGui::IsKeyPressed(ImGuiKey_S, false)) { SaveScene(false); }
 		if (ctrl && ImGui::IsKeyPressed(ImGuiKey_O, false)) { OpenScene(); }
+		if (ImGui::IsKeyPressed(ImGuiKey_F9, false)) { mShowProfiler = !mShowProfiler; }
+		if (ImGui::IsKeyPressed(ImGuiKey_F8, false)) { mShowAssistant = !mShowAssistant; }
 		if (ctrl && ImGui::IsKeyPressed(ImGuiKey_D, false)) { DuplicateSelected(); }
 		if (ctrl && ImGui::IsKeyPressed(ImGuiKey_R, false)) { Renderer::Get().ReloadShaders(); }
 		if (ctrl && ImGui::IsKeyPressed(ImGuiKey_P, false))

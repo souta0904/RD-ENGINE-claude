@@ -2,6 +2,7 @@
 #include "Render/DebugDraw.h"
 #include "Render/RenderTypes.h"
 #include "RHI/GpuTexture.h"
+#include <array>
 #include <memory>
 #include <unordered_map>
 
@@ -42,7 +43,9 @@ namespace rd
 		ID3D12PipelineState* GetMeshPipeline(bool skinned, BlendMode blend, bool doubleSided, bool shadow);
 		void EnsureTargets(uint32_t width, uint32_t height);
 
-		void ShadowPass(ID3D12GraphicsCommandList* cmd, const std::vector<const MeshDrawItem*>& casters);
+		// カスケードの分割と行列を決める
+		void SetupShadowCascades(const RenderCamera& camera, const Vector3& lightDir, GpuFrameData& f);
+		void ShadowPass(ID3D12GraphicsCommandList* cmd, const std::array<std::vector<const MeshDrawItem*>, kMaxShadowCascades>& casters);
 		void DrawMeshes(ID3D12GraphicsCommandList* cmd, const std::vector<const MeshDrawItem*>& items, bool shadow);
 		void DrawParticles(ID3D12GraphicsCommandList* cmd);
 		void BloomPass(ID3D12GraphicsCommandList* cmd);
@@ -91,6 +94,7 @@ namespace rd
 		D3D12_GPU_VIRTUAL_ADDRESS mLightCB = 0;
 		GpuFrameData mFrameData;
 		bool mShadowActive = false;
+		Frustum mCascadeFrustums[kMaxShadowCascades];// 影を落とす物のカリング用
 
 		// スクリーンショット
 		std::string mCapturePath;

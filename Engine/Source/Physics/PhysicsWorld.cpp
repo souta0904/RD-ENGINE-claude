@@ -1,5 +1,6 @@
 #include "RdPch.h"
 #include "Physics/PhysicsWorld.h"
+#include "Core/Profiler.h"
 #include "Physics/Collider.h"
 #include "Physics/Rigidbody.h"
 #include "Scene/Actor.h"
@@ -71,6 +72,7 @@ namespace rd
 
 	void PhysicsWorld::Step(Scene& scene, float dt)
 	{
+		RD_PROFILE_SCOPE("Physics");
 		std::unordered_map<Rigidbody*, BodyState> states;
 		const Vector3 gravity = scene.GetGravity();
 

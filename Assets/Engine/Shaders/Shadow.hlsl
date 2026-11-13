@@ -29,5 +29,6 @@ float4 VSMain(VSInput input) : SV_POSITION
     pos = mul(pos, skin);
 #endif
     float4 wpos = mul(pos, gObject.world);
-    return mul(wpos, gFrame.shadowViewProj);
+    // 描いているカスケードの行列（ビューポートでタイルに配置される）
+    return mul(wpos, gFrame.shadowViewProj[gFrame.shadowCascade]);
 }

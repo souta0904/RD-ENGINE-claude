@@ -7,11 +7,19 @@ namespace rd
 {
 	enum class ShapeType : uint8_t { Sphere, Box, Capsule, Mesh };
 
-	// 静的メッシュの衝突データ（ワールド座標の三角形 + BVH）
+	// メッシュの衝突データ（メッシュのローカル座標の三角形 + BVH。拡大縮小は焼き込み済み）
+	//  三角形の表（外向き）は Cross(c - a, b - a) の向き（エンジンのモデル・プリミティブと同じ巻き順）
 	class MeshCollisionData
 	{
 	public:
 		void Build(std::vector<Vector3> positions, std::vector<uint32_t> indices);
+		const std::vector<Vector3>& GetPositions() const { return mPositions; }
+
+		// 凸包として扱うときのデータ（動く物体のメッシュ用。Build で作る）
+		//  凹んだメッシュでも、この点の集まりの凸包として当たる
+		struct Plane { Vector3 normal; float d; };// 外向き、Dot(p, normal) <= d が内側
+		const std::vector<Vector3>& GetHullPoints() const { return mHullPoints; }
+		const std::vector<Plane>& GetHullPlanes() const { return mHullPlanes; }
 		const AABB& GetBounds() const { return mNodes.empty() ? mEmpty : mNodes[0].bounds; }
 		size_t GetTriangleCount() const { return mTriangles.size(); }
 		void GetTriangle(uint32_t index, Vector3& a, Vector3& b, Vector3& c) const;
@@ -29,7 +37,10 @@ namespace rd
 			uint32_t count = 0;// 0 なら内部ノード
 		};
 		uint32_t BuildNode(uint32_t start, uint32_t count, int depth);
+		void BuildHull();
 
+		std::vector<Vector3> mHullPoints;
+		std::vector<Plane> mHullPlanes;
 		std::vector<Vector3> mPositions;
 		std::vector<uint32_t> mIndices;
 		std::vector<uint32_t> mTriangles;// BVH 順に並べた三角形番号
@@ -48,10 +59,17 @@ namespace rd
 		Vector3 halfExtents;// Box
 		float radius = 0.5f;// Sphere / Capsule
 		Vector3 p0, p1;// Capsule の線分
+		// Mesh: ローカルの三角形と、ローカル → ワールドの回転と移動（拡大縮小は mesh に焼き込む）
 		const MeshCollisionData* mesh = nullptr;
+		Quaternion meshRotation;
+		Vector3 meshPosition;
+		bool meshConvex = false;// 凸包として扱う（動く物体のメッシュ）。false なら三角形の面として扱う（地形など）
 		AABB bounds;
 
 		void ComputeBounds();
+		// Mesh のローカル座標とワールド座標の変換
+		Vector3 MeshToWorld(const Vector3& p) const { return p * meshRotation + meshPosition; }
+		Vector3 WorldToMesh(const Vector3& p) const { return (p - meshPosition) * Conjugate(meshRotation); }
 	};
 
 	struct ContactPoint

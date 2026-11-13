@@ -1,5 +1,6 @@
 #include "RdPch.h"
 #include "Core/JobSystem.h"
+#include "Core/Profiler.h"
 #include <condition_variable>
 #include <deque>
 #include <thread>
@@ -12,6 +13,7 @@ namespace rd
 		{
 			JobSystem::JobFunc func;
 			std::shared_ptr<std::atomic<uint32_t>> counter;
+			const char* name = "Job";// プロファイラに出る名前
 		};
 
 		struct State
@@ -33,6 +35,7 @@ namespace rd
 
 		void Execute(Job& job)
 		{
+			RD_PROFILE_SCOPE(job.name);
 			job.func();
 			job.counter->fetch_sub(1, std::memory_order_acq_rel);
 		}
@@ -61,6 +64,7 @@ namespace rd
 			// WIC（テクスチャ読み込み）用に COM を初期化
 			HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
 			SetThreadDescription(GetCurrentThread(), std::format(L"RD Worker {}", index).c_str());
+			Profiler::SetThreadName(std::format("Worker {}", index).c_str());
 
 			while (true)
 			{
@@ -127,16 +131,16 @@ namespace rd
 		gState = nullptr;
 	}
 
-	JobHandle JobSystem::Schedule(JobFunc func, JobPriority priority)
+	JobHandle JobSystem::Schedule(JobFunc func, JobPriority priority, const char* name)
 	{
 		RD_ASSERT(gState);
 		JobHandle handle;
 		handle.mCounter = std::make_shared<std::atomic<uint32_t>>(1);
-		Push({ std::move(func), handle.mCounter }, priority);
+		Push({ std::move(func), handle.mCounter, name }, priority);
 		return handle;
 	}
 
-	JobHandle JobSystem::ParallelFor(uint32_t count, uint32_t batchSize, RangeFunc func, JobPriority priority)
+	JobHandle JobSystem::ParallelFor(uint32_t count, uint32_t batchSize, RangeFunc func, JobPriority priority, const char* name)
 	{
 		RD_ASSERT(gState);
 		JobHandle handle;
@@ -154,7 +158,7 @@ namespace rd
 			{
 				uint32_t begin = i * batchSize;
 				uint32_t end = std::min(count, begin + batchSize);
-				queue.push_back({ [shared, begin, end] { (*shared)(begin, end); }, handle.mCounter });
+				queue.push_back({ [shared, begin, end] { (*shared)(begin, end); }, handle.mCounter, name });
 			}
 		}
 		gState->cv.notify_all();

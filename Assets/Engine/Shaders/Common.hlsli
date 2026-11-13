@@ -8,6 +8,7 @@ static const float PI = 3.14159265f;
 static const uint kMaxDirLights = 4;
 static const uint kMaxPointLights = 32;
 static const uint kMaxSpotLights = 16;
+static const uint kMaxShadowCascades = 4;
 
 // マテリアルのフラグ
 static const uint kMatHasAlbedo = 1u << 0;
@@ -29,7 +30,9 @@ struct FrameData
     float4x4 proj;
     float4x4 viewProj;
     float4x4 invViewProj;
-    float4x4 shadowViewProj;
+    float4x4 shadowViewProj[kMaxShadowCascades];
+    float4 cascadeSplits;// 各カスケードの奥の境界（ビュー空間の深さ）
+    float4 cascadeTexelSizes;
     float3 cameraPos;
     float time;
     float3 cameraRight;
@@ -37,7 +40,7 @@ struct FrameData
     float3 cameraUp;
     float shadowStrength;
     float3 ambientSky;
-    float shadowTexelSize;
+    uint cascadeCount;
     float3 ambientGround;
     float fogDensity;
     float3 fogColor;
@@ -49,6 +52,10 @@ struct FrameData
     float2 screenSize;
     uint spotLightCount;
     uint shadowEnabled;
+    uint shadowCascade;// シャドウパスで描いているカスケード
+    uint debugCascades;// カスケードを色分けして表示
+    float shadowFadeStart;// ここから先は影を薄くする
+    float framePad;
 };
 
 struct MaterialData
@@ -173,17 +180,34 @@ float3 ShadeAmbient(float3 N, float3 V, float3 albedo, float metallic, float rou
 }
 
 // ==================================================
-// 影（PCF 3x3）
+// 影（カスケードシャドウ + PCF 3x3）
+//  シャドウマップは 2x2 のタイルに分かれていて、i 番目のカスケードは
+//  (i % 2, i / 2) のタイルに入っている
 // ==================================================
 Texture2D<float> gShadowMap : register(t3);
+
+// カメラからの深さで使うカスケードを選ぶ（範囲外なら cascadeCount）
+uint SelectCascade(float viewDepth)
+{
+    uint cascade = 0;
+    [unroll] for (uint i = 0; i < kMaxShadowCascades; ++i)
+    {
+        if (i < gFrame.cascadeCount && viewDepth > gFrame.cascadeSplits[i]) { cascade = i + 1; }
+    }
+    return cascade;
+}
 
 float SampleShadow(float3 worldPos, float3 N, float3 L)
 {
     if (gFrame.shadowEnabled == 0) { return 1.0f; }
-    // 法線方向に少しずらしてシャドウアクネを減らす
+    float viewDepth = mul(float4(worldPos, 1.0f), gFrame.view).z;
+    uint cascade = SelectCascade(viewDepth);
+    if (cascade >= gFrame.cascadeCount) { return 1.0f; }
+
+    // 法線方向に少しずらしてシャドウアクネを減らす（テクセルが大きいカスケードほど大きくずらす）
     float slope = 1.0f - saturate(dot(N, L));
-    float3 p = worldPos + N * gFrame.shadowTexelSize * (1.0f + 4.0f * slope);
-    float4 sp = mul(float4(p, 1.0f), gFrame.shadowViewProj);
+    float3 p = worldPos + N * gFrame.cascadeTexelSizes[cascade] * (1.0f + 4.0f * slope);
+    float4 sp = mul(float4(p, 1.0f), gFrame.shadowViewProj[cascade]);
     sp.xyz /= sp.w;
     float2 uv = sp.xy * float2(0.5f, -0.5f) + 0.5f;
     if (any(uv < 0.0f) || any(uv > 1.0f) || sp.z > 1.0f) { return 1.0f; }
@@ -191,17 +215,31 @@ float SampleShadow(float3 worldPos, float3 N, float3 L)
     float w, h;
     gShadowMap.GetDimensions(w, h);
     float2 texel = 1.0f / float2(w, h);
+    // タイルへ配置し、PCF が隣のタイルを読まないよう 1.5 テクセル内側に収める
+    float2 tileMin = float2(cascade % 2, cascade / 2) * 0.5f;
+    float2 tileUv = clamp(tileMin + uv * 0.5f, tileMin + texel * 1.5f, tileMin + 0.5f - texel * 1.5f);
     float depth = sp.z - gFrame.shadowBias;
     float sum = 0.0f;
     [unroll] for (int y = -1; y <= 1; ++y)
     {
         [unroll] for (int x = -1; x <= 1; ++x)
         {
-            sum += gShadowMap.SampleCmpLevelZero(gSamplerShadow, uv + float2(x, y) * texel, depth);
+            sum += gShadowMap.SampleCmpLevelZero(gSamplerShadow, tileUv + float2(x, y) * texel, depth);
         }
     }
     float shadow = sum / 9.0f;
-    return lerp(1.0f, shadow, gFrame.shadowStrength);
+    // 影が届く距離の端では、急に切れないよう薄くしていく
+    float lastSplit = gFrame.cascadeSplits[gFrame.cascadeCount - 1];
+    float fade = saturate((viewDepth - gFrame.shadowFadeStart) / max(lastSplit - gFrame.shadowFadeStart, 1e-3f));
+    return lerp(1.0f, shadow, gFrame.shadowStrength * (1.0f - fade));
+}
+
+// カスケードの色分け（Render Settings の Show Cascades）
+float3 CascadeDebugColor(float3 worldPos)
+{
+    static const float3 kColors[5] = { float3(1, 0.4, 0.4), float3(0.4, 1, 0.4), float3(0.4, 0.6, 1), float3(1, 1, 0.4), float3(1, 1, 1) };
+    float viewDepth = mul(float4(worldPos, 1.0f), gFrame.view).z;
+    return kColors[min(SelectCascade(viewDepth), 4u)];
 }
 
 // ==================================================
