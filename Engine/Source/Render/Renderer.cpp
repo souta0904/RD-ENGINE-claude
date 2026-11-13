@@ -411,7 +411,9 @@ namespace rd
 			UINT64 total = 0;
 			device.GetDevice()->GetCopyableFootprints(&desc, 0, 1, 0, &mCaptureFootprint, nullptr, nullptr, &total);
 			CD3DX12_HEAP_PROPERTIES heap(D3D12_HEAP_TYPE_READBACK);
-			auto bufDesc = CD3DX12_RESOURCE_DESC::Buffer(total);
+			// total は最終行のパディングを含まないので、読み出し側（RowPitch * Height）に合わせて確保する
+			UINT64 size = std::max<UINT64>(total, UINT64(mCaptureFootprint.Footprint.RowPitch) * mCaptureFootprint.Footprint.Height);
+			auto bufDesc = CD3DX12_RESOURCE_DESC::Buffer(size);
 			mCaptureBuffer.Reset();
 			RD_CHECK_HR(device.GetDevice()->CreateCommittedResource(&heap, D3D12_HEAP_FLAG_NONE, &bufDesc,
 				D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&mCaptureBuffer)));

@@ -19,7 +19,8 @@ namespace rd
 		static void SetFixedDeltaTime(float dt) { sFixedDelta = dt; }
 
 	private:
-		friend class Engine;
+		friend class Engine;// sRealTime
+		friend class PlayController;// ゲーム時間の進行
 		static inline float sDelta = 0.0f;
 		static inline float sUnscaledDelta = 0.0f;
 		static inline float sFixedDelta = 1.0f / 60.0f;

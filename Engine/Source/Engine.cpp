@@ -2,73 +2,19 @@
 #include "Engine.h"
 #include "Asset/AssetManager.h"
 #include "Audio/AudioSystem.h"
-#include "Components/Animator.h"
-#include "Components/AudioSource.h"
+#include "Components/BuiltinComponents.h"
 #include "Components/CameraComponent.h"
-#include "Components/Lights.h"
-#include "Components/MeshRenderer.h"
-#include "Components/ParticleSystem.h"
-#include "Components/SpriteRenderer.h"
 #include "Core/JobSystem.h"
-#include "Core/StringUtil.h"
 #include "Core/Time.h"
 #include "Core/Timer.h"
 #include "Editor/Editor.h"
-#include "Physics/Collider.h"
-#include "Physics/Rigidbody.h"
 #include "Platform/Input.h"
 #include "Render/Renderer.h"
 #include "RHI/GraphicsDevice.h"
-#include "Scene/ComponentRegistry.h"
 #include "Scene/Scene.h"
-#include <shellapi.h>
 
 namespace rd
 {
-	void RegisterBuiltinComponents()
-	{
-		ComponentRegistry::Register<MeshRenderer>("Rendering");
-		ComponentRegistry::Register<SpriteRenderer>("Rendering");
-		ComponentRegistry::Register<ParticleSystem>("Rendering");
-		ComponentRegistry::Register<CameraComponent>("Rendering");
-		ComponentRegistry::Register<DirectionalLight>("Light");
-		ComponentRegistry::Register<PointLight>("Light");
-		ComponentRegistry::Register<SpotLight>("Light");
-		ComponentRegistry::Register<Animator>("Animation");
-		ComponentRegistry::Register<Rigidbody>("Physics");
-		ComponentRegistry::Register<SphereCollider>("Physics");
-		ComponentRegistry::Register<BoxCollider>("Physics");
-		ComponentRegistry::Register<CapsuleCollider>("Physics");
-		ComponentRegistry::Register<MeshCollider>("Physics");
-		ComponentRegistry::Register<AudioSource>("Audio");
-	}
-
-	// ==================================================
-	// EngineConfig
-	// ==================================================
-	void EngineConfig::ParseCommandLine()
-	{
-		int argc = 0;
-		LPWSTR* argv = CommandLineToArgvW(GetCommandLineW(), &argc);
-		for (int i = 1; i < argc; ++i)
-		{
-			std::string arg = ToUtf8(argv[i]);
-			if (arg == "-noeditor") { enableEditor = false; }
-			else if (arg == "-play") { autoPlay = true; }
-			else if (arg == "-novsync") { vsync = false; }
-			else if (arg == "-scene" && i + 1 < argc) { startScene = ToUtf8(argv[++i]); }
-			else if (arg == "-capture" && i + 1 < argc)
-			{
-				captureFrame = std::stoi(ToUtf8(argv[++i]));
-				if (i + 1 < argc && argv[i + 1][0] != L'-') { capturePath = ToUtf8(argv[++i]); }
-			}
-		}
-		LocalFree(argv);
-	}
-
-	// ==================================================
-	// Engine
-	// ==================================================
 	Engine::Engine()
 	{
 		RD_ASSERT(!sInstance);
@@ -153,20 +99,14 @@ namespace rd
 			mWindow.SetMessageHook([this](HWND h, UINT m, WPARAM w, LPARAM l) { return mEditor->HandleMessage(h, m, w, l); });
 		}
 
+		mComposer.Initialize(mWindow, *mDevice, *mRenderer, mEditor.get());
+		mCapture.Configure(mConfig.captureFrame, mConfig.capturePath);
+
 		// 初期シーン
-		mScene = std::make_unique<Scene>();
-		if (!mConfig.startScene.empty() && std::filesystem::exists(ToWide(mConfig.startScene)))
-		{
-			mScene->LoadFromFile(mConfig.startScene);
-		}
-		else if (mConfig.buildDefaultScene)
-		{
-			mConfig.buildDefaultScene(*mScene);
-			if (!mConfig.startScene.empty()) { mScene->SetPath(mConfig.startScene); }
-		}
+		mScenes.CreateInitial(mConfig.startScene, mConfig.buildDefaultScene);
 		if (mEditor) { mEditor->OnSceneChanged(); }
 
-		mPlaying = !mEditor;
+		mPlay.SetPlaying(!mEditor);
 		if (mEditor && mConfig.autoPlay) { BeginPlay(); }
 		SetWindowTitleSuffix("");
 		return true;
@@ -175,8 +115,10 @@ namespace rd
 	void Engine::Shutdown()
 	{
 		if (mDevice && GraphicsDevice::IsAlive()) { mDevice->WaitIdle(); }
-		if (mScene) { mScene.reset(); }
-		mPendingScene.reset();
+		// DestroyWindow 中のメッセージが破棄済みの Editor / デバイスへ届かないように外す
+		mWindow.SetMessageHook(nullptr);
+		mWindow.SetResizeCallback(nullptr);
+		mScenes.Clear();
 		if (mEditor) { mEditor->Shutdown(); mEditor.reset(); }
 		if (mAudio) { mAudio->Shutdown(); mAudio.reset(); }
 		if (mRenderer) { mRenderer->Shutdown(); mRenderer.reset(); }
@@ -189,37 +131,16 @@ namespace rd
 
 	void Engine::Frame(float dt)
 	{
-		// FPS 計測
-		{
-			static float accum = 0.0f;
-			static int frames = 0;
-			accum += dt;
-			++frames;
-			if (accum >= 0.5f)
-			{
-				mFps = float(frames) / accum;
-				mFrameMs = accum * 1000.0f / float(frames);
-				accum = 0.0f;
-				frames = 0;
-			}
-		}
+		mStats.Tick(dt);
 
 		JobSystem::ExecuteMainThreadTasks();
 		ApplyPendingScene();
 
-		// 時間
-		bool advance = mPlaying && (!mPaused || mStepRequested);
-		float gameDt = advance ? (mStepRequested ? Time::FixedDeltaTime() : dt) * Time::TimeScale() : 0.0f;
-		mStepRequested = false;
-		Time::sUnscaledDelta = dt;
-		Time::sDelta = gameDt;
-		if (advance) { Time::sTotal += gameDt; }
-		++Time::sFrameCount;
+		PlayController::FrameTime time = mPlay.AdvanceTime(dt);
 
-		auto& device = *mDevice;
-		device.BeginFrame();
+		mDevice->BeginFrame();
 
-		// エディタ UI（ビューポートの大きさやカメラもここで決まる）
+		// エディタ UI（ビューポートの大きさやカメラもここで決まる。Stop でシーンが差し替わることもある）
 		if (mEditor)
 		{
 			mEditor->BeginFrame();
@@ -231,63 +152,17 @@ namespace rd
 		}
 
 		// シーン更新（プレイ中でなければ編集用の更新のみ）
-		mScene->Update(advance ? gameDt : dt, advance);
+		Scene& scene = mScenes.GetScene();
+		scene.Update(time.advance ? time.gameDt : dt, time.advance);
 
-		// カメラを決める
-		uint32_t viewW = mWindow.GetWidth(), viewH = mWindow.GetHeight();
-		if (mEditor) { mEditor->GetViewportSize(viewW, viewH); }
-		float aspect = float(std::max(1u, viewW)) / float(std::max(1u, viewH));
-		RenderCamera camera;
-		CameraComponent* mainCam = mScene->GetMainCamera();
-		if (mEditor && mEditor->UseEditorCamera())
-		{
-			camera = mEditor->GetEditorCamera(aspect);
-		}
-		else if (mainCam)
-		{
-			camera = mainCam->GetRenderCamera(aspect);
-		}
-		else
-		{
-			camera = RenderCamera::Make({ 0.0f, 3.0f, -10.0f }, Quaternion::FromEuler({ math::ToRadians(10.0f), 0.0f, 0.0f }),
-				math::ToRadians(60.0f), aspect, 0.1f, 1000.0f);
-		}
+		UpdateAudio(scene);
 
-		// オーディオのリスナーはゲームカメラ
-		if (mainCam) { mAudio->SetListener(mainCam->GetTransform().GetPosition(), mainCam->GetTransform().GetRight()); }
-		mAudio->Update();
+		// 描画 → バックバッファへ
+		mCapture.BeforeRender(*mRenderer, mFrameCount);
+		mComposer.Render(scene, float(Time::RealTime()));
+		mDevice->EndFrame();
 
-		// 描画
-		auto& renderer = *mRenderer;
-		mScene->CollectRender(renderer.GetRenderList());
-		if (mEditor) { mEditor->DrawGizmos(renderer.GetDebugDraw()); }
-		if (mConfig.captureFrame >= 0 && int64_t(mFrameCount) == mConfig.captureFrame)
-		{
-			renderer.RequestCapture(mConfig.capturePath);
-		}
-		renderer.Render(camera, mScene->GetEnvironment(), viewW, viewH, float(Time::RealTime()));
-
-		// バックバッファへ
-		auto cmd = device.GetCommandList();
-		TransitionBarrier(cmd, device.GetBackBuffer(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
-		if (mEditor)
-		{
-			auto rtv = device.GetBackBufferRtv();
-			cmd->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
-			float clear[4] = { 0.08f, 0.08f, 0.09f, 1.0f };
-			cmd->ClearRenderTargetView(rtv, clear, 0, nullptr);
-			SetViewport(cmd, device.GetWidth(), device.GetHeight());
-			mEditor->RenderUI();
-		}
-		else
-		{
-			renderer.BlitToBackBuffer();
-		}
-		TransitionBarrier(cmd, device.GetBackBuffer(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
-		device.EndFrame();
-
-		renderer.FinishCapture();
-		if (mConfig.captureFrame >= 0 && int64_t(mFrameCount) == mConfig.captureFrame)
+		if (mCapture.AfterPresent(*mRenderer, mFrameCount))
 		{
 			Log::Info("Capture finished, quitting");
 			Quit();
@@ -295,32 +170,30 @@ namespace rd
 		++mFrameCount;
 	}
 
+	void Engine::UpdateAudio(Scene& scene)
+	{
+		// リスナーはゲームカメラ
+		if (CameraComponent* mainCam = scene.GetMainCamera())
+		{
+			mAudio->SetListener(mainCam->GetTransform().GetPosition(), mainCam->GetTransform().GetRight());
+		}
+		mAudio->Update();
+	}
+
 	// ==================================================
 	// プレイ
 	// ==================================================
 	void Engine::BeginPlay()
 	{
-		if (mPlaying) { return; }
-		mPlaySnapshot = mScene->Serialize().dump();
-		mPlaying = true;
-		mPaused = false;
-		Time::sTotal = 0.0;
+		if (!mPlay.Begin(mScenes.GetScene())) { return; }
 		Log::Info("Play");
 	}
 
 	void Engine::EndPlay()
 	{
-		if (!mPlaying || !mEditor) { return; }
-		mPlaying = false;
-		mPaused = false;
-		AudioSystem::Get().StopAll();
-		// プレイ前の状態へ戻す
-		std::string path = mScene->GetPath();
-		auto scene = std::make_unique<Scene>();
-		scene->Deserialize(Json::parse(mPlaySnapshot));
-		scene->SetPath(path);
-		mDevice->WaitIdle();
-		mScene = std::move(scene);
+		if (!mPlay.IsPlaying() || !mEditor) { return; }
+		mAudio->StopAll();
+		mScenes.SetScene(mPlay.End(mScenes.GetScene()));
 		mEditor->OnSceneChanged(true);
 		Log::Info("Stop");
 	}
@@ -328,44 +201,12 @@ namespace rd
 	// ==================================================
 	// シーン
 	// ==================================================
-	void Engine::LoadScene(const std::string& path)
-	{
-		mPendingScenePath = path;
-	}
-
-	void Engine::NewScene()
-	{
-		// 空のシーン（太陽とカメラだけ）
-		auto scene = std::make_unique<Scene>();
-		Actor* sun = scene->CreateActor("Directional Light");
-		sun->AddComponent<DirectionalLight>();
-		sun->GetTransform().SetLocalRotation(Quaternion::FromEuler({ math::ToRadians(50.0f), math::ToRadians(-30.0f), 0.0f }));
-		Actor* cam = scene->CreateActor("Main Camera");
-		cam->AddComponent<CameraComponent>();
-		cam->GetTransform().SetLocalPosition({ 0.0f, 3.0f, -10.0f });
-		ReplaceScene(std::move(scene));
-	}
-
-	void Engine::ReplaceScene(std::unique_ptr<Scene> scene)
-	{
-		mPendingScene = std::move(scene);
-	}
-
 	void Engine::ApplyPendingScene()
 	{
-		if (!mPendingScenePath.empty())
-		{
-			auto scene = std::make_unique<Scene>();
-			if (scene->LoadFromFile(mPendingScenePath)) { mPendingScene = std::move(scene); }
-			mPendingScenePath.clear();
-		}
-		if (!mPendingScene) { return; }
-		mDevice->WaitIdle();
-		AudioSystem::Get().StopAll();
-		mScene = std::move(mPendingScene);
+		if (!mScenes.ApplyPending()) { return; }
 		if (mEditor)
 		{
-			mPlaying = false;
+			mPlay.SetPlaying(false);
 			mEditor->OnSceneChanged();
 		}
 		SetWindowTitleSuffix("");
@@ -373,7 +214,7 @@ namespace rd
 
 	void Engine::SetWindowTitleSuffix(const std::string& suffix)
 	{
-		std::string scene = mScene ? (mScene->GetPath().empty() ? std::string("Untitled") : mScene->GetPath()) : "";
+		std::string scene = mScenes.HasScene() ? (mScenes.GetScene().GetPath().empty() ? std::string("Untitled") : mScenes.GetScene().GetPath()) : "";
 		mWindow.SetTitle(std::format("{} {} - {}{}", kName, kVersion, scene, suffix));
 	}
 }

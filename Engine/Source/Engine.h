@@ -1,6 +1,11 @@
 #pragma once
+#include "EngineConfig.h"
+#include "Core/FrameStats.h"
 #include "Platform/Window.h"
-#include <functional>
+#include "Runtime/FrameCapture.h"
+#include "Runtime/FrameComposer.h"
+#include "Runtime/PlayController.h"
+#include "Runtime/SceneManager.h"
 #include <memory>
 #include <string>
 
@@ -13,25 +18,9 @@ namespace rd
 	class Renderer;
 	class Scene;
 
-	struct EngineConfig
-	{
-		WindowDesc window;
-		bool enableEditor = true;
-		bool vsync = true;
-		std::string startScene;// 起動時に開くシーン
-		// startScene が存在しないときに初期シーンを組み立てる
-		std::function<void(Scene&)> buildDefaultScene;
-
-		// 自動テスト用: 指定フレームで画面を保存して終了
-		int captureFrame = -1;
-		std::string capturePath = "Logs/capture.png";
-		bool autoPlay = false;// エディタでも起動直後にプレイ開始
-
-		// コマンドライン（-noeditor -play -capture <frame> <path> -scene <path>）を反映
-		void ParseCommandLine();
-	};
-
-	// エンジン本体（サブシステムの所有者とメインループ）
+	// エンジン本体
+	//  サブシステムの所有と初期化・終了の順番、メインループの進行を受け持つ。
+	//  シーン切り替えは SceneManager、プレイ状態は PlayController、描画の組み立ては FrameComposer に任せる。
 	class Engine
 	{
 	public:
@@ -46,25 +35,27 @@ namespace rd
 		void Quit();
 
 		Window& GetWindow() { return mWindow; }
-		Scene& GetScene() { return *mScene; }
 		Editor* GetEditor() { return mEditor.get(); }
 		const EngineConfig& GetConfig() const { return mConfig; }
+		SceneManager& GetSceneManager() { return mScenes; }
+		PlayController& GetPlayController() { return mPlay; }
 
 		// プレイ状態（エディタなしでは常にプレイ中）
-		bool IsPlaying() const { return mPlaying; }
-		bool IsPaused() const { return mPaused; }
-		void SetPaused(bool paused) { mPaused = paused; }
-		void StepFrame() { mStepRequested = true; }
+		bool IsPlaying() const { return mPlay.IsPlaying(); }
+		bool IsPaused() const { return mPlay.IsPaused(); }
+		void SetPaused(bool paused) { mPlay.SetPaused(paused); }
+		void StepFrame() { mPlay.StepFrame(); }
 		void BeginPlay();
 		void EndPlay();
 
-		// シーン切り替え（フレームの区切りで行われる）
-		void LoadScene(const std::string& path);
-		void NewScene();
-		void ReplaceScene(std::unique_ptr<Scene> scene);
+		// シーン（切り替えはフレームの区切りで行われる）
+		Scene& GetScene() { return mScenes.GetScene(); }
+		void LoadScene(const std::string& path) { mScenes.LoadScene(path); }
+		void NewScene() { mScenes.NewScene(); }
+		void ReplaceScene(std::unique_ptr<Scene> scene) { mScenes.ReplaceScene(std::move(scene)); }
 
-		float GetFps() const { return mFps; }
-		float GetFrameMs() const { return mFrameMs; }
+		float GetFps() const { return mStats.GetFps(); }
+		float GetFrameMs() const { return mStats.GetFrameMs(); }
 		void SetWindowTitleSuffix(const std::string& suffix);
 
 	private:
@@ -72,29 +63,26 @@ namespace rd
 		void Shutdown();
 		void Frame(float dt);
 		void ApplyPendingScene();
+		void UpdateAudio(Scene& scene);
 
 		static inline Engine* sInstance = nullptr;
 		EngineConfig mConfig;
+
+		// サブシステム（生成は上から順、破棄は Shutdown で逆順）
 		Window mWindow;
 		std::unique_ptr<GraphicsDevice> mDevice;
 		std::unique_ptr<AssetManager> mAssets;
 		std::unique_ptr<Renderer> mRenderer;
 		std::unique_ptr<AudioSystem> mAudio;
 		std::unique_ptr<Editor> mEditor;
-		std::unique_ptr<Scene> mScene;
-		std::unique_ptr<Scene> mPendingScene;
-		std::string mPendingScenePath;
+
+		SceneManager mScenes;
+		PlayController mPlay;
+		FrameComposer mComposer;
+		FrameCapture mCapture;
+		FrameStats mStats;
 
 		bool mRunning = true;
-		bool mPlaying = false;
-		bool mPaused = false;
-		bool mStepRequested = false;
-		std::string mPlaySnapshot;// プレイ開始時のシーン（停止時に戻す）
 		uint64_t mFrameCount = 0;
-		float mFps = 0.0f;
-		float mFrameMs = 0.0f;
 	};
-
-	// エンジン組み込みコンポーネントを登録
-	void RegisterBuiltinComponents();
 }
