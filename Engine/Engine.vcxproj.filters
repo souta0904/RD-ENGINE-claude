@@ -65,6 +65,8 @@
     <ClCompile Include="Source\Editor\Editor.cpp"><Filter>Source\Editor</Filter></ClCompile>
     <ClCompile Include="Source\Editor\AIAssistant.cpp"><Filter>Source\Editor</Filter></ClCompile>
     <ClInclude Include="Source\Editor\AIAssistant.h"><Filter>Source\Editor</Filter></ClInclude>
+    <ClCompile Include="Source\Editor\AssistantProviders.cpp"><Filter>Source\Editor</Filter></ClCompile>
+    <ClInclude Include="Source\Editor\AssistantProviders.h"><Filter>Source\Editor</Filter></ClInclude>
     <ClCompile Include="Source\Editor\AssistantTools.cpp"><Filter>Source\Editor</Filter></ClCompile>
     <ClInclude Include="Source\Editor\AssistantTools.h"><Filter>Source\Editor</Filter></ClInclude>
     <ClCompile Include="Source\Editor\ProfilerPanel.cpp"><Filter>Source\Editor</Filter></ClCompile>

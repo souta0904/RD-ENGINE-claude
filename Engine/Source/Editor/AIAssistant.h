@@ -1,5 +1,5 @@
 #pragma once
-#include "Core/JsonArchive.h"
+#include "Editor/AssistantProviders.h"
 #include <atomic>
 #include <memory>
 #include <string>
@@ -9,12 +9,12 @@ namespace rd
 {
 	class AssistantToolHost;
 	class Editor;
-	struct HttpResponse;
 
-	// エディタの AI アシスタント（Claude）
-	//  「赤い箱を 5 個円形に並べて」のように頼むと、Claude がツールを使ってシーンを読み書きする。
-	//  - API キーは環境変数 ANTHROPIC_API_KEY（または ANTHROPIC_AUTH_TOKEN）から読む。ファイルには保存しない
-	//  - 通信はワーカースレッド、ツールの実行（シーンの変更）はメインスレッドで行う
+	// エディタの AI アシスタント
+	//  「赤い箱を 5 個円形に並べて」のように頼むと、LLM がツールを使ってシーンを読み書きする。
+	//  - 既定はローカル LLM（Ollama）。API キーも利用料もいらないので誰でも使える
+	//    LM Studio / llama.cpp server などの OpenAI 互換サーバーと、Claude API（有料）にも切り替えられる
+	//  - 通信は専用スレッド、ツールの実行（シーンの変更）はメインスレッドで行う
 	//  - シーンの変更は通常の編集と同じコマンドとして積むので、Ctrl+Z で 1 つずつ戻せる
 	class AIAssistant
 	{
@@ -35,24 +35,31 @@ namespace rd
 			std::string text;
 		};
 		struct PendingRequest;
+		struct PendingModelList;
 
 		void Send(const std::string& text);
 		void StartRequest();
-		void HandleResponse(const HttpResponse& response);
+		void HandleReply(const AssistantReply& reply);
 		void NewChat();
 		void RollbackToCleanState();
-		Json BuildRequestBody() const;
+		void DrawSettings();
+		void RefreshModels();
+		void SaveSettings() const;
 
 		Editor& mEditor;
 		std::unique_ptr<AssistantToolHost> mToolHost;// ツールからエディタを触る窓口（Editor/AssistantTools.h）
-		Json mMessages = Json::array();
+		AssistantSettings mSettings;
+		std::vector<AssistantTurn> mHistory;
 		std::vector<ChatEntry> mChat;
 		std::shared_ptr<PendingRequest> mRequest;
 		int mLoopCount = 0;// 1 回の依頼でのツール往復の数（暴走防止）
 
-		// 設定と表示
-		int mModelIndex = 0;
-		int mEffortIndex = 1;
+		// ローカルのモデル一覧
+		std::shared_ptr<PendingModelList> mModelList;
+		std::vector<std::string> mModels;
+		std::string mModelListError;
+		bool mModelsRequested = false;
+
 		std::string mInput;
 		bool mScrollToBottom = false;
 		uint64_t mInputTokens = 0;

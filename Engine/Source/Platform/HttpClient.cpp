@@ -29,6 +29,17 @@ namespace rd
 	HttpResponse HttpClient::Post(const std::string& url, const Headers& headers, const std::string& body,
 		int timeoutMs, const std::atomic<bool>* cancel)
 	{
+		return Send(L"POST", url, headers, body, timeoutMs, cancel);
+	}
+
+	HttpResponse HttpClient::Get(const std::string& url, const Headers& headers, int timeoutMs)
+	{
+		return Send(L"GET", url, headers, std::string(), timeoutMs, nullptr);
+	}
+
+	HttpResponse HttpClient::Send(const wchar_t* method, const std::string& url, const Headers& headers, const std::string& body,
+		int timeoutMs, const std::atomic<bool>* cancel)
+	{
 		HttpResponse res;
 		std::wstring wurl = ToWide(url);
 		URL_COMPONENTS parts = { sizeof(parts) };
@@ -52,12 +63,13 @@ namespace rd
 		if (!connection) { res.error = LastError("WinHttpConnect"); return res; }
 
 		DWORD flags = parts.nScheme == INTERNET_SCHEME_HTTPS ? WINHTTP_FLAG_SECURE : 0;
-		Handle request(WinHttpOpenRequest(connection.h, L"POST", path, nullptr, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, flags));
+		Handle request(WinHttpOpenRequest(connection.h, method, path, nullptr, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, flags));
 		if (!request) { res.error = LastError("WinHttpOpenRequest"); return res; }
 
 		std::wstring headerText;
 		for (const auto& [name, value] : headers) { headerText += ToWide(name + ": " + value + "\r\n"); }
-		if (!WinHttpSendRequest(request.h, headerText.c_str(), DWORD(-1L), const_cast<char*>(body.data()), DWORD(body.size()), DWORD(body.size()), 0) ||
+		if (!WinHttpSendRequest(request.h, headerText.empty() ? WINHTTP_NO_ADDITIONAL_HEADERS : headerText.c_str(),
+				headerText.empty() ? 0 : DWORD(-1L), body.empty() ? WINHTTP_NO_REQUEST_DATA : const_cast<char*>(body.data()), DWORD(body.size()), DWORD(body.size()), 0) ||
 			!WinHttpReceiveResponse(request.h, nullptr))
 		{
 			res.error = LastError("HTTP request");

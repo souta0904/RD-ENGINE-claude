@@ -122,12 +122,25 @@ RD_GPU_SCOPE("Shadow");              // CPU と GPU（タイムスタンプ）�
 - GPU の区間は PIX / RenderDoc のイベント名にもなる。`RD_PROFILER=0` で計測コードを丸ごと外せる
 
 ### AI アシスタント（エディタの View → AI Assistant / F8）
-Claude（Anthropic の API）に頼んでシーンを編集する。「赤い箱を 5 個、半径 3m の円に並べて」「選んでいるライトを暗くして」など。
-- 使う前に環境変数 `ANTHROPIC_API_KEY` を設定してエディタを起動する（キーはファイルに保存しない。API の利用料がかかる）
-- Claude はツールでシーンを読み書きする: `get_scene` / `get_actor` / `list_component_types` / `list_assets` / `create_actor` / `modify_actor` / `delete_actor` / `select_actor`
+LLM に頼んでシーンを編集する。「赤い箱を 5 個、半径 3m の円に並べて」「選んでいるライトを暗くして」など。
+**既定はローカル LLM** なので、API キーも利用料もいらず誰でも使える。
+
+使い方（Ollama の場合）:
+1. [Ollama](https://ollama.com)（無料）をインストールする
+2. コマンドプロンプトで `ollama pull qwen3:8b` を実行する（ツール呼び出しに対応したモデルが必要。qwen3 / qwen2.5 / llama3.1 など）
+3. エディタで F8 を押す。モデルの一覧が自動で読まれ、最初のモデルが選ばれる
+
+| 接続先（Settings で選ぶ） | 内容 |
+| --- | --- |
+| Local (Ollama) | 既定。`http://localhost:11434` の `/api/chat`。文脈の長さ（Context = num_ctx）を指定できる |
+| Local (OpenAI compatible) | LM Studio（`http://localhost:1234/v1`）・llama.cpp の `llama-server --jinja` など `/chat/completions` を持つサーバー |
+| Claude API | Anthropic の Claude（Opus 5.5 / Sonnet 5.5 / Haiku 5.5）。環境変数 `ANTHROPIC_API_KEY` が必要で、利用料がかかる |
+
+- LLM はツールでシーンを読み書きする: `get_scene` / `get_actor` / `list_component_types` / `list_assets` / `create_actor` / `modify_actor` / `delete_actor` / `select_actor`
 - 変更は通常の編集と同じコマンドとして積むので **Ctrl+Z で戻せる**（履歴に「AI: ...」と出る）。プレイ中は変更しない
-- モデル（Opus 5.5 / Sonnet 5.5 / Haiku 5.5）と考える深さ（Effort）はパネルで選ぶ。会話はプロンプトキャッシュで安く速くしている
-- 通信は `Platform/HttpClient`（WinHTTP）。ツールは `Editor/AssistantTools` にあり、テストから API なしで呼べる
+- 設定は `UserSettings/AIAssistant.json` に保存する（API キーは保存しない。このフォルダは Git に入れない）
+- 小さなローカルモデルは、ツールの使い方を間違えたり、依頼を取り違えたりすることがある。うまくいかないときは大きめのモデルを試す
+- 作り: 会話はどの LLM でも同じ形（`AssistantTurn`）で持ち、`Editor/AssistantProviders` が LLM ごとのリクエストと返事に変換する。通信は `Platform/HttpClient`（WinHTTP）。ツールは `Editor/AssistantTools`。どちらもテストからサーバーなしで呼べる
 
 ## 旧エンジンからの主な変更
 

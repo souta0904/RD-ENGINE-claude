@@ -4,7 +4,6 @@
 #include "Editor/AssistantTools.h"
 #include "Editor/Editor.h"
 #include "Engine.h"
-#include "Platform/HttpClient.h"
 #include "Scene/Scene.h"
 #include <ImGui/imgui.h>
 #include <ImGui/imgui_stdlib.h>
@@ -13,22 +12,9 @@ namespace rd
 {
 	namespace
 	{
-		constexpr const char* kApiUrl = "https://api.anthropic.com/v1/messages";
-		constexpr const char* kApiVersion = "2026-10-21";
 		constexpr int kMaxToolLoops = 25;
-
-		struct ModelOption
-		{
-			const char* id;
-			const char* label;
-			bool fallbacks;// 安全上の理由で断られたとき、サーバー側で別のモデルに切り替える
-		};
-		constexpr ModelOption kModels[] = {
-			{ "claude-opus-5-5", "Claude Opus 5.5", true },
-			{ "claude-sonnet-5-5", "Claude Sonnet 5.5", true },
-			{ "claude-haiku-5-5", "Claude Haiku 5.5", false },
-		};
-		constexpr const char* kEfforts[] = { "low", "medium", "high" };
+		constexpr const char* kSettingsPath = "UserSettings/AIAssistant.json";
+		constexpr const char* kProviderLabels[] = { "Local (Ollama)", "Local (OpenAI compatible)", "Claude API" };
 
 		constexpr const char* kSystemPrompt = R"(You are the built-in assistant of RD ENGINE, a C++/DirectX 12 game engine with a Unity-like editor.
 You help the user edit the currently open scene by calling the provided tools, and you answer questions about the engine.
@@ -46,62 +32,6 @@ How to work:
 - When several independent changes are needed, call the tools for them in the same turn.
 - After editing, reply with a short summary of what you changed. Reply in the user's language.)";
 
-		std::string GetEnv(const wchar_t* name)
-		{
-			wchar_t buffer[4096];
-			DWORD n = GetEnvironmentVariableW(name, buffer, DWORD(std::size(buffer)));
-			return n > 0 && n < std::size(buffer) ? ToUtf8(std::wstring(buffer, n)) : std::string();
-		}
-
-		// API のエラーメッセージを取り出す（{"type":"error","error":{"type":..,"message":..}}）
-		std::string ApiErrorMessage(const HttpResponse& r)
-		{
-			if (r.status == 0) { return r.error; }
-			try
-			{
-				Json j = Json::parse(r.body);
-				if (auto e = j.find("error"); e != j.end() && e->is_object())
-				{
-					return std::format("HTTP {} {}: {}", r.status, e->value("type", ""), e->value("message", ""));
-				}
-			}
-			catch (...)
-			{
-			}
-			return std::format("HTTP {}", r.status);
-		}
-
-		// 途中で別のモデルに切り替わった応答を会話に戻すときの決まり:
-		//  最後の fallback ブロックより前の thinking / tool_use などは送り返さない（fallback ブロック自体は位置を保つ）
-		Json FilterContentForEcho(const Json& content)
-		{
-			size_t lastFallback = SIZE_MAX;
-			for (size_t i = 0; i < content.size(); ++i)
-			{
-				if (content[i].value("type", "") == "fallback") { lastFallback = i; }
-			}
-			if (lastFallback == SIZE_MAX) { return content; }
-			Json out = Json::array();
-			for (size_t i = 0; i < content.size(); ++i)
-			{
-				std::string type = content[i].value("type", "");
-				bool keep = i >= lastFallback || type == "text";
-				if (keep) { out.push_back(content[i]); }
-			}
-			return out;
-		}
-	}
-
-	// 通信中の 1 リクエスト（ワーカースレッドと共有する）
-	struct AIAssistant::PendingRequest
-	{
-		std::atomic<bool> done = false;
-		std::atomic<bool> cancel = false;
-		HttpResponse response;
-	};
-
-	namespace
-	{
 		// ツールからエディタを触る窓口
 		class EditorToolHost final : public AssistantToolHost
 		{
@@ -118,8 +48,26 @@ How to work:
 		};
 	}
 
+	// 通信中の 1 リクエスト（通信スレッドと共有する）
+	struct AIAssistant::PendingRequest
+	{
+		std::atomic<bool> done = false;
+		std::atomic<bool> cancel = false;
+		std::unique_ptr<AssistantProvider> provider;
+		HttpResponse response;
+	};
+
+	struct AIAssistant::PendingModelList
+	{
+		std::atomic<bool> done = false;
+		std::vector<std::string> models;
+		std::string error;
+	};
+
 	AIAssistant::AIAssistant(Editor& editor) : mEditor(editor), mToolHost(std::make_unique<EditorToolHost>(editor))
 	{
+		Json saved;
+		if (std::filesystem::exists(kSettingsPath) && LoadJsonFile(kSettingsPath, saved)) { mSettings.FromJson(saved); }
 		mChat.push_back({ ChatEntry::Kind::Info, "シーンの編集を頼めます。例:「赤い箱を 5 個、半径 3m の円に並べて」" });
 	}
 
@@ -129,108 +77,80 @@ How to work:
 		if (mRequest) { mRequest->cancel = true; }
 	}
 
-	void AIAssistant::RollbackToCleanState()
+	void AIAssistant::SaveSettings() const
 	{
-		// 次に依頼を送れる形まで戻す: 最後が「ツールを呼ばずに終わった assistant の返事」になるまで外す
-		//  （tool_use に結果が付いていない、user が続く、といった形は API が受け付けない）
-		while (!mMessages.empty())
-		{
-			const Json& last = mMessages.back();
-			bool pendingTool = false;
-			if (last.value("role", "") == "assistant")
-			{
-				for (const auto& b : last.value("content", Json::array())) { pendingTool |= b.value("type", "") == "tool_use"; }
-				if (!pendingTool) { break; }
-			}
-			mMessages.erase(mMessages.end() - 1);
-		}
+		std::error_code ec;
+		std::filesystem::create_directories("UserSettings", ec);
+		SaveJsonFile(kSettingsPath, mSettings.ToJson());
 	}
 
 	void AIAssistant::NewChat()
 	{
 		if (mRequest) { mRequest->cancel = true; mRequest.reset(); }
-		mMessages = Json::array();
+		mHistory.clear();
 		mChat.clear();
 		mChat.push_back({ ChatEntry::Kind::Info, "新しい会話を始めました。" });
 		mLoopCount = 0;
 	}
 
-	Json AIAssistant::BuildRequestBody() const
+	void AIAssistant::RollbackToCleanState()
 	{
-		const ModelOption& model = kModels[mModelIndex];
-		Json body = {
-			{ "model", model.id },
-			{ "max_tokens", 16000 },
-			{ "system", Json::array({ { { "type", "text" }, { "text", kSystemPrompt } } }) },
-			{ "tools", AssistantTools::GetDefinitions() },
-			{ "messages", mMessages },
-			{ "output_config", { { "effort", kEfforts[mEffortIndex] } } },
-			// 会話の先頭部分（システムプロンプト・ツール・これまでの履歴）をキャッシュして、ツールの往復を安く速くする
-			{ "cache_control", { { "type", "ephemeral" } } },
-		};
-		if (model.fallbacks) { body["fallbacks"] = "default"; }
-		return body;
+		// 次に依頼を送れる形まで戻す: 最後が「ツールを呼ばずに終わった返事」になるまで外す
+		//  （結果の付いていないツール呼び出しや、user が続く形は受け付けられない）
+		while (!mHistory.empty())
+		{
+			const AssistantTurn& last = mHistory.back();
+			if (last.role == AssistantTurn::Role::Assistant && last.toolCalls.empty()) { break; }
+			mHistory.pop_back();
+		}
 	}
 
+	// ==================================================
+	// 会話
+	// ==================================================
 	void AIAssistant::Send(const std::string& text)
 	{
 		if (text.empty() || mRequest) { return; }
 		mChat.push_back({ ChatEntry::Kind::User, text });
 		// 選択中のアクターを添えておく（「これを赤くして」のような頼み方に答えられるように）
-		std::string content = text;
+		AssistantTurn turn;
+		turn.role = AssistantTurn::Role::User;
+		turn.text = text;
 		if (Actor* sel = mEditor.GetSelected())
 		{
-			content += std::format("\n\n(Currently selected actor: id {} \"{}\")", sel->GetId(), sel->GetName());
+			turn.text += std::format("\n\n(Currently selected actor: id {} \"{}\")", sel->GetId(), sel->GetName());
 		}
-		mMessages.push_back({ { "role", "user" }, { "content", content } });
+		mHistory.push_back(std::move(turn));
 		mLoopCount = 0;
 		StartRequest();
 	}
 
 	void AIAssistant::StartRequest()
 	{
-		std::string apiKey = GetEnv(L"ANTHROPIC_API_KEY");
-		std::string authToken = apiKey.empty() ? GetEnv(L"ANTHROPIC_AUTH_TOKEN") : std::string();
-		if (apiKey.empty() && authToken.empty())
+		auto request = std::make_shared<PendingRequest>();
+		request->provider = CreateAssistantProvider(mSettings.provider);
+		AssistantRequest http;
+		std::string error;
+		if (!request->provider->BuildRequest(mHistory, kSystemPrompt, AssistantTools::GetDefinitions(), mSettings, http, error))
 		{
-			mChat.push_back({ ChatEntry::Kind::Error,
-				"API キーが設定されていません。環境変数 ANTHROPIC_API_KEY を設定してから、エディタを起動し直してください。" });
-			mMessages.erase(mMessages.end() - 1);// 送れなかった依頼は履歴から外す
+			mChat.push_back({ ChatEntry::Kind::Error, error });
+			RollbackToCleanState();
 			return;
 		}
-
-		std::vector<std::string> betas;
-		HttpClient::Headers headers = {
-			{ "content-type", "application/json" },
-			{ "anthropic-version", kApiVersion },
-		};
-		if (!apiKey.empty()) { headers.push_back({ "x-api-key", apiKey }); }
-		else
-		{
-			headers.push_back({ "authorization", "Bearer " + authToken });
-			betas.push_back("oauth-2025-04-20");
-		}
-		if (kModels[mModelIndex].fallbacks) { betas.push_back("server-side-fallback-2026-07-01"); }
-		if (!betas.empty())
-		{
-			std::string joined;
-			for (const auto& b : betas) { joined += (joined.empty() ? "" : ",") + b; }
-			headers.push_back({ "anthropic-beta", joined });
-		}
-
-		auto request = std::make_shared<PendingRequest>();
 		mRequest = request;
-		std::string body = BuildRequestBody().dump();
-		Log::Debug(LogCat::Editor, "AI request: {} messages, {} bytes", mMessages.size(), body.size());
+		Log::Debug(LogCat::Editor, "AI request ({}): {} turns, {} bytes", kProviderLabels[int(mSettings.provider)], mHistory.size(), http.body.size());
 
 		// 返事まで数十秒かかることもあるので専用のスレッドで待つ（JobSystem のワーカーを塞がない）
-		std::thread([request, headers = std::move(headers), body = std::move(body)]
+		bool local = mSettings.IsLocal();
+		std::thread([request, http = std::move(http), local]
 			{
-				for (int attempt = 0; attempt < 3 && !request->cancel; ++attempt)
+				// ローカルは一度だけ。Claude は混雑（429 / 5xx）なら少し待って最大 2 回やり直す
+				int attempts = local ? 1 : 3;
+				for (int attempt = 0; attempt < attempts && !request->cancel; ++attempt)
 				{
-					request->response = HttpClient::Post(kApiUrl, headers, body, 600000, &request->cancel);
+					request->response = HttpClient::Post(http.url, http.headers, http.body, 600000, &request->cancel);
 					int s = request->response.status;
-					bool retryable = s == 429 || s == 500 || s == 502 || s == 503 || s == 529 || (s == 0 && request->response.error != "Canceled");
+					bool retryable = s == 429 || s == 500 || s == 502 || s == 503 || s == 529;
 					if (!retryable) { break; }
 					int waitSec = 2 << attempt;
 					if (!request->response.retryAfter.empty()) { waitSec = std::clamp(std::atoi(request->response.retryAfter.c_str()), 1, 60); }
@@ -242,91 +162,86 @@ How to work:
 
 	void AIAssistant::Update()
 	{
+		if (mModelList && mModelList->done)
+		{
+			mModels = std::move(mModelList->models);
+			mModelListError = std::move(mModelList->error);
+			mModelList.reset();
+			// まだ選んでいなければ、最初のモデルを使う
+			if (mSettings.localModel.empty() && !mModels.empty())
+			{
+				mSettings.localModel = mModels.front();
+				SaveSettings();
+			}
+		}
+
 		if (!mRequest || !mRequest->done) { return; }
 		auto request = std::move(mRequest);
 		if (request->cancel) { return; }
-		HandleResponse(request->response);
-	}
-
-	void AIAssistant::HandleResponse(const HttpResponse& response)
-	{
-		mScrollToBottom = true;
-		if (!response.Ok())
-		{
-			std::string message = ApiErrorMessage(response);
-			Log::Warning(LogCat::Editor, "AI request failed: {}", message);
-			mChat.push_back({ ChatEntry::Kind::Error, message });
-			RollbackToCleanState();
-			return;
-		}
-
-		Json message;
-		try { message = Json::parse(response.body); }
+		AssistantReply reply;
+		try { reply = request->provider->ParseResponse(request->response); }
 		catch (const std::exception& e)
 		{
-			mChat.push_back({ ChatEntry::Kind::Error, std::string("応答を読めませんでした: ") + e.what() });
+			reply.error = std::string("応答を読めませんでした: ") + e.what();
+		}
+		HandleReply(reply);
+	}
+
+	void AIAssistant::HandleReply(const AssistantReply& reply)
+	{
+		mScrollToBottom = true;
+		if (!reply.error.empty())
+		{
+			Log::Warning(LogCat::Editor, "AI request failed: {}", reply.error);
+			mChat.push_back({ ChatEntry::Kind::Error, reply.error });
 			RollbackToCleanState();
 			return;
 		}
-		if (auto usage = message.find("usage"); usage != message.end())
-		{
-			mInputTokens += usage->value("input_tokens", 0ull) + usage->value("cache_creation_input_tokens", 0ull);
-			mCacheReadTokens += usage->value("cache_read_input_tokens", 0ull);
-			mOutputTokens += usage->value("output_tokens", 0ull);
-		}
+		mInputTokens += reply.inputTokens;
+		mOutputTokens += reply.outputTokens;
+		mCacheReadTokens += reply.cacheReadTokens;
 
-		std::string stopReason = message.value("stop_reason", "");
-		Json content = FilterContentForEcho(message.value("content", Json::array()));
-		// 応答はそのまま（thinking ブロックも含めて）履歴に戻す
-		mMessages.push_back({ { "role", "assistant" }, { "content", content } });
+		mHistory.push_back(reply.turn);
+		if (reply.usedFallback) { mChat.push_back({ ChatEntry::Kind::Info, "（別のモデルに切り替えて続けました）" }); }
+		if (!reply.turn.text.empty()) { mChat.push_back({ ChatEntry::Kind::Assistant, reply.turn.text }); }
 
-		for (const auto& block : content)
+		switch (reply.stop)
 		{
-			std::string type = block.value("type", "");
-			if (type == "text" && !block.value("text", "").empty()) { mChat.push_back({ ChatEntry::Kind::Assistant, block["text"] }); }
-			else if (type == "fallback")
-			{
-				mChat.push_back({ ChatEntry::Kind::Info, "（別のモデルに切り替えて続けました）" });
-			}
-		}
-
-		if (stopReason == "refusal")
-		{
+		case AssistantReply::Stop::Refusal:
 			mChat.push_back({ ChatEntry::Kind::Error, "この依頼には答えられませんでした。言い方を変えてもう一度試してください。" });
 			return;
-		}
-		if (stopReason == "max_tokens")
-		{
+		case AssistantReply::Stop::MaxTokens:
 			mChat.push_back({ ChatEntry::Kind::Info, "応答が長すぎて途中で切れました。" });
+			break;
+		default:
+			break;
 		}
-		if (stopReason != "tool_use") { return; }
+		if (reply.stop != AssistantReply::Stop::ToolUse || reply.turn.toolCalls.empty()) { return; }
 
-		// ツールを実行して、結果をすべて 1 つの user メッセージで返す
-		Json results = Json::array();
-		for (const auto& block : content)
+		// ツールを実行して、結果をすべてまとめて返す
+		AssistantTurn results;
+		results.role = AssistantTurn::Role::ToolResults;
+		for (const AssistantToolCall& call : reply.turn.toolCalls)
 		{
-			if (block.value("type", "") != "tool_use") { continue; }
-			std::string name = block.value("name", "");
-			Json input = block.value("input", Json::object());
 			bool isError = false;
 			std::string result;
-			try { result = AssistantTools::Run(*mToolHost, name, input, isError); }
-			catch (const std::exception& e)
+			if (call.input.contains("__invalid_arguments"))
 			{
-				result = std::string("Tool failed: ") + e.what();
 				isError = true;
+				result = "The arguments were not valid JSON. Call the tool again with a JSON object.";
 			}
-			std::string summary = name;
-			if (input.contains("name")) { summary += " \"" + input.value("name", "") + "\""; }
-			if (input.contains("actor_id")) { summary += std::format(" #{}", input.value("actor_id", 0ull)); }
+			else
+			{
+				result = AssistantTools::Run(*mToolHost, call.name, call.input, isError);
+			}
+			std::string summary = call.name;
+			if (call.input.contains("name") && call.input["name"].is_string()) { summary += " \"" + call.input["name"].get<std::string>() + "\""; }
+			if (call.input.contains("actor_id") && call.input["actor_id"].is_number()) { summary += std::format(" #{}", call.input["actor_id"].get<uint64_t>()); }
 			if (isError) { summary += "  -> " + result; }
 			mChat.push_back({ isError ? ChatEntry::Kind::Error : ChatEntry::Kind::Tool, summary });
-
-			Json r = { { "type", "tool_result" }, { "tool_use_id", block.value("id", "") }, { "content", result } };
-			if (isError) { r["is_error"] = true; }
-			results.push_back(std::move(r));
+			results.results.push_back({ call.id, call.name, result, isError });
 		}
-		mMessages.push_back({ { "role", "user" }, { "content", results } });
+		mHistory.push_back(std::move(results));
 
 		if (++mLoopCount >= kMaxToolLoops)
 		{
@@ -337,32 +252,135 @@ How to work:
 		StartRequest();
 	}
 
+	// ==================================================
+	// 画面
+	// ==================================================
+	void AIAssistant::RefreshModels()
+	{
+		if (mModelList) { return; }
+		auto list = std::make_shared<PendingModelList>();
+		mModelList = list;
+		AssistantSettings settings = mSettings;
+		std::thread([list, settings]
+			{
+				list->models = ListLocalModels(settings, list->error);
+				list->done = true;
+			}).detach();
+	}
+
+	void AIAssistant::DrawSettings()
+	{
+		bool changed = false;
+		int provider = int(mSettings.provider);
+		ImGui::SetNextItemWidth(-1.0f);
+		if (ImGui::Combo("##provider", &provider, kProviderLabels, int(std::size(kProviderLabels))))
+		{
+			mSettings.provider = AssistantProviderKind(provider);
+			mModels.clear();
+			mModelListError.clear();
+			mModelsRequested = false;
+			changed = true;
+		}
+
+		if (mSettings.IsLocal())
+		{
+			// 開いたら一度だけ、サーバーにあるモデルを聞きに行く
+			if (!mModelsRequested) { mModelsRequested = true; RefreshModels(); }
+
+			std::string& url = mSettings.provider == AssistantProviderKind::Ollama ? mSettings.ollamaUrl : mSettings.openAIUrl;
+			// 名前の欄の幅（いちばん長い "Context" に合わせる）
+			const float labelWidth = ImGui::CalcTextSize("Context").x + ImGui::GetStyle().ItemInnerSpacing.x * 2.0f;
+			ImGui::SetNextItemWidth(-labelWidth);
+			if (ImGui::InputText("URL", &url, ImGuiInputTextFlags_EnterReturnsTrue)) { changed = true; RefreshModels(); }
+			if (ImGui::IsItemDeactivatedAfterEdit()) { changed = true; }
+
+			const float refreshWidth = ImGui::CalcTextSize("R").x + ImGui::GetStyle().FramePadding.x * 2.0f + ImGui::GetStyle().ItemSpacing.x;
+			ImGui::SetNextItemWidth(-(labelWidth + refreshWidth));
+			const char* preview = mSettings.localModel.empty() ? "(none)" : mSettings.localModel.c_str();
+			if (ImGui::BeginCombo("##model", preview))
+			{
+				for (const auto& m : mModels)
+				{
+					if (ImGui::Selectable(m.c_str(), m == mSettings.localModel)) { mSettings.localModel = m; changed = true; }
+				}
+				ImGui::EndCombo();
+			}
+			ImGui::SameLine();
+			ImGui::BeginDisabled(mModelList != nullptr);
+			if (ImGui::Button("R")) { RefreshModels(); }
+			ImGui::EndDisabled();
+			if (ImGui::IsItemHovered()) { ImGui::SetTooltip("Refresh the model list"); }
+			ImGui::SameLine(0.0f, ImGui::GetStyle().ItemInnerSpacing.x);
+			ImGui::TextUnformatted("Model");
+			if (mSettings.provider == AssistantProviderKind::Ollama)
+			{
+				ImGui::SetNextItemWidth(-labelWidth);
+				if (ImGui::InputInt("Context", &mSettings.contextSize, 1024, 4096)) { mSettings.contextSize = std::clamp(mSettings.contextSize, 2048, 262144); }
+				if (ImGui::IsItemDeactivatedAfterEdit()) { changed = true; }
+				if (ImGui::IsItemHovered()) { ImGui::SetTooltip("num_ctx: how many tokens the model can see. Larger uses more memory"); }
+			}
+
+			if (mModelList) { ImGui::TextDisabled("Connecting..."); }
+			else if (!mModelListError.empty() || mModels.empty())
+			{
+				// つながらない・モデルがないときは、始め方を出す
+				ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.75f, 0.4f, 1.0f));
+				if (!mModelListError.empty()) { ImGui::TextWrapped("%s", mModelListError.c_str()); }
+				else { ImGui::TextWrapped("サーバーにモデルがありません。"); }
+				ImGui::PopStyleColor();
+				if (mSettings.provider == AssistantProviderKind::Ollama)
+				{
+					ImGui::TextWrapped("使い方: Ollama（ollama.com、無料）をインストールし、コマンドプロンプトで次を実行してから R を押します。ツールを使えるモデルが必要です。");
+					static std::string kCommand = "ollama pull qwen3:8b";
+					ImGui::SetNextItemWidth(-1.0f);
+					ImGui::InputText("##cmd", &kCommand, ImGuiInputTextFlags_ReadOnly);
+				}
+				else
+				{
+					ImGui::TextWrapped("LM Studio なら Developer タブでサーバーを開始し、ツール呼び出しに対応したモデルを読み込んでから R を押します。llama.cpp なら llama-server --jinja で起動します。");
+				}
+			}
+		}
+		else
+		{
+			ImGui::SetNextItemWidth(160.0f);
+			if (ImGui::BeginCombo("##claude", kClaudeModels[mSettings.claudeModel].label))
+			{
+				for (int i = 0; i < int(std::size(kClaudeModels)); ++i)
+				{
+					if (ImGui::Selectable(kClaudeModels[i].label, i == mSettings.claudeModel)) { mSettings.claudeModel = i; changed = true; }
+				}
+				ImGui::EndCombo();
+			}
+			ImGui::SameLine();
+			ImGui::SetNextItemWidth(80.0f);
+			changed |= ImGui::Combo("Effort", &mSettings.claudeEffort, kClaudeEfforts, int(std::size(kClaudeEfforts)));
+			ImGui::TextDisabled("Needs ANTHROPIC_API_KEY (paid)");
+		}
+		if (changed) { SaveSettings(); }
+	}
+
 	void AIAssistant::Draw(bool* open)
 	{
-		ImGui::SetNextWindowSize(ImVec2(420.0f, 560.0f), ImGuiCond_FirstUseEver);
+		ImGui::SetNextWindowSize(ImVec2(420.0f, 600.0f), ImGuiCond_FirstUseEver);
 		if (!ImGui::Begin("AI Assistant", open))
 		{
 			ImGui::End();
 			return;
 		}
 
-		// 設定
-		ImGui::SetNextItemWidth(150.0f);
-		if (ImGui::BeginCombo("##model", kModels[mModelIndex].label))
-		{
-			for (int i = 0; i < int(std::size(kModels)); ++i)
-			{
-				if (ImGui::Selectable(kModels[i].label, i == mModelIndex)) { mModelIndex = i; }
-			}
-			ImGui::EndCombo();
-		}
-		ImGui::SameLine();
-		ImGui::SetNextItemWidth(80.0f);
-		ImGui::Combo("Effort", &mEffortIndex, kEfforts, int(std::size(kEfforts)));
-		ImGui::SameLine();
+		if (ImGui::CollapsingHeader("Settings", ImGuiTreeNodeFlags_DefaultOpen)) { DrawSettings(); }
 		if (ImGui::Button("New Chat")) { NewChat(); }
-		ImGui::TextDisabled("Tokens: in %llu (cached %llu) / out %llu", (unsigned long long)mInputTokens,
-			(unsigned long long)mCacheReadTokens, (unsigned long long)mOutputTokens);
+		ImGui::SameLine();
+		if (mSettings.IsLocal())
+		{
+			ImGui::TextDisabled("Tokens: in %llu / out %llu", (unsigned long long)mInputTokens, (unsigned long long)mOutputTokens);
+		}
+		else
+		{
+			ImGui::TextDisabled("Tokens: in %llu (cached %llu) / out %llu", (unsigned long long)mInputTokens,
+				(unsigned long long)mCacheReadTokens, (unsigned long long)mOutputTokens);
+		}
 
 		// 会話
 		float inputHeight = ImGui::GetTextLineHeightWithSpacing() * 4.0f + 10.0f;
@@ -375,7 +393,7 @@ How to work:
 				ImGui::TextColored(ImVec4(0.55f, 0.75f, 1.0f, 1.0f), "You");
 				break;
 			case ChatEntry::Kind::Assistant:
-				ImGui::TextColored(ImVec4(0.75f, 0.6f, 1.0f, 1.0f), "Claude");
+				ImGui::TextColored(ImVec4(0.75f, 0.6f, 1.0f, 1.0f), "Assistant");
 				break;
 			case ChatEntry::Kind::Tool:
 				ImGui::TextColored(ImVec4(0.5f, 0.85f, 0.55f, 1.0f), "  > %s", e.text.c_str());
