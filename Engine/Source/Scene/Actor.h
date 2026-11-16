@@ -88,6 +88,9 @@ namespace rd
 		const std::vector<std::unique_ptr<Component>>& GetAllComponents() const { return mComponents; }
 		void RemoveComponent(Component* component);// フレーム終わりに破棄
 		void MoveComponent(Component* component, int delta);
+		// 並びの index 番目へ動かす（範囲外は端へ）。動いたら true
+		bool SetComponentIndex(Component* component, int index);
+		int GetComponentIndex(const Component* component) const;
 
 		// 破棄（フレーム終わりに子も含めて破棄される）
 		void Destroy();

@@ -30,6 +30,63 @@ namespace
 	}
 }
 
+RD_TEST(Math, Vector2Operations)
+{
+	Vector2 a{ 1, 2 }, b{ 3, -4 };
+	RD_CHECK(-a == Vector2(-1, -2));
+	RD_CHECK(a + b == Vector2(4, -2));
+	RD_CHECK(a - b == Vector2(-2, 6));
+	RD_CHECK(a * b == Vector2(3, -8));
+	RD_CHECK(b / Vector2(3, 2) == Vector2(1, -2));
+	RD_CHECK(2.0f * a == a * 2.0f && b / 2.0f == Vector2(1.5f, -2));
+	Vector2 c = a; c += b; c -= b; c *= b; c /= b; c *= 3.0f; c /= 3.0f;
+	RD_CHECK(c == a);
+	RD_CHECK(a[0] == 1 && a[1] == 2);
+	RD_CHECK(Dot(a, b) == -5);
+	RD_CHECK(Cross(Vector2::kUnitX, Vector2::kUnitY) == 1);
+	RD_CHECK(Length(b) == 5 && Distance(a, b) == Length(a - b));
+	RD_CHECK(Min(a, b) == Vector2(1, -4) && Max(a, b) == Vector2(3, 2) && Abs(b) == Vector2(3, 4));
+	RD_CHECK(Reflect(Vector2(1, -1), Vector2::kUnitY) == Vector2(1, 1));
+	RD_CHECK(ProjectOnPlane(Vector2(1, -1), Vector2::kUnitY) == Vector2(1, 0));
+}
+
+RD_TEST(Math, Vector3Operations)
+{
+	Vector3 a{ 1, 2, 3 }, b{ 2, -4, 4 };
+	RD_CHECK(-a == Vector3(-1, -2, -3));
+	RD_CHECK(b / Vector3(2, 4, 2) == Vector3(1, -1, 2));
+	Vector3 c = a; c *= b; c /= b;
+	RD_CHECK(c == a);
+	RD_CHECK(Cross(Vector3::kUnitX, Vector3::kUnitY) == Vector3::kUnitZ);
+	RD_CHECK(Length(b) == 6 && Distance(a, b) == Length(a - b));
+	RD_CHECK(Reflect(Vector3(1, -1, 0), Vector3::kUnitY) == Vector3(1, 1, 0));
+}
+
+RD_TEST(Math, VectorNormalizeMembers)
+{
+	// Normalized はコピーを返し、自身は変えない
+	Vector2 v2{ 3, 4 };
+	Vector2 n2 = v2.Normalized();
+	RD_CHECK(v2 == Vector2(3, 4));
+	RD_CHECK_NEAR(n2.x, 0.6f, kEps);
+	RD_CHECK_NEAR(n2.y, 0.8f, kEps);
+	// Normalize は自身を正規化し、自身への参照を返す
+	RD_CHECK(&v2.Normalize() == &v2);
+	RD_CHECK(v2 == n2);
+
+	Vector3 v3{ 0, 3, 4 };
+	RD_CHECK(NearVec(v3.Normalized(), Vector3(0, 0.6f, 0.8f)));
+	RD_CHECK(v3 == Vector3(0, 3, 4));
+	v3.Normalize();
+	RD_CHECK(NearVec(v3, Vector3(0, 0.6f, 0.8f)));
+	RD_CHECK(v3.Normalized() == Normalize(v3));
+
+	// 長さ 0 はゼロベクトル（NaN にならない）
+	Vector2 z2; z2.Normalize();
+	RD_CHECK(z2 == Vector2::kZero);
+	RD_CHECK(Vector3::kZero.Normalized() == Vector3::kZero);
+}
+
 RD_TEST(Math, Matrix4InverseOfGeneralMatrix)
 {
 	// アフィンでない（射影を含む）行列でも逆行列が求まる

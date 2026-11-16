@@ -62,9 +62,13 @@ namespace rd
 		void HandleShortcuts();
 		void HandleViewportDrop(const std::string& path, const Ray& ray);
 		Actor* Pick(const Ray& ray);
-		// パネル（EditorPanels.cpp）
+		// ヒエラルキー（HierarchyPanel.cpp）
 		void DrawHierarchy();
-		void DrawHierarchyNode(Actor* actor);
+		void DrawHierarchyNode(Actor* actor, bool flat);
+		void DrawHierarchyCreateMenu(Actor* parent);
+		void HandleHierarchyKeys();
+		void BeginRename(Actor* actor);
+		// パネル（EditorPanels.cpp）
 		void DrawInspector();
 		void DrawAssets();
 		void DrawConsole();
@@ -73,9 +77,13 @@ namespace rd
 		void DrawProfiler();// ProfilerPanel.cpp
 		// 操作
 		Actor* CreatePrimitive(const std::string& name, const std::string& model);
-		Actor* CreateActorFromMenu(const std::string& kind);
+		// parent を渡すとその子として親の原点に作る（渡さなければカメラの前）
+		Actor* CreateActorFromMenu(const std::string& kind, Actor* parent = nullptr);
+		void FocusOn(Actor* actor);
 		void DeleteSelected();
 		void DuplicateSelected();
+		// アクター（と子）を dir にプレハブとして保存する（同名があれば番号を付ける）。保存したパスを返す
+		std::string CreatePrefab(Actor* actor, const std::string& dir);
 		void SaveScene(bool saveAs);
 		void OpenScene();
 		void Undo();
@@ -120,6 +128,25 @@ namespace rd
 		std::unique_ptr<AIAssistant> mAssistant;
 		bool mShowDemo = false;
 		bool mFirstLayout = true;
+
+		// ヒエラルキー
+		struct HierarchyRow
+		{
+			ActorId id = 0;
+			ActorId parent = 0;
+			bool open = false;
+			bool hasChildren = false;
+		};
+		std::vector<HierarchyRow> mHierarchyRows;// 前のフレームで見えていた行（キー操作用）
+		int mHierarchyRowCount = 0;// 縞模様用
+		std::string mHierarchyFilter;
+		ActorId mHierarchyLastSelected = 0;// 選択が変わったら親を開いてスクロールする
+		bool mHierarchyReveal = false;
+		ActorId mHierarchyToggleId = 0;// キー操作での開閉の要求
+		bool mHierarchyToggleOpen = false;
+		ActorId mRenamingId = 0;
+		bool mRenameFocus = false;
+		std::string mRenameBuffer;
 
 		// アセットパネル
 		std::string mAssetDir = "Assets";

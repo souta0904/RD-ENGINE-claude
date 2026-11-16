@@ -590,8 +590,11 @@ namespace rd
 		Json json = SerializeActors({ actor });
 		auto roots = DeserializeActors(json, true, actor->GetParent());
 		if (roots.empty()) { return nullptr; }
-		roots.front()->SetName(actor->GetName());
-		return roots.front();
+		Actor* copy = roots.front();
+		copy->SetName(actor->GetName());
+		// 元のすぐ後ろに並べる（Unity と同じ）
+		copy->SetParent(actor->GetParent(), false, actor->GetSiblingIndex() + 1);
+		return copy;
 	}
 
 	bool Scene::SavePrefab(const Actor* actor, const std::string& path)

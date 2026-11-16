@@ -111,13 +111,30 @@ namespace rd
 
 	void Actor::MoveComponent(Component* component, int delta)
 	{
+		int index = GetComponentIndex(component);
+		if (index >= 0) { SetComponentIndex(component, index + delta); }
+	}
+
+	int Actor::GetComponentIndex(const Component* component) const
+	{
 		for (size_t i = 0; i < mComponents.size(); ++i)
 		{
-			if (mComponents[i].get() != component) { continue; }
-			int target = int(i) + delta;
-			if (target >= 0 && target < int(mComponents.size())) { std::swap(mComponents[i], mComponents[size_t(target)]); }
-			return;
+			if (mComponents[i].get() == component) { return int(i); }
 		}
+		return -1;
+	}
+
+	bool Actor::SetComponentIndex(Component* component, int index)
+	{
+		int from = GetComponentIndex(component);
+		if (from < 0 || mComponents.empty()) { return false; }
+		int to = std::clamp(index, 0, int(mComponents.size()) - 1);
+		if (from == to) { return false; }
+		// from から to までを 1 つずらす（他の並びは変えない）
+		auto first = mComponents.begin();
+		if (from < to) { std::rotate(first + from, first + from + 1, first + to + 1); }
+		else { std::rotate(first + to, first + from, first + from + 1); }
+		return true;
 	}
 
 	void Actor::Destroy()

@@ -70,6 +70,7 @@
     <ClCompile Include="Source\Editor\AssistantTools.cpp"><Filter>Source\Editor</Filter></ClCompile>
     <ClInclude Include="Source\Editor\AssistantTools.h"><Filter>Source\Editor</Filter></ClInclude>
     <ClCompile Include="Source\Editor\ProfilerPanel.cpp"><Filter>Source\Editor</Filter></ClCompile>
+    <ClCompile Include="Source\Editor\HierarchyPanel.cpp"><Filter>Source\Editor</Filter></ClCompile>
     <ClInclude Include="Source\Editor\Editor.h"><Filter>Source\Editor</Filter></ClInclude>
     <ClCompile Include="Source\Editor\EditorCommands.cpp"><Filter>Source\Editor</Filter></ClCompile>
     <ClInclude Include="Source\Editor\EditorCommands.h"><Filter>Source\Editor</Filter></ClInclude>

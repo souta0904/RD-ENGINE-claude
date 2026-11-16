@@ -37,11 +37,16 @@
         "Fog Density": 0.00800000037997961,
         "Fog Start": 20.0
     },
+    "Gravity": [
+        0.0,
+        -9.8100004196167,
+        0.0
+    ],
     "Actors": [
         {
             "Id": 1,
-            "Name": "Sun",
             "Parent": 0,
+            "Name": "Sun",
             "Active": true,
             "Transform": {
                 "Position": [
@@ -78,8 +83,8 @@
         },
         {
             "Id": 2,
-            "Name": "Ground",
             "Parent": 0,
+            "Name": "Ground",
             "Active": true,
             "Transform": {
                 "Position": [
@@ -159,8 +164,8 @@
         },
         {
             "Id": 3,
-            "Name": "Player",
             "Parent": 0,
+            "Name": "Player",
             "Active": true,
             "Tag": "Player",
             "Transform": {
@@ -233,8 +238,8 @@
         },
         {
             "Id": 4,
-            "Name": "Body",
             "Parent": 3,
+            "Name": "Body",
             "Active": true,
             "Transform": {
                 "Position": [
@@ -265,7 +270,85 @@
                         1.0,
                         1.0
                     ],
-                    "Material Count": 0
+                    "Material Count": 3,
+                    "Material 0": {
+                        "Base Color": [
+                            0.3333333432674408,
+                            0.12452887743711472,
+                            0.10101473331451416,
+                            1.0
+                        ],
+                        "Albedo Map": "",
+                        "Normal Map": "",
+                        "Metallic": 0.20000000298023224,
+                        "Roughness": 0.858578622341156,
+                        "Emissive": [
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0
+                        ],
+                        "Emissive Intensity": 1.0,
+                        "Blend": "Opaque",
+                        "Double Sided": false,
+                        "Unlit": false,
+                        "Alpha Clip": false,
+                        "Alpha Cutoff": 0.5,
+                        "Cast Shadows": true,
+                        "Receive Shadows": true
+                    },
+                    "Material 1": {
+                        "Base Color": [
+                            0.8370000123977661,
+                            0.30230802297592163,
+                            0.26365500688552856,
+                            1.0
+                        ],
+                        "Albedo Map": "",
+                        "Normal Map": "",
+                        "Metallic": 0.0,
+                        "Roughness": 0.8082915544509888,
+                        "Emissive": [
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0
+                        ],
+                        "Emissive Intensity": 1.0,
+                        "Blend": "Opaque",
+                        "Double Sided": false,
+                        "Unlit": false,
+                        "Alpha Clip": false,
+                        "Alpha Cutoff": 0.5,
+                        "Cast Shadows": true,
+                        "Receive Shadows": true
+                    },
+                    "Material 2": {
+                        "Base Color": [
+                            1.0,
+                            1.0,
+                            1.0,
+                            1.0
+                        ],
+                        "Albedo Map": "",
+                        "Normal Map": "",
+                        "Metallic": 0.20000000298023224,
+                        "Roughness": 1.0,
+                        "Emissive": [
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0
+                        ],
+                        "Emissive Intensity": 1.0,
+                        "Blend": "Opaque",
+                        "Double Sided": false,
+                        "Unlit": false,
+                        "Alpha Clip": false,
+                        "Alpha Cutoff": 0.5,
+                        "Cast Shadows": true,
+                        "Receive Shadows": true
+                    }
                 },
                 {
                     "Type": "Animator",
@@ -281,8 +364,8 @@
         },
         {
             "Id": 5,
-            "Name": "Main Camera",
             "Parent": 0,
+            "Name": "Main Camera",
             "Active": true,
             "Transform": {
                 "Position": [
@@ -325,8 +408,8 @@
         },
         {
             "Id": 6,
-            "Name": "Crate",
             "Parent": 0,
+            "Name": "Crate",
             "Active": true,
             "Transform": {
                 "Position": [
@@ -426,8 +509,8 @@
         },
         {
             "Id": 7,
-            "Name": "Crate",
             "Parent": 0,
+            "Name": "Crate",
             "Active": true,
             "Transform": {
                 "Position": [
@@ -527,8 +610,8 @@
         },
         {
             "Id": 8,
-            "Name": "Crate",
             "Parent": 0,
+            "Name": "Crate",
             "Active": true,
             "Transform": {
                 "Position": [
@@ -628,8 +711,8 @@
         },
         {
             "Id": 9,
-            "Name": "Crate",
             "Parent": 0,
+            "Name": "Crate",
             "Active": true,
             "Transform": {
                 "Position": [
@@ -729,8 +812,8 @@
         },
         {
             "Id": 10,
-            "Name": "Crate",
             "Parent": 0,
+            "Name": "Crate",
             "Active": true,
             "Transform": {
                 "Position": [
@@ -830,8 +913,8 @@
         },
         {
             "Id": 11,
-            "Name": "Crate",
             "Parent": 0,
+            "Name": "Crate",
             "Active": true,
             "Transform": {
                 "Position": [
@@ -931,8 +1014,8 @@
         },
         {
             "Id": 12,
-            "Name": "Crate",
             "Parent": 0,
+            "Name": "Crate",
             "Active": true,
             "Transform": {
                 "Position": [
@@ -1032,8 +1115,8 @@
         },
         {
             "Id": 13,
-            "Name": "Crate",
             "Parent": 0,
+            "Name": "Crate",
             "Active": true,
             "Transform": {
                 "Position": [
@@ -1133,8 +1216,8 @@
         },
         {
             "Id": 14,
-            "Name": "Crate",
             "Parent": 0,
+            "Name": "Crate",
             "Active": true,
             "Transform": {
                 "Position": [
@@ -1234,8 +1317,8 @@
         },
         {
             "Id": 15,
-            "Name": "Crate",
             "Parent": 0,
+            "Name": "Crate",
             "Active": true,
             "Transform": {
                 "Position": [
@@ -1335,8 +1418,8 @@
         },
         {
             "Id": 16,
-            "Name": "Ball",
             "Parent": 0,
+            "Name": "Ball",
             "Active": true,
             "Transform": {
                 "Position": [
@@ -1432,8 +1515,8 @@
         },
         {
             "Id": 17,
-            "Name": "Ball",
             "Parent": 0,
+            "Name": "Ball",
             "Active": true,
             "Transform": {
                 "Position": [
@@ -1529,8 +1612,8 @@
         },
         {
             "Id": 18,
-            "Name": "Ball",
             "Parent": 0,
+            "Name": "Ball",
             "Active": true,
             "Transform": {
                 "Position": [
@@ -1626,8 +1709,8 @@
         },
         {
             "Id": 19,
-            "Name": "Ramp",
             "Parent": 0,
+            "Name": "Ramp",
             "Active": true,
             "Transform": {
                 "Position": [
@@ -1707,8 +1790,8 @@
         },
         {
             "Id": 20,
-            "Name": "Star Piece",
             "Parent": 0,
+            "Name": "Star Piece",
             "Active": true,
             "Transform": {
                 "Position": [
@@ -1739,7 +1822,59 @@
                         1.0,
                         1.0
                     ],
-                    "Material Count": 0
+                    "Material Count": 2,
+                    "Material 0": {
+                        "Base Color": [
+                            1.0,
+                            0.5,
+                            0.0,
+                            1.0
+                        ],
+                        "Albedo Map": "",
+                        "Normal Map": "",
+                        "Metallic": 0.0,
+                        "Roughness": 0.5,
+                        "Emissive": [
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0
+                        ],
+                        "Emissive Intensity": 1.0,
+                        "Blend": "Opaque",
+                        "Double Sided": false,
+                        "Unlit": false,
+                        "Alpha Clip": false,
+                        "Alpha Cutoff": 0.5,
+                        "Cast Shadows": true,
+                        "Receive Shadows": true
+                    },
+                    "Material 1": {
+                        "Base Color": [
+                            1.0,
+                            1.0,
+                            1.0,
+                            1.0
+                        ],
+                        "Albedo Map": "",
+                        "Normal Map": "",
+                        "Metallic": 0.20000000298023224,
+                        "Roughness": 1.0,
+                        "Emissive": [
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0
+                        ],
+                        "Emissive Intensity": 1.0,
+                        "Blend": "Opaque",
+                        "Double Sided": false,
+                        "Unlit": false,
+                        "Alpha Clip": false,
+                        "Alpha Cutoff": 0.5,
+                        "Cast Shadows": true,
+                        "Receive Shadows": true
+                    }
                 },
                 {
                     "Type": "SphereCollider",
@@ -1773,8 +1908,8 @@
         },
         {
             "Id": 21,
-            "Name": "Star Piece",
             "Parent": 0,
+            "Name": "Star Piece",
             "Active": true,
             "Transform": {
                 "Position": [
@@ -1805,7 +1940,59 @@
                         1.0,
                         1.0
                     ],
-                    "Material Count": 0
+                    "Material Count": 2,
+                    "Material 0": {
+                        "Base Color": [
+                            1.0,
+                            0.5,
+                            0.0,
+                            1.0
+                        ],
+                        "Albedo Map": "",
+                        "Normal Map": "",
+                        "Metallic": 0.0,
+                        "Roughness": 0.5,
+                        "Emissive": [
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0
+                        ],
+                        "Emissive Intensity": 1.0,
+                        "Blend": "Opaque",
+                        "Double Sided": false,
+                        "Unlit": false,
+                        "Alpha Clip": false,
+                        "Alpha Cutoff": 0.5,
+                        "Cast Shadows": true,
+                        "Receive Shadows": true
+                    },
+                    "Material 1": {
+                        "Base Color": [
+                            1.0,
+                            1.0,
+                            1.0,
+                            1.0
+                        ],
+                        "Albedo Map": "",
+                        "Normal Map": "",
+                        "Metallic": 0.20000000298023224,
+                        "Roughness": 1.0,
+                        "Emissive": [
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0
+                        ],
+                        "Emissive Intensity": 1.0,
+                        "Blend": "Opaque",
+                        "Double Sided": false,
+                        "Unlit": false,
+                        "Alpha Clip": false,
+                        "Alpha Cutoff": 0.5,
+                        "Cast Shadows": true,
+                        "Receive Shadows": true
+                    }
                 },
                 {
                     "Type": "SphereCollider",
@@ -1839,8 +2026,8 @@
         },
         {
             "Id": 22,
-            "Name": "Star Piece",
             "Parent": 0,
+            "Name": "Star Piece",
             "Active": true,
             "Transform": {
                 "Position": [
@@ -1871,7 +2058,59 @@
                         1.0,
                         1.0
                     ],
-                    "Material Count": 0
+                    "Material Count": 2,
+                    "Material 0": {
+                        "Base Color": [
+                            1.0,
+                            0.5,
+                            0.0,
+                            1.0
+                        ],
+                        "Albedo Map": "",
+                        "Normal Map": "",
+                        "Metallic": 0.0,
+                        "Roughness": 0.5,
+                        "Emissive": [
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0
+                        ],
+                        "Emissive Intensity": 1.0,
+                        "Blend": "Opaque",
+                        "Double Sided": false,
+                        "Unlit": false,
+                        "Alpha Clip": false,
+                        "Alpha Cutoff": 0.5,
+                        "Cast Shadows": true,
+                        "Receive Shadows": true
+                    },
+                    "Material 1": {
+                        "Base Color": [
+                            1.0,
+                            1.0,
+                            1.0,
+                            1.0
+                        ],
+                        "Albedo Map": "",
+                        "Normal Map": "",
+                        "Metallic": 0.20000000298023224,
+                        "Roughness": 1.0,
+                        "Emissive": [
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0
+                        ],
+                        "Emissive Intensity": 1.0,
+                        "Blend": "Opaque",
+                        "Double Sided": false,
+                        "Unlit": false,
+                        "Alpha Clip": false,
+                        "Alpha Cutoff": 0.5,
+                        "Cast Shadows": true,
+                        "Receive Shadows": true
+                    }
                 },
                 {
                     "Type": "SphereCollider",
@@ -1905,8 +2144,8 @@
         },
         {
             "Id": 23,
-            "Name": "Star Piece",
             "Parent": 0,
+            "Name": "Star Piece",
             "Active": true,
             "Transform": {
                 "Position": [
@@ -1937,7 +2176,59 @@
                         1.0,
                         1.0
                     ],
-                    "Material Count": 0
+                    "Material Count": 2,
+                    "Material 0": {
+                        "Base Color": [
+                            1.0,
+                            0.5,
+                            0.0,
+                            1.0
+                        ],
+                        "Albedo Map": "",
+                        "Normal Map": "",
+                        "Metallic": 0.0,
+                        "Roughness": 0.5,
+                        "Emissive": [
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0
+                        ],
+                        "Emissive Intensity": 1.0,
+                        "Blend": "Opaque",
+                        "Double Sided": false,
+                        "Unlit": false,
+                        "Alpha Clip": false,
+                        "Alpha Cutoff": 0.5,
+                        "Cast Shadows": true,
+                        "Receive Shadows": true
+                    },
+                    "Material 1": {
+                        "Base Color": [
+                            1.0,
+                            1.0,
+                            1.0,
+                            1.0
+                        ],
+                        "Albedo Map": "",
+                        "Normal Map": "",
+                        "Metallic": 0.20000000298023224,
+                        "Roughness": 1.0,
+                        "Emissive": [
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0
+                        ],
+                        "Emissive Intensity": 1.0,
+                        "Blend": "Opaque",
+                        "Double Sided": false,
+                        "Unlit": false,
+                        "Alpha Clip": false,
+                        "Alpha Cutoff": 0.5,
+                        "Cast Shadows": true,
+                        "Receive Shadows": true
+                    }
                 },
                 {
                     "Type": "SphereCollider",
@@ -1971,8 +2262,8 @@
         },
         {
             "Id": 24,
-            "Name": "Star Piece",
             "Parent": 0,
+            "Name": "Star Piece",
             "Active": true,
             "Transform": {
                 "Position": [
@@ -2003,7 +2294,59 @@
                         1.0,
                         1.0
                     ],
-                    "Material Count": 0
+                    "Material Count": 2,
+                    "Material 0": {
+                        "Base Color": [
+                            1.0,
+                            0.5,
+                            0.0,
+                            1.0
+                        ],
+                        "Albedo Map": "",
+                        "Normal Map": "",
+                        "Metallic": 0.0,
+                        "Roughness": 0.5,
+                        "Emissive": [
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0
+                        ],
+                        "Emissive Intensity": 1.0,
+                        "Blend": "Opaque",
+                        "Double Sided": false,
+                        "Unlit": false,
+                        "Alpha Clip": false,
+                        "Alpha Cutoff": 0.5,
+                        "Cast Shadows": true,
+                        "Receive Shadows": true
+                    },
+                    "Material 1": {
+                        "Base Color": [
+                            1.0,
+                            1.0,
+                            1.0,
+                            1.0
+                        ],
+                        "Albedo Map": "",
+                        "Normal Map": "",
+                        "Metallic": 0.20000000298023224,
+                        "Roughness": 1.0,
+                        "Emissive": [
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0
+                        ],
+                        "Emissive Intensity": 1.0,
+                        "Blend": "Opaque",
+                        "Double Sided": false,
+                        "Unlit": false,
+                        "Alpha Clip": false,
+                        "Alpha Cutoff": 0.5,
+                        "Cast Shadows": true,
+                        "Receive Shadows": true
+                    }
                 },
                 {
                     "Type": "SphereCollider",
@@ -2037,8 +2380,8 @@
         },
         {
             "Id": 25,
-            "Name": "Planet",
             "Parent": 0,
+            "Name": "Planet",
             "Active": true,
             "Transform": {
                 "Position": [
@@ -2069,7 +2412,85 @@
                         1.0,
                         1.0
                     ],
-                    "Material Count": 0
+                    "Material Count": 3,
+                    "Material 0": {
+                        "Base Color": [
+                            0.6000000238418579,
+                            0.6000000238418579,
+                            0.6000000238418579,
+                            1.0
+                        ],
+                        "Albedo Map": "",
+                        "Normal Map": "",
+                        "Metallic": 0.0,
+                        "Roughness": 0.6000000238418579,
+                        "Emissive": [
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0
+                        ],
+                        "Emissive Intensity": 1.0,
+                        "Blend": "Opaque",
+                        "Double Sided": false,
+                        "Unlit": false,
+                        "Alpha Clip": false,
+                        "Alpha Cutoff": 0.5,
+                        "Cast Shadows": true,
+                        "Receive Shadows": true
+                    },
+                    "Material 1": {
+                        "Base Color": [
+                            0.6000000238418579,
+                            0.6000000238418579,
+                            0.6000000238418579,
+                            1.0
+                        ],
+                        "Albedo Map": "Assets/Sample/Models/Planet2/planet2.png",
+                        "Normal Map": "",
+                        "Metallic": 0.0,
+                        "Roughness": 0.08908708393573761,
+                        "Emissive": [
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0
+                        ],
+                        "Emissive Intensity": 1.0,
+                        "Blend": "Opaque",
+                        "Double Sided": false,
+                        "Unlit": false,
+                        "Alpha Clip": false,
+                        "Alpha Cutoff": 0.5,
+                        "Cast Shadows": true,
+                        "Receive Shadows": true
+                    },
+                    "Material 2": {
+                        "Base Color": [
+                            0.6000000238418579,
+                            0.6000000238418579,
+                            0.6000000238418579,
+                            1.0
+                        ],
+                        "Albedo Map": "Assets/Sample/Models/Planet2/PlanetRing.png",
+                        "Normal Map": "",
+                        "Metallic": 0.0,
+                        "Roughness": 0.08908708393573761,
+                        "Emissive": [
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0
+                        ],
+                        "Emissive Intensity": 1.0,
+                        "Blend": "Opaque",
+                        "Double Sided": false,
+                        "Unlit": false,
+                        "Alpha Clip": false,
+                        "Alpha Cutoff": 0.5,
+                        "Cast Shadows": true,
+                        "Receive Shadows": true
+                    }
                 },
                 {
                     "Type": "Rotator",
@@ -2085,8 +2506,8 @@
         },
         {
             "Id": 26,
-            "Name": "Campfire",
             "Parent": 0,
+            "Name": "Campfire",
             "Active": true,
             "Transform": {
                 "Position": [
@@ -2161,8 +2582,8 @@
         },
         {
             "Id": 27,
-            "Name": "Fire Light",
             "Parent": 26,
+            "Name": "Fire Light",
             "Active": true,
             "Transform": {
                 "Position": [
@@ -2199,8 +2620,8 @@
         },
         {
             "Id": 28,
-            "Name": "Jingle",
             "Parent": 0,
+            "Name": "Jingle",
             "Active": true,
             "Transform": {
                 "Position": [
@@ -2238,8 +2659,8 @@
         },
         {
             "Id": 29,
-            "Name": "HUD",
             "Parent": 0,
+            "Name": "HUD",
             "Active": true,
             "Transform": {
                 "Position": [
@@ -2264,6 +2685,96 @@
                     "Type": "ScoreHud",
                     "Enabled": true,
                     "Icon": "Assets/Sample/Textures/Heart.png"
+                }
+            ]
+        },
+        {
+            "Id": 30,
+            "Parent": 0,
+            "Name": "terrain",
+            "Active": true,
+            "Transform": {
+                "Position": [
+                    -19.97526741027832,
+                    0.49202120304107666,
+                    -7.770318984985352
+                ],
+                "Rotation": [
+                    1.0,
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "Scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "Components": [
+                {
+                    "Type": "MeshRenderer",
+                    "Enabled": true,
+                    "Model": "Assets/Sample/Models/terrain/terrain.obj",
+                    "Tint": [
+                        1.0,
+                        1.0,
+                        1.0,
+                        1.0
+                    ],
+                    "Material Count": 2,
+                    "Material 0": {
+                        "Base Color": [
+                            0.6000000238418579,
+                            0.6000000238418579,
+                            0.6000000238418579,
+                            1.0
+                        ],
+                        "Albedo Map": "",
+                        "Normal Map": "",
+                        "Metallic": 0.0,
+                        "Roughness": 0.6000000238418579,
+                        "Emissive": [
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0
+                        ],
+                        "Emissive Intensity": 1.0,
+                        "Blend": "Opaque",
+                        "Double Sided": false,
+                        "Unlit": false,
+                        "Alpha Clip": false,
+                        "Alpha Cutoff": 0.5,
+                        "Cast Shadows": true,
+                        "Receive Shadows": true
+                    },
+                    "Material 1": {
+                        "Base Color": [
+                            0.800000011920929,
+                            0.800000011920929,
+                            0.800000011920929,
+                            1.0
+                        ],
+                        "Albedo Map": "Assets/Sample/Models/terrain/grass.png",
+                        "Normal Map": "",
+                        "Metallic": 0.0,
+                        "Roughness": 0.8399999737739563,
+                        "Emissive": [
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0
+                        ],
+                        "Emissive Intensity": 0.0,
+                        "Blend": "Alpha",
+                        "Double Sided": true,
+                        "Unlit": false,
+                        "Alpha Clip": false,
+                        "Alpha Cutoff": 0.5,
+                        "Cast Shadows": true,
+                        "Receive Shadows": true
+                    }
                 }
             ]
         }

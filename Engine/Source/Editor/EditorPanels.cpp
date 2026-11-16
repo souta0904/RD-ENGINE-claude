@@ -15,25 +15,13 @@
 #include "Scene/ComponentRegistry.h"
 #include "Scene/Scene.h"
 #include <ImGui/imgui.h>
+#include <ImGui/imgui_internal.h>
 #include <ImGui/imgui_stdlib.h>
 
 namespace rd
 {
 	namespace
 	{
-		// 階層ビューでの操作はツリー描画中に行うと走査が壊れるので後でまとめて実行する
-		struct HierarchyOps
-		{
-			Actor* reparent = nullptr;
-			Actor* newParent = nullptr;
-			bool toRoot = false;
-			Actor* remove = nullptr;
-			Actor* duplicate = nullptr;
-			Actor* createChildOf = nullptr;
-			Actor* savePrefab = nullptr;
-		};
-		HierarchyOps gOps;
-
 		const char* FileTag(const std::string& ext)
 		{
 			if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".bmp" || ext == ".tga" || ext == ".dds" || ext == ".hdr") { return "IMG"; }
@@ -43,144 +31,6 @@ namespace rd
 			if (ext == ".prefab") { return "PFB"; }
 			if (ext == ".hlsl" || ext == ".hlsli") { return "SHD"; }
 			return "FILE";
-		}
-	}
-
-	// ==================================================
-	// Hierarchy
-	// ==================================================
-	void Editor::DrawHierarchy()
-	{
-		ImGui::Begin("Hierarchy", &mShowHierarchy);
-		Scene& scene = mEngine.GetScene();
-
-		if (ImGui::Button("+ Create")) { ImGui::OpenPopup("CreateActor"); }
-		if (ImGui::BeginPopup("CreateActor"))
-		{
-			for (const char* kind : { "Empty", "Cube", "Sphere", "Plane", "Capsule", "Directional Light", "Point Light",
-				"Spot Light", "Camera", "Particle System" })
-			{
-				if (ImGui::MenuItem(kind)) { CreateActorFromMenu(kind); }
-			}
-			ImGui::EndPopup();
-		}
-		ImGui::SameLine();
-		ImGui::TextDisabled("%zu actors", scene.GetActorCount());
-		ImGui::Separator();
-
-		gOps = {};
-		ImGui::BeginChild("tree");
-		auto roots = scene.GetRootActors();// コピー（描画中の変更に備える）
-		for (Actor* root : roots) { DrawHierarchyNode(root); }
-
-		// 何もないところへのドロップ = ルートへ移動
-		ImGui::Dummy(ImVec2(ImGui::GetContentRegionAvail().x, std::max(40.0f, ImGui::GetContentRegionAvail().y)));
-		if (ImGui::BeginDragDropTarget())
-		{
-			if (const ImGuiPayload* p = ImGui::AcceptDragDropPayload("ACTOR_ID"))
-			{
-				gOps.reparent = scene.FindActor(*static_cast<const ActorId*>(p->Data));
-				gOps.toRoot = true;
-			}
-			if (const ImGuiPayload* p = ImGui::AcceptDragDropPayload("ASSET_PATH"))
-			{
-				std::string path = static_cast<const char*>(p->Data);
-				if (GetExtension(path) == ".prefab")
-				{
-					if (Actor* instance = scene.Instantiate(path))
-					{
-						Select(instance);
-						PushCommand(ActorLifetimeCommand::Created("Instantiate " + GetStem(path), scene, { instance }));
-					}
-				}
-			}
-			ImGui::EndDragDropTarget();
-		}
-		if (ImGui::IsItemClicked()) { Select(nullptr); }
-		ImGui::EndChild();
-
-		// 後回しにした操作
-		if (gOps.reparent && (gOps.newParent || gOps.toRoot))
-		{
-			Actor* newParent = gOps.toRoot ? nullptr : gOps.newParent;
-			if (gOps.reparent->GetParent() != newParent)
-			{
-				auto command = std::make_unique<ReparentCommand>("Reparent " + gOps.reparent->GetName(), gOps.reparent, newParent);
-				command->Redo(scene);
-				PushCommand(std::move(command));
-			}
-		}
-		if (gOps.duplicate) { Select(gOps.duplicate); DuplicateSelected(); }
-		if (gOps.remove) { Select(gOps.remove); DeleteSelected(); }
-		if (gOps.createChildOf)
-		{
-			Actor* child = scene.CreateActor("Actor", gOps.createChildOf);
-			Select(child);
-			PushCommand(ActorLifetimeCommand::Created("Create Child", scene, { child }));
-		}
-		if (gOps.savePrefab)
-		{
-			std::string path = "Assets/Prefabs/" + gOps.savePrefab->GetName() + ".prefab";
-			if (Scene::SavePrefab(gOps.savePrefab, path)) { Log::Info(LogCat::Editor, "Saved prefab: {}", path); }
-		}
-		ImGui::End();
-	}
-
-	void Editor::DrawHierarchyNode(Actor* actor)
-	{
-		Scene& scene = mEngine.GetScene();
-		ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_OpenOnDoubleClick;
-		if (actor->GetChildren().empty()) { flags |= ImGuiTreeNodeFlags_Leaf; }
-		if (actor->GetId() == mSelectedId) { flags |= ImGuiTreeNodeFlags_Selected; }
-
-		// 選択中のアクターの親は開いておく
-		if (Actor* sel = GetSelected(); sel && sel->IsDescendantOf(actor)) { ImGui::SetNextItemOpen(true, ImGuiCond_Once); }
-
-		if (!actor->IsActive()) { ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled)); }
-		bool open = ImGui::TreeNodeEx(reinterpret_cast<void*>(actor->GetId()), flags, "%s", actor->GetName().c_str());
-		if (!actor->IsActive()) { ImGui::PopStyleColor(); }
-
-		if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen()) { Select(actor); }
-
-		// ドラッグで親子付け替え
-		if (ImGui::BeginDragDropSource())
-		{
-			ActorId id = actor->GetId();
-			ImGui::SetDragDropPayload("ACTOR_ID", &id, sizeof(id));
-			ImGui::Text("%s", actor->GetName().c_str());
-			ImGui::EndDragDropSource();
-		}
-		if (ImGui::BeginDragDropTarget())
-		{
-			if (const ImGuiPayload* p = ImGui::AcceptDragDropPayload("ACTOR_ID"))
-			{
-				Actor* dragged = scene.FindActor(*static_cast<const ActorId*>(p->Data));
-				if (dragged && dragged != actor && !actor->IsDescendantOf(dragged))
-				{
-					gOps.reparent = dragged;
-					gOps.newParent = actor;
-				}
-			}
-			ImGui::EndDragDropTarget();
-		}
-
-		if (ImGui::BeginPopupContextItem())
-		{
-			Select(actor);
-			if (ImGui::MenuItem("Create Child")) { gOps.createChildOf = actor; }
-			if (ImGui::MenuItem("Duplicate", "Ctrl+D")) { gOps.duplicate = actor; }
-			if (ImGui::MenuItem("Delete", "Del")) { gOps.remove = actor; }
-			if (actor->GetParent() && ImGui::MenuItem("Unparent")) { gOps.reparent = actor; gOps.toRoot = true; }
-			ImGui::Separator();
-			if (ImGui::MenuItem("Save as Prefab")) { gOps.savePrefab = actor; }
-			ImGui::EndPopup();
-		}
-
-		if (open)
-		{
-			auto children = actor->GetChildren();
-			for (Actor* child : children) { DrawHierarchyNode(child); }
-			ImGui::TreePop();
 		}
 	}
 
@@ -224,20 +74,61 @@ namespace rd
 
 		// コンポーネント
 		Component* toRemove = nullptr;
-		Component* toMoveUp = nullptr;
-		Component* toMoveDown = nullptr;
 		Component* toReset = nullptr;
-		for (auto& comp : actor->GetAllComponents())
+		Component* toMove = nullptr;// 並べ替え（ドラッグ・右クリックメニュー）
+		int moveIndex = -1;// 動かした後の位置
+		bool dropLine = false;// ドロップ位置の線
+		float dropLineY = 0.0f, dropLineX0 = 0.0f, dropLineX1 = 0.0f;
+		const auto& components = actor->GetAllComponents();
+		const int compCount = int(components.size());
+		for (int index = 0; index < compCount; ++index)
 		{
-			Component* c = comp.get();
+			Component* c = components[size_t(index)].get();
 			ImGui::PushID(c);
 			bool open = ImGui::CollapsingHeader(c->GetTypeName(), ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_AllowOverlap);
+			const ImVec2 headerMin = ImGui::GetItemRectMin(), headerMax = ImGui::GetItemRectMax();
+
+			// ヘッダをドラッグして並べ替え（上半分へのドロップで前、下半分で後ろ）
+			if (ImGui::BeginDragDropSource())
+			{
+				ImGui::SetDragDropPayload("COMPONENT_INDEX", &index, sizeof(index));
+				ImGui::Text("%s", c->GetTypeName());
+				ImGui::EndDragDropSource();
+			}
+			if (ImGui::BeginDragDropTarget())
+			{
+				const ImGuiDragDropFlags flags = ImGuiDragDropFlags_AcceptBeforeDelivery | ImGuiDragDropFlags_AcceptNoDrawDefaultRect;
+				if (const ImGuiPayload* p = ImGui::AcceptDragDropPayload("COMPONENT_INDEX", flags))
+				{
+					const int from = *static_cast<const int*>(p->Data);
+					const bool after = ImGui::GetMousePos().y > (headerMin.y + headerMax.y) * 0.5f;
+					int to = index + (after ? 1 : 0);// 動かす前の並びでの挿入位置
+					if (to > from) { --to; }// 自分が抜けた分だけ前に詰まる
+					if (from >= 0 && from < compCount && to != from)
+					{
+						dropLine = true;
+						dropLineY = after ? headerMax.y : headerMin.y;
+						dropLineX0 = headerMin.x;
+						dropLineX1 = headerMax.x;
+						if (p->IsDelivery())
+						{
+							toMove = components[size_t(from)].get();
+							moveIndex = to;
+						}
+					}
+				}
+				ImGui::EndDragDropTarget();
+			}
+
 			if (ImGui::BeginPopupContextItem("comp"))
 			{
 				if (ImGui::MenuItem("Remove")) { toRemove = c; }
-				if (ImGui::MenuItem("Move Up")) { toMoveUp = c; }
-				if (ImGui::MenuItem("Move Down")) { toMoveDown = c; }
 				if (ImGui::MenuItem("Reset")) { toReset = c; }
+				ImGui::Separator();
+				if (ImGui::MenuItem("Move Up", nullptr, false, index > 0)) { toMove = c; moveIndex = index - 1; }
+				if (ImGui::MenuItem("Move Down", nullptr, false, index < compCount - 1)) { toMove = c; moveIndex = index + 1; }
+				if (ImGui::MenuItem("Move to Top", nullptr, false, index > 0)) { toMove = c; moveIndex = 0; }
+				if (ImGui::MenuItem("Move to Bottom", nullptr, false, index < compCount - 1)) { toMove = c; moveIndex = compCount - 1; }
 				ImGui::EndPopup();
 			}
 			// 有効/無効のチェックボックスをヘッダの右端に
@@ -259,6 +150,10 @@ namespace rd
 			ImGui::PopID();
 		}
 		commit |= inspector.AnyCommitted();
+		if (dropLine)
+		{
+			ImGui::GetWindowDrawList()->AddLine(ImVec2(dropLineX0, dropLineY), ImVec2(dropLineX1, dropLineY), ImGui::GetColorU32(ImGuiCol_DragDropTarget), 2.0f);
+		}
 
 		std::string label = "Edit " + actor->GetName();
 		if (toRemove)
@@ -268,8 +163,11 @@ namespace rd
 			mEngine.GetScene().FlushPendingDestroy();
 			commit = true;
 		}
-		if (toMoveUp) { actor->MoveComponent(toMoveUp, -1); label = "Move Component"; commit = true; }
-		if (toMoveDown) { actor->MoveComponent(toMoveDown, 1); label = "Move Component"; commit = true; }
+		if (toMove && actor->SetComponentIndex(toMove, moveIndex))
+		{
+			label = std::format("Move {}", toMove->GetTypeName());
+			commit = true;
+		}
 		if (toReset)
 		{
 			// 新品のインスタンスのプロパティで上書き
@@ -351,6 +249,8 @@ namespace rd
 			(e.is_directory() ? dirs : files).push_back(e);
 		}
 		std::string filter = ToLower(mAssetFilter);
+		ActorId prefabActor = 0;// ドロップされたアクター（プレハブにする）
+		std::string prefabDir;
 
 		const float cell = 92.0f;
 		int columns = std::max(1, int(ImGui::GetContentRegionAvail().x / cell));
@@ -384,6 +284,16 @@ namespace rd
 					else if (ext == ".scene") { mEngine.LoadScene(path); }
 				}
 				(void)clicked;
+				// フォルダへアクターをドロップしたら、そのフォルダにプレハブを作る
+				if (isDir && ImGui::BeginDragDropTarget())
+				{
+					if (const ImGuiPayload* p = ImGui::AcceptDragDropPayload("ACTOR_ID"))
+					{
+						prefabActor = *static_cast<const ActorId*>(p->Data);
+						prefabDir = path;
+					}
+					ImGui::EndDragDropTarget();
+				}
 				if (!isDir && ImGui::BeginDragDropSource())
 				{
 					ImGui::SetDragDropPayload("ASSET_PATH", path.c_str(), path.size() + 1);
@@ -398,7 +308,29 @@ namespace rd
 		for (auto& d : dirs) { drawEntry(d, true); }
 		for (auto& f : files) { drawEntry(f, false); }
 		ImGui::Columns(1);
+
+		// パネル全体へのドロップ: 今開いているフォルダにプレハブを作る（フォルダの上なら、そちらが優先される）
+		if (ImGuiWindow* window = ImGui::GetCurrentWindow(); ImGui::BeginDragDropTargetCustom(window->InnerRect, window->ID))
+		{
+			if (const ImGuiPayload* p = ImGui::AcceptDragDropPayload("ACTOR_ID"))
+			{
+				prefabActor = *static_cast<const ActorId*>(p->Data);
+				prefabDir = mAssetDir;
+			}
+			ImGui::EndDragDropTarget();
+		}
+		if (ImGui::BeginPopupContextWindow("assetsMenu", ImGuiPopupFlags_MouseButtonRight | ImGuiPopupFlags_NoOpenOverItems))
+		{
+			if (ImGui::MenuItem("Create Prefab from Selection", nullptr, false, GetSelected() != nullptr))
+			{
+				prefabActor = mSelectedId;
+				prefabDir = mAssetDir;
+			}
+			ImGui::EndPopup();
+		}
 		ImGui::EndChild();
+
+		if (prefabActor != 0) { CreatePrefab(mEngine.GetScene().FindActor(prefabActor), prefabDir); }
 		ImGui::End();
 	}
 

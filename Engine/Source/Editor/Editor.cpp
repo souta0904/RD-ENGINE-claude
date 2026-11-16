@@ -307,6 +307,8 @@ namespace rd
 			{
 				if (ImGui::MenuItem(kind)) { CreateActorFromMenu(kind); }
 			}
+			ImGui::Separator();
+			if (ImGui::MenuItem("Create Prefab from Selection", nullptr, false, GetSelected() != nullptr)) { CreatePrefab(GetSelected(), mAssetDir); }
 			ImGui::EndMenu();
 		}
 		if (ImGui::BeginMenu("View"))
@@ -592,15 +594,15 @@ namespace rd
 			if (ImGui::IsKeyPressed(ImGuiKey_W, false)) { mGizmoOp = 0; }
 			if (ImGui::IsKeyPressed(ImGuiKey_E, false)) { mGizmoOp = 1; }
 			if (ImGui::IsKeyPressed(ImGuiKey_R, false)) { mGizmoOp = 2; }
-			if (ImGui::IsKeyPressed(ImGuiKey_F, false))
-			{
-				if (Actor* sel = GetSelected())
-				{
-					auto mr = sel->GetComponent<MeshRenderer>();
-					mCamera.Focus(mr ? mr->GetWorldBounds() : AABB::FromCenterExtents(sel->GetTransform().GetPosition(), Vector3(1, 1, 1)));
-				}
-			}
+			if (ImGui::IsKeyPressed(ImGuiKey_F, false)) { FocusOn(GetSelected()); }
 		}
+	}
+
+	void Editor::FocusOn(Actor* actor)
+	{
+		if (!actor) { return; }
+		auto mr = actor->GetComponent<MeshRenderer>();
+		mCamera.Focus(mr ? mr->GetWorldBounds() : AABB::FromCenterExtents(actor->GetTransform().GetPosition(), Vector3(1, 1, 1)));
 	}
 
 	// ==================================================
@@ -614,7 +616,7 @@ namespace rd
 		return actor;
 	}
 
-	Actor* Editor::CreateActorFromMenu(const std::string& kind)
+	Actor* Editor::CreateActorFromMenu(const std::string& kind, Actor* parent)
 	{
 		Scene& scene = mEngine.GetScene();
 		Actor* actor = nullptr;
@@ -635,9 +637,18 @@ namespace rd
 		else if (kind == "Particle System") { actor = scene.CreateActor("Particles"); actor->AddComponent<ParticleSystem>(); }
 		if (!actor) { return nullptr; }
 
-		// カメラの前に置く
-		RenderCamera cam = mCamera.GetRenderCamera(1.0f);
-		if (kind != "Directional Light") { actor->GetTransform().SetPosition(cam.position + cam.GetForward() * 6.0f); }
+		if (parent)
+		{
+			// 親の原点に子として置く
+			actor->SetParent(parent, false);
+			actor->GetTransform().SetLocalPosition(Vector3(0, 0, 0));
+		}
+		else if (kind != "Directional Light")
+		{
+			// カメラの前に置く
+			RenderCamera cam = mCamera.GetRenderCamera(1.0f);
+			actor->GetTransform().SetPosition(cam.position + cam.GetForward() * 6.0f);
+		}
 		Select(actor);
 		PushCommand(ActorLifetimeCommand::Created("Create " + kind, scene, { actor }));
 		return actor;
@@ -668,6 +679,32 @@ namespace rd
 				PushCommand(ActorLifetimeCommand::Created("Duplicate " + sel->GetName(), scene, { copy }));
 			}
 		}
+	}
+
+	std::string Editor::CreatePrefab(Actor* actor, const std::string& dir)
+	{
+		if (!actor) { return {}; }
+		// ファイル名に使えない文字は _ にする
+		std::string stem = actor->GetName();
+		for (char& ch : stem)
+		{
+			if (std::string_view("\\/:*?\"<>|").find(ch) != std::string_view::npos || static_cast<unsigned char>(ch) < 0x20) { ch = '_'; }
+		}
+		if (stem.empty()) { stem = "Prefab"; }
+
+		// 上書きしないよう、同名があれば " 1", " 2" … を付ける
+		std::string path = dir + "/" + stem + ".prefab";
+		for (int n = 1; std::filesystem::exists(ToWide(path)); ++n)
+		{
+			path = std::format("{}/{} {}.prefab", dir, stem, n);
+		}
+		if (!Scene::SavePrefab(actor, path))
+		{
+			Log::Error(LogCat::Editor, "Failed to save prefab: {}", path);
+			return {};
+		}
+		Log::Info(LogCat::Editor, "Saved prefab: {}", path);
+		return path;
 	}
 
 	void Editor::SaveScene(bool saveAs)

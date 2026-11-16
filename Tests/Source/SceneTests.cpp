@@ -4,6 +4,7 @@
 #include "Scene/ComponentRegistry.h"
 #include "Scene/Scene.h"
 #include <algorithm>
+#include <filesystem>
 
 using namespace rd;
 using namespace rdtest;
@@ -109,6 +110,58 @@ RD_TEST(Scene, FindComponentsByTypeInAddOrder)
 	scene.FlushPendingDestroy();
 	list = scene.FindComponents<LateOnly>();
 	RD_CHECK(list.size() == 1 && list[0] == l3);
+}
+
+RD_TEST(Actor, SetComponentIndexReorders)
+{
+	Scene scene;
+	Actor* a = scene.CreateActor("A");
+	Component* c0 = a->AddComponent<Passive>();
+	Component* c1 = a->AddComponent<LateOnly>();
+	Component* c2 = a->AddComponent<AllProps>();
+	auto order = [&]() { std::vector<Component*> v; for (auto& c : a->GetAllComponents()) { v.push_back(c.get()); } return v; };
+
+	RD_CHECK(a->SetComponentIndex(c0, 2));// 先頭 → 末尾
+	RD_CHECK((order() == std::vector<Component*>{ c1, c2, c0 }));
+	RD_CHECK(a->SetComponentIndex(c0, 0));// 末尾 → 先頭
+	RD_CHECK((order() == std::vector<Component*>{ c0, c1, c2 }));
+	RD_CHECK(!a->SetComponentIndex(c1, 1));// 動かないときは false
+	RD_CHECK(!a->SetComponentIndex(c2, 99));// 範囲外は端へ（すでに末尾なので動かない）
+	a->MoveComponent(c2, -1);
+	RD_CHECK((order() == std::vector<Component*>{ c0, c2, c1 }));
+	RD_CHECK_EQ(a->GetComponentIndex(c1), 2);
+
+	// 並べ替えは Undo 用の状態に残り、書き戻すと元の並びに戻る
+	Json before = scene.SerializeActorState(a);
+	a->SetComponentIndex(c1, 0);
+	scene.ApplyActorState(a, before);
+	RD_REQUIRE(a->GetAllComponents().size() == 3);
+	RD_CHECK(std::string(a->GetAllComponents()[2]->GetTypeName()) == "LateOnly");
+}
+
+RD_TEST(Scene, PrefabRoundTrip)
+{
+	const std::string path = "TestOutput/Prefab Test.prefab";
+	Scene scene;
+	Actor* root = scene.CreateActor("Root");
+	root->GetTransform().SetPosition({ 1.0f, 2.0f, 3.0f });
+	root->AddComponent<Recorder>()->value = 5;
+	scene.CreateActor("Child", root)->AddComponent<Passive>();
+	RD_REQUIRE(Scene::SavePrefab(root, path));
+
+	Scene other;
+	Actor* a = other.Instantiate(path);
+	Actor* b = other.Instantiate(path);
+	RD_REQUIRE(a && b && a != b);
+	RD_CHECK(a->GetName() == "Root" && a->GetId() != b->GetId());
+	RD_CHECK(a->GetParent() == nullptr);
+	RD_REQUIRE(a->GetChildren().size() == 1);
+	RD_CHECK(a->GetChildren()[0]->GetName() == "Child");
+	RD_REQUIRE(a->GetComponent<Recorder>() != nullptr);
+	RD_CHECK_EQ(a->GetComponent<Recorder>()->value, 5);
+	RD_CHECK(a->GetTransform().GetPosition().y == 2.0f);
+	std::error_code ec;
+	std::filesystem::remove(path, ec);
 }
 
 RD_TEST(Scene, SaveLoadRoundTrip)
@@ -228,6 +281,36 @@ RD_TEST(ObjectRef, DuplicateRemapsInternalRefs)
 	RD_REQUIRE(prefabInner != nullptr);
 	RD_CHECK(roots[0]->GetComponent<AllProps>()->target.Get() == prefabInner);
 	RD_CHECK(prefabInner->GetComponent<AllProps>()->target.Get() == nullptr);
+}
+
+RD_TEST(Scene, SiblingOrder)
+{
+	Scene scene;
+	Actor* a = scene.CreateActor("A");
+	Actor* b = scene.CreateActor("B");
+	Actor* c = scene.CreateActor("C");
+	// 複製は元のすぐ後ろ
+	Actor* a2 = scene.Duplicate(a);
+	RD_REQUIRE(a2 != nullptr);
+	RD_CHECK_EQ(a2->GetSiblingIndex(), 1);
+	RD_CHECK_EQ(b->GetSiblingIndex(), 2);
+	// 任意の位置へ並べ替え
+	c->SetParent(nullptr, true, 0);
+	RD_CHECK(scene.GetRootActors().front() == c);
+	// 子の並びは保存して読み直しても変わらない
+	Actor* x = scene.CreateActor("X", b);
+	Actor* y = scene.CreateActor("Y", b);
+	y->SetParent(b, true, 0);
+	Scene loaded;
+	loaded.Deserialize(scene.Serialize());
+	const auto& roots = loaded.GetRootActors();
+	RD_REQUIRE(roots.size() == 4);
+	RD_CHECK_EQ(roots[0]->GetName(), std::string("C"));
+	RD_CHECK_EQ(roots[1]->GetName(), std::string("A"));
+	RD_CHECK_EQ(roots[3]->GetName(), std::string("B"));
+	RD_REQUIRE(roots[3]->GetChildren().size() == 2);
+	RD_CHECK_EQ(roots[3]->GetChildren()[0]->GetName(), std::string("Y"));
+	(void)x;
 }
 
 RD_TEST(Scene, ActorStateApplyInPlaceAndRebuild)
