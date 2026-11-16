@@ -4,7 +4,7 @@
 #include "Asset/Model.h"
 #include "Components/Animator.h"
 #include "Render/DebugDraw.h"
-#include "RHI/GraphicsDevice.h"
+#include "RHI/Device/GpuScope.h"
 #include "Scene/Actor.h"
 
 namespace rd

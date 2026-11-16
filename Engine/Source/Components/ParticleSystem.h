@@ -2,7 +2,9 @@
 #include "Asset/Asset.h"
 #include "Core/Jobs/JobSystem.h"
 #include "Math/Math.h"
-#include "RHI/Pipeline.h"
+#include "RHI/Pipeline/PipelineBuilder.h"
+#include "RHI/Pipeline/RootSignatureBuilder.h"
+#include "RHI/Pipeline/Samplers.h"
 #include "Scene/Component.h"
 #include <vector>
 

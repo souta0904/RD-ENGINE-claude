@@ -1,6 +1,7 @@
 #pragma once
 #include "Asset/Asset.h"
-#include "RHI/GpuTexture.h"
+#include "RHI/Texture/RenderTexture.h"
+#include "RHI/Texture/DepthTexture.h"
 #include <vector>
 
 namespace rd

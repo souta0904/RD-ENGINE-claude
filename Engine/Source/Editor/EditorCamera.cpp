@@ -1,6 +1,6 @@
 #include "RdPch.h"
 #include "Editor/EditorCamera.h"
-#include "Platform/Input.h"
+#include "Platform/Input/Input.h"
 
 namespace rd
 {

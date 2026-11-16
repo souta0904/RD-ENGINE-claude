@@ -1,27 +1,18 @@
 #pragma once
-#include "RHI/D3D12Common.h"
+#include "RHI/Descriptor/DescriptorHandle.h"
 #include <mutex>
 #include <vector>
 
 namespace rd
 {
-	struct DescriptorHandle
-	{
-		D3D12_CPU_DESCRIPTOR_HANDLE cpu = {};
-		D3D12_GPU_DESCRIPTOR_HANDLE gpu = {};
-		uint32_t index = UINT32_MAX;
-
-		bool IsValid() const { return index != UINT32_MAX; }
-	};
-
-	// フリーリスト方式のデスクリプタヒープ（スレッドセーフ）
+	// 空き番号の一覧で管理するデスクリプタヒープ（スレッドセーフ）
 	class DescriptorHeap
 	{
 	public:
 		void Create(ID3D12Device* device, D3D12_DESCRIPTOR_HEAP_TYPE type, uint32_t capacity, bool shaderVisible);
 
 		DescriptorHandle Allocate();
-		// 即時解放（GPU が使用中の可能性があるなら GraphicsDevice::DeferFree を使う）
+		// すぐに返す（GPU が使っているかもしれないときは GraphicsDevice::DeferFreeDescriptor を使う）
 		void Free(DescriptorHandle& handle);
 
 		DescriptorHandle GetHandle(uint32_t index) const;

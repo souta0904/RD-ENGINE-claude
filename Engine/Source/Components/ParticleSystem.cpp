@@ -4,7 +4,7 @@
 #include "Asset/Texture.h"
 #include "Render/DebugDraw.h"
 #include "Render/RenderTypes.h"
-#include "RHI/GraphicsDevice.h"
+#include "RHI/Device/GpuScope.h"
 #include "Scene/Actor.h"
 #include "Scene/Scene.h"
 #if RD_EDITOR

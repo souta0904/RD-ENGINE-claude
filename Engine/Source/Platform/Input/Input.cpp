@@ -1,5 +1,5 @@
 #include "RdPch.h"
-#include "Platform/Input.h"
+#include "Platform/Input/Input.h"
 #include <windowsx.h>
 #include <Xinput.h>
 
@@ -17,7 +17,7 @@ namespace rd
 			float len = Length(v);
 			float dz = float(deadZone) / 32767.0f;
 			if (len < dz) { return Vector2::kZero; }
-			// デッドゾーンの外側を 0～1 に再マップ
+			// デッドゾーンの外側を 0～1 に付け直す
 			float scaled = std::min(1.0f, (len - dz) / (1.0f - dz));
 			return v / len * scaled;
 		}
@@ -25,10 +25,10 @@ namespace rd
 
 	void Input::Initialize(HWND hwnd)
 	{
-		// マウスの Raw Input（カメラ操作用の相対移動量）
+		// カメラ操作に使う相対移動量を Raw Input で受け取る（Generic desktop / Mouse）
 		RAWINPUTDEVICE rid = {};
-		rid.usUsagePage = 0x01;// Generic desktop
-		rid.usUsage = 0x02;// Mouse
+		rid.usUsagePage = 0x01;
+		rid.usUsage = 0x02;
 		rid.hwndTarget = hwnd;
 		RegisterRawInputDevices(&rid, 1, sizeof(rid));
 		ResetState();
@@ -68,7 +68,7 @@ namespace rd
 			if (wParam < 256)
 			{
 				sKeys[wParam] = true;
-				// 左右の区別
+				// Shift / Control は左右も別に記録する
 				if (wParam == VK_SHIFT) { sKeys[GetKeyState(VK_LSHIFT) & 0x8000 ? VK_LSHIFT : VK_RSHIFT] = true; }
 				if (wParam == VK_CONTROL) { sKeys[(lParam & (1 << 24)) ? VK_RCONTROL : VK_LCONTROL] = true; }
 			}

@@ -1,9 +1,9 @@
-﻿#include "RdPch.h"
+#include "RdPch.h"
 #include "Components/Animator.h"
 #include "Asset/AssetManager.h"
 #include "Asset/Model.h"
 #include "Components/MeshRenderer.h"
-#include "RHI/GraphicsDevice.h"
+#include "RHI/Device/GpuScope.h"
 #include "Scene/Actor.h"
 #if RD_EDITOR
 #include <ImGui/imgui.h>

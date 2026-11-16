@@ -1,7 +1,7 @@
 #pragma once
 #include "Core/Serialization/JsonReader.h"
 #include "Core/Serialization/JsonWriter.h"
-#include "Platform/HttpClient.h"
+#include "Platform/Network/HttpClient.h"
 #include <memory>
 #include <string>
 #include <vector>

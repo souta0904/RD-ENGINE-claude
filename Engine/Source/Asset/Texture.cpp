@@ -2,7 +2,7 @@
 #include "Asset/Texture.h"
 #include "Core/Util/StringUtil.h"
 #include "Core/Util/FileUtil.h"
-#include "RHI/GraphicsDevice.h"
+#include "RHI/Device/GpuScope.h"
 #include <DirectXTex.h>
 
 namespace rd
@@ -93,7 +93,7 @@ namespace rd
 		// ステージングバッファへ行ごとにコピー
 		auto desc = resource->GetDesc();
 		UINT count = UINT(subresources.size());
-		GraphicsDevice::UploadRequest req;
+		UploadRequest req;
 		req.isTexture = true;
 		req.footprints.resize(count);
 		std::vector<UINT> rows(count);

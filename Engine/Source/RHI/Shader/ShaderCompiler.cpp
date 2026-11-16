@@ -1,7 +1,6 @@
 #include "RdPch.h"
-#include "RHI/ShaderCompiler.h"
+#include "RHI/Shader/ShaderCompiler.h"
 #include "Core/Util/StringUtil.h"
-#include "Core/Util/FileUtil.h"
 
 namespace rd
 {
@@ -33,6 +32,7 @@ namespace rd
 		RD_CHECK_HR(mUtils->CreateDefaultIncludeHandler(&mIncludeHandler));
 	}
 
+	// 失敗したシェーダーも空のままキャッシュする（毎フレーム失敗し続けないように）
 	const Shader* ShaderCompiler::Compile(const ShaderDesc& desc)
 	{
 		std::lock_guard lock(mMutex);
@@ -53,11 +53,12 @@ namespace rd
 		std::vector<std::wstring> wdefines;
 		for (const auto& d : desc.defines) { wdefines.push_back(ToWide(d)); }
 
+		// -Zpr: 行優先（C++ 側の Matrix4 と並びを合わせる）
 		std::vector<LPCWSTR> args = {
 			wpath.c_str(),
 			L"-E", wentry.c_str(),
 			L"-T", Profile(desc.stage),
-			L"-Zpr",// 行優先（C++ 側の Matrix4 とレイアウトを合わせる）
+			L"-Zpr",
 			L"-HV", L"2021",
 #if RD_DEBUG
 			L"-Zi", L"-Qembed_debug", L"-Od",

@@ -1,9 +1,9 @@
 #include "RdPch.h"
 #include "FrameComposer.h"
 #include "Components/CameraComponent.h"
-#include "Platform/Window.h"
+#include "Platform/Window/Window.h"
 #include "Render/Renderer.h"
-#include "RHI/GraphicsDevice.h"
+#include "RHI/Device/GpuScope.h"
 #include "Runtime/FrameOverlay.h"
 #include "Scene/Scene.h"
 

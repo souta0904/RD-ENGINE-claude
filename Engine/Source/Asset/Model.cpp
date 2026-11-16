@@ -4,7 +4,7 @@
 #include "Asset/Texture.h"
 #include "Core/Util/StringUtil.h"
 #include "Core/Util/FileUtil.h"
-#include "RHI/GraphicsDevice.h"
+#include "RHI/Device/GpuScope.h"
 #include <assimp/Importer.hpp>
 #include <assimp/postprocess.h>
 #include <assimp/scene.h>

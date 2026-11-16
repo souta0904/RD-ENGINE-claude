@@ -3,7 +3,9 @@
 #include "Core/Reflection/PropertyVisitor.h"
 #include "Math/Geometry/Frustum.h"
 #include "Math/Geometry/Intersection.h"
-#include "RHI/Pipeline.h"
+#include "RHI/Pipeline/PipelineBuilder.h"
+#include "RHI/Pipeline/RootSignatureBuilder.h"
+#include "RHI/Pipeline/Samplers.h"
 #include <vector>
 
 namespace rd

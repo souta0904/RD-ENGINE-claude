@@ -13,7 +13,7 @@
 #include "Engine.h"
 #include "Physics/PhysicsWorld.h"
 #include "Render/Renderer.h"
-#include "RHI/GraphicsDevice.h"
+#include "RHI/Device/GpuScope.h"
 #include "Scene/ComponentRegistry.h"
 #include "Scene/Scene.h"
 #include <ImGui/imgui.h>

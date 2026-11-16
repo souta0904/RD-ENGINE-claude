@@ -1,14 +1,28 @@
 #include "RdPch.h"
-#include "RHI/GraphicsDevice.h"
+#include "RHI/Device/GraphicsDevice.h"
 #include "Core/Profiling/ProfileScope.h"
 #include "Core/Util/StringUtil.h"
-#include "Core/Util/FileUtil.h"
 
 namespace rd
 {
 	namespace
 	{
 		constexpr uint64_t kDynamicPageSize = 8ull * 1024 * 1024;
+
+		uint64_t AlignUp(uint64_t value, uint64_t alignment)
+		{
+			return (value + alignment - 1) & ~(alignment - 1);
+		}
+
+		void OnDebugMessage(D3D12_MESSAGE_CATEGORY, D3D12_MESSAGE_SEVERITY severity, D3D12_MESSAGE_ID id, LPCSTR desc, void*)
+		{
+			std::string_view text = desc;
+			while (!text.empty() && (text.back() == '\n' || text.back() == '\r')) { text.remove_suffix(1); }
+			// 終了時の生存オブジェクトの一覧（デバイス自身が必ず出る）はデバッグ扱いにする
+			if (id == D3D12_MESSAGE_ID_LIVE_DEVICE || id == D3D12_MESSAGE_ID_LIVE_OBJECT_SUMMARY) { Log::Debug(LogCat::RHI, "D3D12: {}", text); }
+			else if (severity <= D3D12_MESSAGE_SEVERITY_ERROR) { Log::Error(LogCat::RHI, "D3D12: {}", text); }
+			else if (severity == D3D12_MESSAGE_SEVERITY_WARNING) { Log::Warning(LogCat::RHI, "D3D12: {}", text); }
+		}
 	}
 
 	bool GraphicsDevice::Initialize(const GraphicsDeviceDesc& desc)
@@ -20,14 +34,13 @@ namespace rd
 		mVSync = desc.vsync;
 
 		CreateDevice(desc.debugLayer);
+		if (desc.debugLayer) { SetupDebugMessages(); }
 
-		// コマンドキュー
 		D3D12_COMMAND_QUEUE_DESC queueDesc = {};
 		queueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
 		RD_CHECK_HR(mDevice->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&mQueue)));
 		SetDebugName(mQueue.Get(), L"MainQueue");
 
-		// フレームごとのコマンドアロケータ
 		for (auto& frame : mFrames)
 		{
 			RD_CHECK_HR(mDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&frame.allocator)));
@@ -38,90 +51,16 @@ namespace rd
 		RD_CHECK_HR(mDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&mFence)));
 		mFenceEvent = CreateEventW(nullptr, FALSE, FALSE, nullptr);
 
-		// デスクリプタヒープ
 		mRtvHeap.Create(mDevice.Get(), D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 256, false);
 		mDsvHeap.Create(mDevice.Get(), D3D12_DESCRIPTOR_HEAP_TYPE_DSV, 64, false);
 		mSrvHeap.Create(mDevice.Get(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 8192, true);
 
 		CreateSwapChain(desc.hwnd);
 		CreateBackBufferViews();
-
-		// GPU 計測用のタイムスタンプ（フレームごとに kMaxGpuQueries 個ずつ使う）
-		D3D12_QUERY_HEAP_DESC queryDesc = {};
-		queryDesc.Type = D3D12_QUERY_HEAP_TYPE_TIMESTAMP;
-		queryDesc.Count = kMaxGpuQueries * kFrameCount;
-		RD_CHECK_HR(mDevice->CreateQueryHeap(&queryDesc, IID_PPV_ARGS(&mTimestampHeap)));
-		CD3DX12_HEAP_PROPERTIES readbackHeap(D3D12_HEAP_TYPE_READBACK);
-		auto readbackDesc = CD3DX12_RESOURCE_DESC::Buffer(sizeof(uint64_t) * queryDesc.Count);
-		RD_CHECK_HR(mDevice->CreateCommittedResource(&readbackHeap, D3D12_HEAP_FLAG_NONE, &readbackDesc,
-			D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&mTimestampReadback)));
-		SetDebugName(mTimestampReadback.Get(), L"TimestampReadback");
-		RD_CHECK_HR(mQueue->GetTimestampFrequency(&mTimestampFrequency));
+		CreateTimestampQueries();
 
 		mShaderCompiler.Initialize();
 		return true;
-	}
-
-	// ==================================================
-	// GPU の区間計測
-	// ==================================================
-	void GraphicsDevice::BeginGpuScope(const char* name)
-	{
-		// PIX / RenderDoc のイベント名（Metadata 1 = ANSI 文字列）
-		mCmdList->BeginEvent(1, name, UINT(std::strlen(name) + 1));
-		FrameContext& frame = mFrames[mFrameIndex];
-		if (frame.queryCount + 2 > kMaxGpuQueries)
-		{
-			mGpuScopeStack.push_back(UINT32_MAX);// 数が多すぎるときは計測しない（イベント名だけ付ける）
-			return;
-		}
-		uint32_t query = mFrameIndex * kMaxGpuQueries + frame.queryCount++;
-		mCmdList->EndQuery(mTimestampHeap.Get(), D3D12_QUERY_TYPE_TIMESTAMP, query);
-		mGpuScopeStack.push_back(uint32_t(frame.gpuScopes.size()));
-		frame.gpuScopes.push_back({ name, query, query, uint16_t(mGpuScopeStack.size() - 1) });
-	}
-
-	void GraphicsDevice::EndGpuScope()
-	{
-		mCmdList->EndEvent();
-		if (mGpuScopeStack.empty()) { return; }
-		uint32_t index = mGpuScopeStack.back();
-		mGpuScopeStack.pop_back();
-		if (index == UINT32_MAX) { return; }
-		FrameContext& frame = mFrames[mFrameIndex];
-		uint32_t query = mFrameIndex * kMaxGpuQueries + frame.queryCount++;
-		mCmdList->EndQuery(mTimestampHeap.Get(), D3D12_QUERY_TYPE_TIMESTAMP, query);
-		frame.gpuScopes[index].end = query;
-	}
-
-	void GraphicsDevice::CollectGpuTimings(FrameContext& frame)
-	{
-		// フェンスを待った後なので、このフレームのタイムスタンプは読み戻し済み
-		if (!frame.gpuScopes.empty() && mTimestampFrequency != 0)
-		{
-			uint32_t base = uint32_t(&frame - mFrames) * kMaxGpuQueries;
-			D3D12_RANGE range{ base * sizeof(uint64_t), (base + frame.queryCount) * sizeof(uint64_t) };
-			uint64_t* data = nullptr;
-			if (SUCCEEDED(mTimestampReadback->Map(0, &range, reinterpret_cast<void**>(&data))))
-			{
-				uint64_t origin = data[frame.gpuScopes.front().begin];
-				for (auto& s : frame.gpuScopes) { origin = std::min(origin, data[s.begin]); }
-				auto toMs = [&](uint32_t q) { return double(data[q] - origin) * 1000.0 / double(mTimestampFrequency); };
-				std::vector<GpuProfileEvent> events;
-				events.reserve(frame.gpuScopes.size());
-				for (auto& s : frame.gpuScopes)
-				{
-					if (s.end == s.begin) { continue; }// 閉じられなかった区間
-					events.push_back({ s.name, toMs(s.begin), toMs(s.end), s.depth });
-				}
-				D3D12_RANGE noWrite{ 0, 0 };
-				mTimestampReadback->Unmap(0, &noWrite);
-				Profiler::SubmitGpu(frame.profilerFrame, std::move(events));
-			}
-		}
-		frame.gpuScopes.clear();
-		frame.queryCount = 0;
-		frame.profilerFrame = Profiler::GetFrameNumber();
 	}
 
 	void GraphicsDevice::Shutdown()
@@ -177,7 +116,7 @@ namespace rd
 		}
 		RD_CHECK_HR(CreateDXGIFactory2(factoryFlags, IID_PPV_ARGS(&mFactory)));
 
-		// 高性能 GPU を優先して選ぶ
+		// 高性能な GPU から順に試す（ソフトウェアのアダプタは使わない）
 		for (UINT i = 0; mFactory->EnumAdapterByGpuPreference(i, DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE, IID_PPV_ARGS(&mAdapter)) != DXGI_ERROR_NOT_FOUND; ++i)
 		{
 			DXGI_ADAPTER_DESC1 adapterDesc = {};
@@ -197,42 +136,33 @@ namespace rd
 		{
 			mTearingSupported = tearing == TRUE;
 		}
+	}
 
-		if (debugLayer)
+	// デバッグレイヤーのメッセージをエンジンのログへ流す（止めるのはデバッガがあるときだけ）
+	void GraphicsDevice::SetupDebugMessages()
+	{
+		ComPtr<ID3D12InfoQueue> infoQueue;
+		if (FAILED(mDevice.As(&infoQueue))) { return; }
+		BOOL brk = IsDebuggerPresent();
+		infoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_CORRUPTION, brk);
+		infoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_ERROR, brk);
+
+		ComPtr<ID3D12InfoQueue1> infoQueue1;
+		if (SUCCEEDED(infoQueue.As(&infoQueue1)))
 		{
-			ComPtr<ID3D12InfoQueue> infoQueue;
-			if (SUCCEEDED(mDevice.As(&infoQueue)))
-			{
-				// デバッガがあるときだけ止める（ないときはログに残して続行）
-				BOOL brk = IsDebuggerPresent();
-				infoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_CORRUPTION, brk);
-				infoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_ERROR, brk);
-				// メッセージをエンジンのログへ
-				ComPtr<ID3D12InfoQueue1> infoQueue1;
-				if (SUCCEEDED(infoQueue.As(&infoQueue1)))
-				{
-					DWORD cookie = 0;
-					infoQueue1->RegisterMessageCallback([](D3D12_MESSAGE_CATEGORY, D3D12_MESSAGE_SEVERITY severity, D3D12_MESSAGE_ID id, LPCSTR desc, void*)
-						{
-							std::string_view text = desc;
-							while (!text.empty() && (text.back() == '\n' || text.back() == '\r')) { text.remove_suffix(1); }
-							// 終了時の生存オブジェクト一覧（デバイス自身が必ず出る）はデバッグ扱い
-							if (id == D3D12_MESSAGE_ID_LIVE_DEVICE || id == D3D12_MESSAGE_ID_LIVE_OBJECT_SUMMARY) { Log::Debug(LogCat::RHI, "D3D12: {}", text); }
-							else if (severity <= D3D12_MESSAGE_SEVERITY_ERROR) { Log::Error(LogCat::RHI, "D3D12: {}", text); }
-							else if (severity == D3D12_MESSAGE_SEVERITY_WARNING) { Log::Warning(LogCat::RHI, "D3D12: {}", text); }
-						}, D3D12_MESSAGE_CALLBACK_FLAG_NONE, nullptr, &cookie);
-				}
-				D3D12_MESSAGE_ID denyIds[] = {
-					D3D12_MESSAGE_ID_RESOURCE_BARRIER_MISMATCHING_COMMAND_LIST_TYPE,// Windows 11 の既知の問題
-					D3D12_MESSAGE_ID_CLEARRENDERTARGETVIEW_MISMATCHINGCLEARVALUE,
-					D3D12_MESSAGE_ID_CLEARDEPTHSTENCILVIEW_MISMATCHINGCLEARVALUE,
-				};
-				D3D12_INFO_QUEUE_FILTER filter = {};
-				filter.DenyList.NumIDs = _countof(denyIds);
-				filter.DenyList.pIDList = denyIds;
-				infoQueue->PushStorageFilter(&filter);
-			}
+			DWORD cookie = 0;
+			infoQueue1->RegisterMessageCallback(OnDebugMessage, D3D12_MESSAGE_CALLBACK_FLAG_NONE, nullptr, &cookie);
 		}
+		// 1 つ目は Windows 11 の既知の問題
+		D3D12_MESSAGE_ID denyIds[] = {
+			D3D12_MESSAGE_ID_RESOURCE_BARRIER_MISMATCHING_COMMAND_LIST_TYPE,
+			D3D12_MESSAGE_ID_CLEARRENDERTARGETVIEW_MISMATCHINGCLEARVALUE,
+			D3D12_MESSAGE_ID_CLEARDEPTHSTENCILVIEW_MISMATCHINGCLEARVALUE,
+		};
+		D3D12_INFO_QUEUE_FILTER filter = {};
+		filter.DenyList.NumIDs = _countof(denyIds);
+		filter.DenyList.pIDList = denyIds;
+		infoQueue->PushStorageFilter(&filter);
 	}
 
 	void GraphicsDevice::CreateSwapChain(HWND hwnd)
@@ -250,7 +180,7 @@ namespace rd
 		ComPtr<IDXGISwapChain1> swapChain;
 		RD_CHECK_HR(mFactory->CreateSwapChainForHwnd(mQueue.Get(), hwnd, &desc, nullptr, nullptr, &swapChain));
 		RD_CHECK_HR(swapChain.As(&mSwapChain));
-		// Alt+Enter による DXGI の自動フルスクリーン切り替えは使わない
+		// フルスクリーンの切り替えは Window が行うので、DXGI の Alt+Enter は止める
 		mFactory->MakeWindowAssociation(hwnd, DXGI_MWA_NO_ALT_ENTER);
 	}
 
@@ -275,10 +205,85 @@ namespace rd
 		}
 	}
 
+	// フレームごとに kMaxGpuQueries 個ずつ使うタイムスタンプと、その読み戻し先
+	void GraphicsDevice::CreateTimestampQueries()
+	{
+		D3D12_QUERY_HEAP_DESC queryDesc = {};
+		queryDesc.Type = D3D12_QUERY_HEAP_TYPE_TIMESTAMP;
+		queryDesc.Count = kMaxGpuQueries * kFrameCount;
+		RD_CHECK_HR(mDevice->CreateQueryHeap(&queryDesc, IID_PPV_ARGS(&mTimestampHeap)));
+		CD3DX12_HEAP_PROPERTIES readbackHeap(D3D12_HEAP_TYPE_READBACK);
+		auto readbackDesc = CD3DX12_RESOURCE_DESC::Buffer(sizeof(uint64_t) * queryDesc.Count);
+		RD_CHECK_HR(mDevice->CreateCommittedResource(&readbackHeap, D3D12_HEAP_FLAG_NONE, &readbackDesc,
+			D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&mTimestampReadback)));
+		SetDebugName(mTimestampReadback.Get(), L"TimestampReadback");
+		RD_CHECK_HR(mQueue->GetTimestampFrequency(&mTimestampFrequency));
+	}
+
+	void GraphicsDevice::BeginGpuScope(const char* name)
+	{
+		// PIX / RenderDoc のイベント名（Metadata 1 = ANSI 文字列）
+		mCmdList->BeginEvent(1, name, UINT(std::strlen(name) + 1));
+		FrameContext& frame = mFrames[mFrameIndex];
+		if (frame.queryCount + 2 > kMaxGpuQueries)
+		{
+			// 数が多すぎるときは計測せず、イベント名だけ付ける
+			mGpuScopeStack.push_back(UINT32_MAX);
+			return;
+		}
+		uint32_t query = mFrameIndex * kMaxGpuQueries + frame.queryCount++;
+		mCmdList->EndQuery(mTimestampHeap.Get(), D3D12_QUERY_TYPE_TIMESTAMP, query);
+		mGpuScopeStack.push_back(uint32_t(frame.gpuScopes.size()));
+		frame.gpuScopes.push_back({ name, query, query, uint16_t(mGpuScopeStack.size() - 1) });
+	}
+
+	void GraphicsDevice::EndGpuScope()
+	{
+		mCmdList->EndEvent();
+		if (mGpuScopeStack.empty()) { return; }
+		uint32_t index = mGpuScopeStack.back();
+		mGpuScopeStack.pop_back();
+		if (index == UINT32_MAX) { return; }
+		FrameContext& frame = mFrames[mFrameIndex];
+		uint32_t query = mFrameIndex * kMaxGpuQueries + frame.queryCount++;
+		mCmdList->EndQuery(mTimestampHeap.Get(), D3D12_QUERY_TYPE_TIMESTAMP, query);
+		frame.gpuScopes[index].end = query;
+	}
+
+	// フェンスを待った後に呼ぶので、このフレームのタイムスタンプは読み戻し済み
+	//  一番早いタイムスタンプを 0 としたミリ秒に直してプロファイラへ渡す
+	void GraphicsDevice::CollectGpuTimings(FrameContext& frame)
+	{
+		if (!frame.gpuScopes.empty() && mTimestampFrequency != 0)
+		{
+			uint32_t base = uint32_t(&frame - mFrames) * kMaxGpuQueries;
+			D3D12_RANGE range{ base * sizeof(uint64_t), (base + frame.queryCount) * sizeof(uint64_t) };
+			uint64_t* data = nullptr;
+			if (SUCCEEDED(mTimestampReadback->Map(0, &range, reinterpret_cast<void**>(&data))))
+			{
+				uint64_t origin = data[frame.gpuScopes.front().begin];
+				for (auto& s : frame.gpuScopes) { origin = std::min(origin, data[s.begin]); }
+				double toMs = 1000.0 / double(mTimestampFrequency);
+				std::vector<GpuProfileEvent> events;
+				events.reserve(frame.gpuScopes.size());
+				for (auto& s : frame.gpuScopes)
+				{
+					if (s.end == s.begin) { continue; }
+					events.push_back({ s.name, double(data[s.begin] - origin) * toMs, double(data[s.end] - origin) * toMs, s.depth });
+				}
+				D3D12_RANGE noWrite{ 0, 0 };
+				mTimestampReadback->Unmap(0, &noWrite);
+				Profiler::SubmitGpu(frame.profilerFrame, std::move(events));
+			}
+		}
+		frame.gpuScopes.clear();
+		frame.queryCount = 0;
+		frame.profilerFrame = Profiler::GetFrameNumber();
+	}
+
 	void GraphicsDevice::BeginFrame()
 	{
 		FrameContext& frame = mFrames[mFrameIndex];
-		// このフレームのコマンドアロケータを GPU が使い終わるまで待つ
 		{
 			RD_PROFILE_SCOPE("Wait GPU");
 			WaitForFence(frame.fenceValue);
@@ -360,18 +365,16 @@ namespace rd
 		WaitForSingleObject(mFenceEvent, INFINITE);
 	}
 
+	// フレームごとのページから順に切り出す。足りなければページを足す（大きな要求にはその大きさのページ）
 	DynamicAllocation GraphicsDevice::AllocateDynamic(uint64_t size, uint64_t alignment)
 	{
 		FrameContext& frame = mFrames[mFrameIndex];
-		auto alignUp = [](uint64_t v, uint64_t a) { return (v + a - 1) & ~(a - 1); };
-
 		while (true)
 		{
 			if (frame.currentPage >= frame.pages.size())
 			{
-				// 新しいページを作成（大きな要求には専用サイズ）
 				DynamicPage page;
-				page.size = std::max(kDynamicPageSize, alignUp(size, 65536));
+				page.size = std::max(kDynamicPageSize, AlignUp(size, 65536));
 				page.resource = CreateStagingBuffer(page.size);
 				SetDebugName(page.resource.Get(), L"DynamicUploadPage");
 				D3D12_RANGE readRange = { 0, 0 };
@@ -380,7 +383,7 @@ namespace rd
 				frame.pages.push_back(std::move(page));
 			}
 			DynamicPage& page = frame.pages[frame.currentPage];
-			uint64_t offset = alignUp(frame.pageOffset, alignment);
+			uint64_t offset = AlignUp(frame.pageOffset, alignment);
 			if (offset + size <= page.size)
 			{
 				frame.pageOffset = offset + size;
@@ -411,13 +414,17 @@ namespace rd
 	{
 		uint64_t completed = mFence->GetCompletedValue();
 		std::lock_guard lock(mDeferredMutex);
-		auto it = std::remove_if(mDeferred.begin(), mDeferred.end(), [&](DeferredItem& item)
+		std::vector<DeferredItem> remaining;
+		for (DeferredItem& item : mDeferred)
+		{
+			if (!all && item.fenceValue > completed)
 			{
-				if (!all && item.fenceValue > completed) { return false; }
-				if (item.heap) { item.heap->Free(item.handle); }
-				return true;
-			});
-		mDeferred.erase(it, mDeferred.end());
+				remaining.push_back(std::move(item));
+				continue;
+			}
+			if (item.heap) { item.heap->Free(item.handle); }
+		}
+		mDeferred.swap(remaining);
 	}
 
 	ComPtr<ID3D12Resource> GraphicsDevice::CreateStagingBuffer(uint64_t size, const void* data)
@@ -463,6 +470,7 @@ namespace rd
 		mUploads.push_back(std::move(request));
 	}
 
+	// コピーはこのフレームのコマンドリストの先頭で行われるので、この後の描画からすぐ使える
 	void GraphicsDevice::FlushUploads()
 	{
 		std::vector<UploadRequest> uploads;
@@ -483,18 +491,16 @@ namespace rd
 					CD3DX12_TEXTURE_COPY_LOCATION src(up.staging.Get(), up.footprints[i]);
 					mCmdList->CopyTextureRegion(&dst, 0, 0, 0, &src, nullptr);
 				}
-				barriers.push_back(CD3DX12_RESOURCE_BARRIER::Transition(up.dst.Get(), D3D12_RESOURCE_STATE_COPY_DEST, up.finalState));
 			}
 			else
 			{
 				TransitionBarrier(mCmdList.Get(), up.dst.Get(), D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_COPY_DEST);
 				mCmdList->CopyBufferRegion(up.dst.Get(), 0, up.staging.Get(), 0, up.bufferSize);
-				barriers.push_back(CD3DX12_RESOURCE_BARRIER::Transition(up.dst.Get(), D3D12_RESOURCE_STATE_COPY_DEST, up.finalState));
 			}
+			barriers.push_back(CD3DX12_RESOURCE_BARRIER::Transition(up.dst.Get(), D3D12_RESOURCE_STATE_COPY_DEST, up.finalState));
 		}
 		mCmdList->ResourceBarrier(UINT(barriers.size()), barriers.data());
 
-		// コピーはこのフレームのコマンドリストの先頭で実行されるので、以降の描画から使ってよい
 		for (auto& up : uploads)
 		{
 			DeferRelease(std::move(up.staging));

@@ -8,10 +8,10 @@ namespace rd
 {
 	using Microsoft::WRL::ComPtr;
 
-	// 同時に処理するフレーム数（CPU と GPU の並行動作）
+	// CPU と GPU が同時に扱うフレームの数
 	inline constexpr uint32_t kFrameCount = 2;
 
-	// HRESULT チェック（失敗は致命的エラー扱い）
+	// HRESULT が失敗なら致命的なエラーとして終了する
 #define RD_CHECK_HR(expr)                                                         \
 	do                                                                            \
 	{                                                                             \
@@ -34,5 +34,13 @@ namespace rd
 #else
 		(void)object; (void)name;
 #endif
+	}
+
+	inline void SetViewport(ID3D12GraphicsCommandList* cmd, uint32_t width, uint32_t height)
+	{
+		D3D12_VIEWPORT vp = { 0.0f, 0.0f, float(width), float(height), 0.0f, 1.0f };
+		D3D12_RECT rect = { 0, 0, LONG(width), LONG(height) };
+		cmd->RSSetViewports(1, &vp);
+		cmd->RSSetScissorRects(1, &rect);
 	}
 }

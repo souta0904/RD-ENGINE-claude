@@ -1,36 +1,18 @@
 #pragma once
-#include "Core/Profiling/ProfileScope.h"
-#include "RHI/D3D12Common.h"
-#include "RHI/DescriptorHeap.h"
-#include "RHI/ShaderCompiler.h"
-#include <functional>
+#include "RHI/Descriptor/DescriptorHeap.h"
+#include "RHI/Device/DynamicAllocation.h"
+#include "RHI/Device/GraphicsDeviceDesc.h"
+#include "RHI/Device/UploadRequest.h"
+#include "RHI/Shader/ShaderCompiler.h"
 #include <mutex>
-#include <vector>
+#include <string>
 
 namespace rd
 {
-	// フレームごとの一時アップロード領域から確保したメモリ
-	struct DynamicAllocation
-	{
-		void* cpu = nullptr;
-		D3D12_GPU_VIRTUAL_ADDRESS gpu = 0;
-		ID3D12Resource* resource = nullptr;
-		uint64_t offset = 0;
-	};
-
-	struct GraphicsDeviceDesc
-	{
-		HWND hwnd = nullptr;
-		uint32_t width = 0;
-		uint32_t height = 0;
-		bool vsync = true;
-		bool debugLayer = RD_DEBUG;
-	};
-
-	// D3D12 デバイスとフレーム管理
-	//  - kFrameCount フレーム分のコマンドアロケータを持ち、CPU と GPU を並行動作させる
-	//  - GPU 使用中かもしれないリソースは DeferRelease で安全に解放する
-	//  - ワーカースレッドから EnqueueUpload でバッファ/テクスチャのアップロードを予約できる
+	// D3D12 のデバイスとフレームの管理
+	//  - kFrameCount フレーム分のコマンドアロケータを持ち、CPU と GPU を同時に動かす
+	//  - GPU が使っているかもしれないリソースは DeferRelease で、使い終わってから解放する
+	//  - どのスレッドからでも EnqueueUpload でバッファ / テクスチャのアップロードを予約できる
 	class GraphicsDevice
 	{
 	public:
@@ -43,13 +25,11 @@ namespace rd
 		bool Initialize(const GraphicsDeviceDesc& desc);
 		void Shutdown();
 
-		// フレームの開始と終了
 		void BeginFrame();
 		void EndFrame();
 		void Resize(uint32_t width, uint32_t height);
 		void WaitIdle();
 
-		// 一時メモリ（このフレームの間だけ有効）
 		DynamicAllocation AllocateDynamic(uint64_t size, uint64_t alignment = D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
 		template <class T>
 		D3D12_GPU_VIRTUAL_ADDRESS UploadConstants(const T& data)
@@ -65,35 +45,20 @@ namespace rd
 			return alloc.gpu;
 		}
 
-		// GPU の区間計測（結果はプロファイラへ。PIX / RenderDoc のイベント名にもなる）
+		// GPU の区間の計測（結果はプロファイラへ。PIX / RenderDoc のイベント名にもなる）
 		//  name は文字列リテラル。RD_GPU_SCOPE("Shadow") を使うと閉じ忘れない
 		void BeginGpuScope(const char* name);
 		void EndGpuScope();
 
-		// 遅延解放（GPU が使い終わってから解放される）
 		void DeferRelease(ComPtr<ID3D12Resource> resource);
 		void DeferFreeDescriptor(DescriptorHeap& heap, DescriptorHandle& handle);
 
-		// 非同期アップロード（どのスレッドからでも呼べる）
-		//  staging の内容を次のフレーム開始時に dst へコピーし、finalState へ遷移後 onComplete をメインスレッドで呼ぶ
-		struct UploadRequest
-		{
-			ComPtr<ID3D12Resource> dst;
-			ComPtr<ID3D12Resource> staging;
-			bool isTexture = false;
-			uint64_t bufferSize = 0;
-			std::vector<D3D12_PLACED_SUBRESOURCE_FOOTPRINT> footprints;
-			D3D12_RESOURCE_STATES finalState = D3D12_RESOURCE_STATE_COMMON;
-			std::function<void()> onComplete;
-		};
 		void EnqueueUpload(UploadRequest request);
-		// staging（アップロードヒープ）バッファを作成して data をコピー
 		ComPtr<ID3D12Resource> CreateStagingBuffer(uint64_t size, const void* data = nullptr);
-		// 初期データ付きの静的バッファ（DEFAULT ヒープ）を作成
+		// 初期データ付きの DEFAULT ヒープのバッファ
 		ComPtr<ID3D12Resource> CreateStaticBuffer(const void* data, uint64_t size,
 			D3D12_RESOURCE_STATES finalState, std::function<void()> onComplete = nullptr);
 
-		// アクセッサ
 		ID3D12Device* GetDevice() const { return mDevice.Get(); }
 		ID3D12GraphicsCommandList* GetCommandList() const { return mCmdList.Get(); }
 		ID3D12CommandQueue* GetQueue() const { return mQueue.Get(); }
@@ -114,9 +79,11 @@ namespace rd
 
 	private:
 		void CreateDevice(bool debugLayer);
+		void SetupDebugMessages();
 		void CreateSwapChain(HWND hwnd);
 		void CreateBackBufferViews();
 		void ReleaseBackBuffers();
+		void CreateTimestampQueries();
 		void WaitForFence(uint64_t value);
 		void ProcessDeferredReleases(bool all);
 		void FlushUploads();
@@ -128,10 +95,11 @@ namespace rd
 			D3D12_GPU_VIRTUAL_ADDRESS gpu = 0;
 			uint64_t size = 0;
 		};
+		// begin / end はタイムスタンプの番号
 		struct GpuScopeRecord
 		{
 			const char* name;
-			uint32_t begin;// タイムスタンプの番号
+			uint32_t begin;
 			uint32_t end;
 			uint16_t depth;
 		};
@@ -143,13 +111,10 @@ namespace rd
 			uint32_t currentPage = 0;
 			uint64_t pageOffset = 0;
 			uint64_t bytesUsed = 0;
-			// GPU 計測
 			std::vector<GpuScopeRecord> gpuScopes;
 			uint32_t queryCount = 0;
 			uint64_t profilerFrame = 0;
 		};
-		static constexpr uint32_t kMaxGpuQueries = 128;// 1 フレームあたり（区間 64 個）
-		void CollectGpuTimings(FrameContext& frame);
 		struct DeferredItem
 		{
 			uint64_t fenceValue = 0;
@@ -157,6 +122,9 @@ namespace rd
 			DescriptorHeap* heap = nullptr;
 			DescriptorHandle handle;
 		};
+		// 1 フレームあたりのタイムスタンプの数（区間 64 個分）
+		static constexpr uint32_t kMaxGpuQueries = 128;
+		void CollectGpuTimings(FrameContext& frame);
 
 		static inline GraphicsDevice* sInstance = nullptr;
 
@@ -193,7 +161,7 @@ namespace rd
 		ComPtr<ID3D12QueryHeap> mTimestampHeap;
 		ComPtr<ID3D12Resource> mTimestampReadback;
 		uint64_t mTimestampFrequency = 0;
-		std::vector<uint32_t> mGpuScopeStack;// 開いている区間（gpuScopes の番号）
+		std::vector<uint32_t> mGpuScopeStack;
 
 		uint32_t mWidth = 0;
 		uint32_t mHeight = 0;
@@ -202,19 +170,4 @@ namespace rd
 		uint64_t mLastDynamicBytes = 0;
 		std::string mAdapterName;
 	};
-
-	// GPU の区間計測（スコープを抜けると終わる）
-	class GpuScope
-	{
-	public:
-		explicit GpuScope(const char* name) { GraphicsDevice::Get().BeginGpuScope(name); }
-		~GpuScope() { GraphicsDevice::Get().EndGpuScope(); }
-		GpuScope(const GpuScope&) = delete;
-		GpuScope& operator=(const GpuScope&) = delete;
-	};
 }
-
-// CPU と GPU の両方を同じ名前で計測する
-#define RD_GPU_SCOPE(name)                                                       \
-	RD_PROFILE_SCOPE(name);                                                      \
-	::rd::GpuScope RD_PROFILE_CONCAT(rdGpuScope_, __LINE__)(name)

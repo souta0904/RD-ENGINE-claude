@@ -8,7 +8,7 @@
 #include "Physics/Collider.h"
 #include "Physics/PhysicsWorld.h"
 #include "Physics/Rigidbody.h"
-#include "Platform/Input.h"
+#include "Platform/Input/Input.h"
 #include "Render/RenderTypes.h"
 #include "Scene/ComponentRegistry.h"
 #include "Scene/Scene.h"

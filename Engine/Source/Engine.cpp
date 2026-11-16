@@ -10,9 +10,9 @@
 #include "Core/Time/Time.h"
 #include "Core/Time/Timer.h"
 #include "Core/Time/ScopedTimer.h"
-#include "Platform/Input.h"
+#include "Platform/Input/Input.h"
 #include "Render/Renderer.h"
-#include "RHI/GraphicsDevice.h"
+#include "RHI/Device/GpuScope.h"
 #include "Scene/Scene.h"
 #if RD_EDITOR
 #include "Editor/Editor.h"

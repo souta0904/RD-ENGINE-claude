@@ -1,5 +1,5 @@
 #include "RdPch.h"
-#include "RHI/DescriptorHeap.h"
+#include "RHI/Descriptor/DescriptorHeap.h"
 
 namespace rd
 {
@@ -17,7 +17,7 @@ namespace rd
 		mCpuStart = mHeap->GetCPUDescriptorHandleForHeapStart();
 		if (shaderVisible) { mGpuStart = mHeap->GetGPUDescriptorHandleForHeapStart(); }
 
-		// 小さい番号から使われるように逆順に積む
+		// 末尾から取り出すので、小さい番号から使われるように逆順に積む
 		mFreeList.resize(capacity);
 		for (uint32_t i = 0; i < capacity; ++i) { mFreeList[i] = capacity - 1 - i; }
 	}

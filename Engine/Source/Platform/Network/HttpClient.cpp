@@ -1,8 +1,7 @@
 #include "RdPch.h"
-#include "Platform/HttpClient.h"
+#include "Platform/Network/HttpClient.h"
 #include "Core/Util/StringUtil.h"
-#include "Core/Util/FileUtil.h"
-#include <winhttp.h>
+#include "Platform/Network/WinHttpHandle.h"
 
 #pragma comment(lib, "winhttp.lib")
 
@@ -10,16 +9,7 @@ namespace rd
 {
 	namespace
 	{
-		struct Handle
-		{
-			HINTERNET h = nullptr;
-			Handle() = default;
-			explicit Handle(HINTERNET handle) : h(handle) {}
-			~Handle() { if (h) { WinHttpCloseHandle(h); } }
-			Handle(const Handle&) = delete;
-			Handle& operator=(const Handle&) = delete;
-			explicit operator bool() const { return h != nullptr; }
-		};
+		using Handle = WinHttpHandle;
 
 		std::string LastError(const char* what)
 		{

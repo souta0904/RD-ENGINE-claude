@@ -1,7 +1,8 @@
 #pragma once
 #include "Render/DebugDraw.h"
 #include "Render/RenderTypes.h"
-#include "RHI/GpuTexture.h"
+#include "RHI/Texture/RenderTexture.h"
+#include "RHI/Texture/DepthTexture.h"
 #include <array>
 #include <memory>
 #include <unordered_map>

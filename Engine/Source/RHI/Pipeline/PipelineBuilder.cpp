@@ -1,108 +1,8 @@
 #include "RdPch.h"
-#include "RHI/Pipeline.h"
+#include "RHI/Pipeline/PipelineBuilder.h"
 
 namespace rd
 {
-	// ==================================================
-	// RootSignatureBuilder
-	// ==================================================
-	RootSignatureBuilder& RootSignatureBuilder::AddCbv(uint32_t reg, D3D12_SHADER_VISIBILITY vis)
-	{
-		CD3DX12_ROOT_PARAMETER1 p;
-		p.InitAsConstantBufferView(reg, 0, D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE, vis);
-		mParams.push_back(p);
-		return *this;
-	}
-
-	RootSignatureBuilder& RootSignatureBuilder::AddSrv(uint32_t reg, D3D12_SHADER_VISIBILITY vis)
-	{
-		CD3DX12_ROOT_PARAMETER1 p;
-		p.InitAsShaderResourceView(reg, 0, D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE, vis);
-		mParams.push_back(p);
-		return *this;
-	}
-
-	RootSignatureBuilder& RootSignatureBuilder::AddSrvTable(uint32_t reg, uint32_t count, D3D12_SHADER_VISIBILITY vis)
-	{
-		auto range = std::make_unique<CD3DX12_DESCRIPTOR_RANGE1>();
-		range->Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, count, reg, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE);
-		CD3DX12_ROOT_PARAMETER1 p;
-		p.InitAsDescriptorTable(1, range.get(), vis);
-		mRanges.push_back(std::move(range));
-		mParams.push_back(p);
-		return *this;
-	}
-
-	RootSignatureBuilder& RootSignatureBuilder::AddConstants(uint32_t reg, uint32_t num32BitValues, D3D12_SHADER_VISIBILITY vis)
-	{
-		CD3DX12_ROOT_PARAMETER1 p;
-		p.InitAsConstants(num32BitValues, reg, 0, vis);
-		mParams.push_back(p);
-		return *this;
-	}
-
-	RootSignatureBuilder& RootSignatureBuilder::AddStaticSampler(const D3D12_STATIC_SAMPLER_DESC& sampler)
-	{
-		mSamplers.push_back(sampler);
-		return *this;
-	}
-
-	ComPtr<ID3D12RootSignature> RootSignatureBuilder::Build(ID3D12Device* device, const wchar_t* name)
-	{
-		CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC desc;
-		desc.Init_1_1(UINT(mParams.size()), mParams.data(), UINT(mSamplers.size()), mSamplers.data(),
-			D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
-
-		ComPtr<ID3DBlob> blob, error;
-		HRESULT hr = D3D12SerializeVersionedRootSignature(&desc, &blob, &error);
-		if (FAILED(hr))
-		{
-			Log::Error(LogCat::RHI, "Root signature error: {}", error ? static_cast<const char*>(error->GetBufferPointer()) : "unknown");
-			return nullptr;
-		}
-		ComPtr<ID3D12RootSignature> rs;
-		RD_CHECK_HR(device->CreateRootSignature(0, blob->GetBufferPointer(), blob->GetBufferSize(), IID_PPV_ARGS(&rs)));
-		SetDebugName(rs.Get(), name);
-		return rs;
-	}
-
-	// ==================================================
-	// Samplers
-	// ==================================================
-	namespace Samplers
-	{
-		namespace
-		{
-			D3D12_STATIC_SAMPLER_DESC Make(uint32_t reg, D3D12_FILTER filter, D3D12_TEXTURE_ADDRESS_MODE address)
-			{
-				D3D12_STATIC_SAMPLER_DESC s = {};
-				s.Filter = filter;
-				s.AddressU = s.AddressV = s.AddressW = address;
-				s.MaxAnisotropy = 8;
-				s.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
-				s.BorderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE;
-				s.MaxLOD = D3D12_FLOAT32_MAX;
-				s.ShaderRegister = reg;
-				s.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-				return s;
-			}
-		}
-
-		D3D12_STATIC_SAMPLER_DESC LinearWrap(uint32_t reg) { return Make(reg, D3D12_FILTER_MIN_MAG_MIP_LINEAR, D3D12_TEXTURE_ADDRESS_MODE_WRAP); }
-		D3D12_STATIC_SAMPLER_DESC LinearClamp(uint32_t reg) { return Make(reg, D3D12_FILTER_MIN_MAG_MIP_LINEAR, D3D12_TEXTURE_ADDRESS_MODE_CLAMP); }
-		D3D12_STATIC_SAMPLER_DESC PointClamp(uint32_t reg) { return Make(reg, D3D12_FILTER_MIN_MAG_MIP_POINT, D3D12_TEXTURE_ADDRESS_MODE_CLAMP); }
-		D3D12_STATIC_SAMPLER_DESC AnisotropicWrap(uint32_t reg) { return Make(reg, D3D12_FILTER_ANISOTROPIC, D3D12_TEXTURE_ADDRESS_MODE_WRAP); }
-		D3D12_STATIC_SAMPLER_DESC ShadowCompare(uint32_t reg)
-		{
-			auto s = Make(reg, D3D12_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT, D3D12_TEXTURE_ADDRESS_MODE_BORDER);
-			s.ComparisonFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
-			return s;
-		}
-	}
-
-	// ==================================================
-	// PipelineBuilder
-	// ==================================================
 	PipelineBuilder::PipelineBuilder()
 	{
 		mDesc.SampleMask = UINT_MAX;
@@ -182,8 +82,12 @@ namespace rd
 
 	PipelineBuilder& PipelineBuilder::SetCull(CullMode mode)
 	{
-		mDesc.RasterizerState.CullMode =
-			mode == CullMode::Back ? D3D12_CULL_MODE_BACK : (mode == CullMode::Front ? D3D12_CULL_MODE_FRONT : D3D12_CULL_MODE_NONE);
+		switch (mode)
+		{
+		case CullMode::Back: mDesc.RasterizerState.CullMode = D3D12_CULL_MODE_BACK; break;
+		case CullMode::Front: mDesc.RasterizerState.CullMode = D3D12_CULL_MODE_FRONT; break;
+		case CullMode::None: mDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE; break;
+		}
 		return *this;
 	}
 
@@ -233,7 +137,7 @@ namespace rd
 			Log::Error(LogCat::RHI, "Pipeline build skipped (invalid shader or root signature)");
 			return nullptr;
 		}
-		// ビルダーがコピーされてもよいように、ここでポインタを結び直す
+		// ビルダーがコピーされていても正しく指すよう、ここでポインタを付け直す
 		mDesc.InputLayout = { mInputLayout.empty() ? nullptr : mInputLayout.data(), UINT(mInputLayout.size()) };
 		ComPtr<ID3D12PipelineState> pso;
 		HRESULT hr = device->CreateGraphicsPipelineState(&mDesc, IID_PPV_ARGS(&pso));

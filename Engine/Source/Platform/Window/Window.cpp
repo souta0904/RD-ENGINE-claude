@@ -1,14 +1,15 @@
 #include "RdPch.h"
-#include "Platform/Window.h"
-#include "Platform/Input.h"
+#include "Platform/Window/Window.h"
 #include "Core/Util/StringUtil.h"
-#include "Core/Util/FileUtil.h"
+#include "Platform/Input/Input.h"
 
 namespace rd
 {
 	namespace
 	{
 		constexpr wchar_t kClassName[] = L"RdEngineWindow";
+		constexpr LPARAM kAltDown = 1 << 29;
+		constexpr LPARAM kRepeat = 1 << 30;
 	}
 
 	bool Window::Create(const WindowDesc& desc)
@@ -93,11 +94,10 @@ namespace rd
 
 		if (fullscreen)
 		{
-			// 戻すときのために今の状態を覚えておく
+			// 戻すときのために、最大化かどうかも含めて今の配置を覚えておく
 			mWindowedPlacement.length = sizeof(WINDOWPLACEMENT);
 			GetWindowPlacement(mHwnd, &mWindowedPlacement);
 
-			// ウィンドウがいちばん重なっているモニタ全体を覆う（タスクバーも隠す）
 			MONITORINFO mi = { sizeof(MONITORINFO) };
 			GetMonitorInfoW(MonitorFromWindow(mHwnd, MONITOR_DEFAULTTONEAREST), &mi);
 			const RECT& r = mi.rcMonitor;
@@ -111,7 +111,6 @@ namespace rd
 		{
 			mFullscreen = false;
 			SetWindowLongW(mHwnd, GWL_STYLE, mWindowedStyle | WS_VISIBLE);
-			// SetWindowPlacement は最大化状態も含めて復元する
 			SetWindowPlacement(mHwnd, &mWindowedPlacement);
 			SetWindowPos(mHwnd, nullptr, 0, 0, 0, 0,
 				SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER);
@@ -119,6 +118,7 @@ namespace rd
 		Log::Info(LogCat::Platform, "Fullscreen: {}", mFullscreen ? "on" : "off");
 	}
 
+	// 作るときに渡した this を GWLP_USERDATA に覚えさせ、以後のメッセージをメンバ関数へ渡す
 	LRESULT CALLBACK Window::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	{
 		Window* self = nullptr;
@@ -174,22 +174,20 @@ namespace rd
 			return 0;
 		}
 		case WM_KEYDOWN:
-			// F11（押しっぱなしのリピートは無視）
-			if (mFullscreenHotkeys && wParam == VK_F11 && !(lParam & (1 << 30)))
+			if (mFullscreenHotkeys && wParam == VK_F11 && !(lParam & kRepeat))
 			{
 				ToggleFullscreen();
 				return 0;
 			}
 			break;
 		case WM_SYSKEYDOWN:
-			// Alt+Enter
-			if (mFullscreenHotkeys && wParam == VK_RETURN && (lParam & (1 << 29)) && !(lParam & (1 << 30)))
+			if (mFullscreenHotkeys && wParam == VK_RETURN && (lParam & kAltDown) && !(lParam & kRepeat))
 			{
 				ToggleFullscreen();
 				return 0;
 			}
 			// Alt などのシステムキーでメニューに入って止まらないようにする（Alt+F4 だけは通す）
-			if (wParam == VK_F4 && (lParam & (1 << 29))) { break; }
+			if (wParam == VK_F4 && (lParam & kAltDown)) { break; }
 			return 0;
 		case WM_SYSCHAR:
 			return 0;

@@ -1,33 +1,21 @@
 #pragma once
+#include "Platform/Window/WindowDesc.h"
 #include <Windows.h>
-#include <cstdint>
 #include <functional>
-#include <string>
 
 namespace rd
 {
-	struct WindowDesc
-	{
-		std::string title = "RD ENGINE";
-		uint32_t width = 1600;
-		uint32_t height = 900;
-		bool resizable = true;
-		bool maximized = false;
-		bool fullscreen = false;// ボーダーレスフルスクリーンで起動
-		bool fullscreenHotkeys = true;// Alt+Enter / F11 で切り替え
-	};
-
-	// Win32 ウィンドウ
+	// Win32 のウィンドウ
 	class Window
 	{
 	public:
-		// メッセージフック（true を返すとそのメッセージは処理済み）
+		// true を返すとそのメッセージは処理済みになる
 		using MessageHook = std::function<bool(HWND, UINT, WPARAM, LPARAM)>;
 		using ResizeCallback = std::function<void(uint32_t width, uint32_t height)>;
 
 		bool Create(const WindowDesc& desc);
 		void Destroy();
-		// メッセージを処理（終了要求があれば false）
+		// 終了の要求が来たら false
 		bool PumpMessages();
 
 		void SetTitle(const std::string& title);
@@ -35,8 +23,7 @@ namespace rd
 		void SetResizeCallback(ResizeCallback callback) { mOnResize = std::move(callback); }
 		void RequestClose();
 
-		// ボーダーレスフルスクリーン（ウィンドウが今いるモニタ全体を覆う）
-		// サイズが変わるので WM_SIZE 経由で ResizeCallback が呼ばれ、スワップチェインも追従する
+		// ボーダーレスフルスクリーン（今いるモニタ全体を覆う。大きさが変わるので ResizeCallback も呼ばれる）
 		void SetFullscreen(bool fullscreen);
 		void ToggleFullscreen() { SetFullscreen(!mFullscreen); }
 		bool IsFullscreen() const { return mFullscreen; }
@@ -58,8 +45,8 @@ namespace rd
 		bool mFocused = true;
 		bool mFullscreen = false;
 		bool mFullscreenHotkeys = true;
-		DWORD mWindowedStyle = 0;// フルスクリーンから戻すときのスタイル
-		WINDOWPLACEMENT mWindowedPlacement = { sizeof(WINDOWPLACEMENT) };// 戻すときの位置・大きさ・最大化状態
+		DWORD mWindowedStyle = 0;
+		WINDOWPLACEMENT mWindowedPlacement = { sizeof(WINDOWPLACEMENT) };
 		MessageHook mHook;
 		ResizeCallback mOnResize;
 	};
