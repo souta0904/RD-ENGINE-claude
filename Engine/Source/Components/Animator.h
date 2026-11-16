@@ -1,7 +1,7 @@
-﻿#pragma once
+#pragma once
 #include "Asset/Animation.h"
 #include "Asset/Asset.h"
-#include "Core/JobSystem.h"
+#include "Core/Jobs/JobSystem.h"
 #include "RHI/D3D12Common.h"
 #include "Scene/Component.h"
 #include <vector>

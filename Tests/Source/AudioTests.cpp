@@ -1,6 +1,7 @@
 #include "TestFramework.h"
 #include "Asset/AudioClip.h"
-#include "Core/StringUtil.h"
+#include "Core/Util/StringUtil.h"
+#include "Core/Util/FileUtil.h"
 #include <Windows.h>
 #include <wrl/client.h>
 #include <mfapi.h>

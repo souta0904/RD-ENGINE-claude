@@ -1,7 +1,8 @@
 #pragma once
 #include "Asset/Asset.h"
-#include "Core/Reflection.h"
-#include "Math/Geometry.h"
+#include "Core/Reflection/PropertyVisitor.h"
+#include "Math/Geometry/Frustum.h"
+#include "Math/Geometry/Intersection.h"
 #include "RHI/Pipeline.h"
 #include <vector>
 

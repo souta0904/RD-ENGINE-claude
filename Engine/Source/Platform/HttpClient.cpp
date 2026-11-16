@@ -1,6 +1,7 @@
 #include "RdPch.h"
 #include "Platform/HttpClient.h"
-#include "Core/StringUtil.h"
+#include "Core/Util/StringUtil.h"
+#include "Core/Util/FileUtil.h"
 #include <winhttp.h>
 
 #pragma comment(lib, "winhttp.lib")

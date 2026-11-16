@@ -1,8 +1,10 @@
 #pragma once
-// 数学ライブラリをまとめてインクルード
 #include "Math/Color.h"
 #include "Math/MathUtil.h"
-#include "Math/Matrix.h"
+#include "Math/Matrix3.h"
+#include "Math/Matrix4.h"
 #include "Math/Quaternion.h"
 #include "Math/Random.h"
-#include "Math/Vector.h"
+#include "Math/Vector2.h"
+#include "Math/Vector3.h"
+#include "Math/Vector4.h"

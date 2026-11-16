@@ -1,6 +1,7 @@
 #include "RdPch.h"
 #include "Editor/ImGuiInspector.h"
-#include "Core/StringUtil.h"
+#include "Core/Util/StringUtil.h"
+#include "Core/Util/FileUtil.h"
 #include "Editor/Editor.h"
 #include "Scene/ObjectRef.h"
 #include "Scene/Scene.h"

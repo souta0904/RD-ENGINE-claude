@@ -1,6 +1,6 @@
 #include "RdPch.h"
 #include "Editor/Editor.h"
-#include "Core/Profiler.h"
+#include "Core/Profiling/ProfileScope.h"
 #include <ImGui/imgui.h>
 
 namespace rd

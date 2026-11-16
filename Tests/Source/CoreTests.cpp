@@ -1,7 +1,9 @@
 #include "TestFramework.h"
-#include "Core/JobSystem.h"
-#include "Core/JsonArchive.h"
-#include "Core/StringUtil.h"
+#include "Core/Jobs/JobSystem.h"
+#include "Core/Serialization/JsonReader.h"
+#include "Core/Serialization/JsonWriter.h"
+#include "Core/Util/StringUtil.h"
+#include "Core/Util/FileUtil.h"
 #include <atomic>
 #include <vector>
 

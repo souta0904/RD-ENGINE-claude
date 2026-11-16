@@ -1,6 +1,7 @@
 #include "RdPch.h"
 #include "RHI/ShaderCompiler.h"
-#include "Core/StringUtil.h"
+#include "Core/Util/StringUtil.h"
+#include "Core/Util/FileUtil.h"
 
 namespace rd
 {

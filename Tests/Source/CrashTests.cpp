@@ -1,7 +1,8 @@
 #include "TestFramework.h"
-#include "Core/Assert.h"
-#include "Core/CrashHandler.h"
-#include "Core/StringUtil.h"
+#include "Core/Debug/Assert.h"
+#include "Core/Debug/CrashHandler.h"
+#include "Core/Util/StringUtil.h"
+#include "Core/Util/FileUtil.h"
 #include <Windows.h>
 #include <filesystem>
 #include <fstream>

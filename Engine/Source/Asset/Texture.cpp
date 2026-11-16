@@ -1,6 +1,7 @@
 #include "RdPch.h"
 #include "Asset/Texture.h"
-#include "Core/StringUtil.h"
+#include "Core/Util/StringUtil.h"
+#include "Core/Util/FileUtil.h"
 #include "RHI/GraphicsDevice.h"
 #include <DirectXTex.h>
 

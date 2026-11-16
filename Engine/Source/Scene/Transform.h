@@ -1,5 +1,5 @@
 #pragma once
-#include "Core/Reflection.h"
+#include "Core/Reflection/PropertyVisitor.h"
 #include "Math/Math.h"
 
 namespace rd

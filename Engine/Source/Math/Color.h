@@ -17,7 +17,7 @@ namespace rd
 		float* Data() { return &r; }
 		const float* Data() const { return &r; }
 
-		// HSV（各成分 0～1）から作成
+		// HSV（各成分 0～1）から作る。色相を 6 つの区間に分けて計算する
 		static Color FromHSV(float h, float s, float v, float a = 1.0f)
 		{
 			float r = v, g = v, b = v;

@@ -1,6 +1,7 @@
 #include "RdPch.h"
 #include "Editor/AIAssistant.h"
-#include "Core/StringUtil.h"
+#include "Core/Util/StringUtil.h"
+#include "Core/Util/FileUtil.h"
 #include "Editor/AssistantTools.h"
 #include "Editor/Editor.h"
 #include "Engine.h"

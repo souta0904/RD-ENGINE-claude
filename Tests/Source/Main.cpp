@@ -1,5 +1,5 @@
 #include "TestFramework.h"
-#include "Core/Log.h"
+#include "Core/Log/Log.h"
 #include <Windows.h>
 #include <cstdio>
 #include <string>

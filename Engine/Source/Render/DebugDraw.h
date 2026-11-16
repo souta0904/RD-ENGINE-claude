@@ -1,6 +1,7 @@
 #pragma once
 #include "Math/Color.h"
-#include "Math/Geometry.h"
+#include "Math/Geometry/Frustum.h"
+#include "Math/Geometry/Intersection.h"
 #include <vector>
 
 namespace rd

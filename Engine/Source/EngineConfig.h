@@ -1,6 +1,6 @@
 #pragma once
-#include "Core/CrashHandler.h"
-#include "Core/Log.h"
+#include "Core/Debug/CrashHandler.h"
+#include "Core/Log/Log.h"
 #include "Platform/Window.h"
 #include <functional>
 #include <string>

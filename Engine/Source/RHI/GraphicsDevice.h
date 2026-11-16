@@ -1,5 +1,5 @@
 #pragma once
-#include "Core/Profiler.h"
+#include "Core/Profiling/ProfileScope.h"
 #include "RHI/D3D12Common.h"
 #include "RHI/DescriptorHeap.h"
 #include "RHI/ShaderCompiler.h"

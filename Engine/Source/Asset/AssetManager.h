@@ -1,6 +1,6 @@
 #pragma once
 #include "Asset/Asset.h"
-#include "Core/JobSystem.h"
+#include "Core/Jobs/JobSystem.h"
 #include <mutex>
 #include <unordered_map>
 #include <vector>

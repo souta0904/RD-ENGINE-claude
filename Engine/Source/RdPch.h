@@ -1,6 +1,5 @@
 #pragma once
-// エンジン共通のプリコンパイル済みヘッダ
-// 変更頻度の低い標準/プラットフォームヘッダだけをここに置く
+// エンジン共通のプリコンパイル済みヘッダ（変更の少ない標準・プラットフォームのヘッダだけを置く）
 
 #include <Windows.h>
 #include <wrl/client.h>
@@ -31,5 +30,5 @@
 
 #include <nlohmann/json.hpp>
 
-#include "Core/Assert.h"
-#include "Core/Log.h"
+#include "Core/Debug/Assert.h"
+#include "Core/Log/Log.h"

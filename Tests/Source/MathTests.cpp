@@ -1,5 +1,6 @@
 #include "TestFramework.h"
-#include "Math/Geometry.h"
+#include "Math/Geometry/Frustum.h"
+#include "Math/Geometry/Intersection.h"
 #include "Math/Math.h"
 
 using namespace rd;

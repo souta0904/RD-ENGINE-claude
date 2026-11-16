@@ -1,6 +1,7 @@
 #include "RdPch.h"
 #include "Asset/AudioClip.h"
-#include "Core/StringUtil.h"
+#include "Core/Util/StringUtil.h"
+#include "Core/Util/FileUtil.h"
 #include <mfapi.h>
 #include <mfidl.h>
 #include <mfreadwrite.h>

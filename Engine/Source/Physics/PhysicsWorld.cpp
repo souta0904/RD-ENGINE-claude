@@ -1,6 +1,6 @@
 #include "RdPch.h"
 #include "Physics/PhysicsWorld.h"
-#include "Core/Profiler.h"
+#include "Core/Profiling/ProfileScope.h"
 #include "Physics/Collider.h"
 #include "Physics/Rigidbody.h"
 #include "Scene/Actor.h"

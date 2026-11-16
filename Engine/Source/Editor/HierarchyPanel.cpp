@@ -4,7 +4,8 @@
 #include "Components/Lights.h"
 #include "Components/MeshRenderer.h"
 #include "Components/ParticleSystem.h"
-#include "Core/StringUtil.h"
+#include "Core/Util/StringUtil.h"
+#include "Core/Util/FileUtil.h"
 #include "Engine.h"
 #include "Scene/Scene.h"
 #include <ImGui/imgui.h>

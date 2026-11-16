@@ -2,7 +2,8 @@
 #include "SceneManager.h"
 #include "Components/CameraComponent.h"
 #include "Components/Lights.h"
-#include "Core/StringUtil.h"
+#include "Core/Util/StringUtil.h"
+#include "Core/Util/FileUtil.h"
 #include "Scene/Scene.h"
 
 namespace rd

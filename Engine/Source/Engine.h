@@ -1,6 +1,6 @@
 #pragma once
 #include "EngineConfig.h"
-#include "Core/FrameStats.h"
+#include "Core/Time/FrameStats.h"
 #include "Platform/Window.h"
 #include "Runtime/FrameCapture.h"
 #include "Runtime/FrameComposer.h"

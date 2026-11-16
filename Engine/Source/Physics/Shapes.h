@@ -1,5 +1,6 @@
 #pragma once
-#include "Math/Geometry.h"
+#include "Math/Geometry/Frustum.h"
+#include "Math/Geometry/Intersection.h"
 #include <functional>
 #include <vector>
 

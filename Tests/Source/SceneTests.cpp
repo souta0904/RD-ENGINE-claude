@@ -1,6 +1,6 @@
 #include "TestFramework.h"
 #include "TestComponents.h"
-#include "Core/Time.h"
+#include "Core/Time/Time.h"
 #include "Scene/ComponentRegistry.h"
 #include "Scene/Scene.h"
 #include <algorithm>

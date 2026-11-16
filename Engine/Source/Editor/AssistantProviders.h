@@ -1,5 +1,6 @@
 #pragma once
-#include "Core/JsonArchive.h"
+#include "Core/Serialization/JsonReader.h"
+#include "Core/Serialization/JsonWriter.h"
 #include "Platform/HttpClient.h"
 #include <memory>
 #include <string>
