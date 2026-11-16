@@ -53,7 +53,13 @@ claude/
 │     ├─ Physics/     コライダー・剛体・物理ワールド（SceneSystem として動く）
 │     ├─ Audio/       XAudio2
 │     ├─ Runtime/     シーン切替・プレイ状態・フレームの組み立て・組み込みコンポーネント登録
-│     ├─ Editor/      ImGui エディタ（コマンド式 Undo/Redo・ギズモ・インスペクタ・アセットブラウザ・プロファイラ・AI アシスタント）
+│     ├─ Editor/      ImGui エディタ（Editor.cpp / EditorActions.cpp / EditorMenu.cpp が本体）
+│     │  ├─ Panels/     Viewport・Hierarchy・Inspector・Project・Console・Lighting・Stats・Profiler
+│     │  ├─ Commands/   Undo/Redo のコマンド
+│     │  ├─ Style/      色・アイコン・共通の UI 部品（見た目をそろえる）
+│     │  ├─ Inspector/  プロパティの表示（ImGuiInspector）
+│     │  ├─ Core/       ImGui の初期化・エディタカメラ・ファイルダイアログ
+│     │  └─ Assistant/  AI アシスタント（LLM ごとの変換・ツール）
 │     └─ Engine.h/.cpp サブシステムの所有とメインループ
 ├─ Tools/CheckDependencies.ps1  モジュール間の依存が層の決まりを守っているか調べる
 ├─ Tests/                    自動テスト（自前の小さなテストフレームワーク）
@@ -107,7 +113,7 @@ Log::Info(LogCat::Render, "Loaded {}", path);   // カテゴリを省略する�
 - 対象: アクセス違反・ゼロ除算・スタックオーバーフロー、捕まえていない C++ 例外（`what()` の文字列も載る）、`abort()` / `RD_VERIFY` / `Log::Fatal`、純粋仮想関数の呼び出し、CRT の不正な引数
 - レポートに載せる情報は `CrashHandler::SetContext("名前", []{ return ...; })` で足せる
 
-### プロファイラ（`Core/Profiler`、エディタの View → Profiler / F9）
+### プロファイラ（`Core/Profiler`、エディタの Window → Profiler / F9）
 ```cpp
 void Enemy::Update(float dt)
 {
@@ -121,7 +127,7 @@ RD_GPU_SCOPE("Shadow");              // CPU と GPU（タイムスタンプ）�
 - 「Save Trace」か `-profile 300` で Chrome のトレース形式に保存し、[ui.perfetto.dev](https://ui.perfetto.dev) で開ける
 - GPU の区間は PIX / RenderDoc のイベント名にもなる。`RD_PROFILER=0` で計測コードを丸ごと外せる
 
-### AI アシスタント（エディタの View → AI Assistant / F8）
+### AI アシスタント（エディタの Window → AI Assistant / F8）
 LLM に頼んでシーンを編集する。「赤い箱を 5 個、半径 3m の円に並べて」「選んでいるライトを暗くして」など。
 **既定はローカル LLM** なので、API キーも利用料もいらず誰でも使える。
 
@@ -140,7 +146,7 @@ LLM に頼んでシーンを編集する。「赤い箱を 5 個、半径 3m の
 - 変更は通常の編集と同じコマンドとして積むので **Ctrl+Z で戻せる**（履歴に「AI: ...」と出る）。プレイ中は変更しない
 - 設定は `UserSettings/AIAssistant.json` に保存する（API キーは保存しない。このフォルダは Git に入れない）
 - 小さなローカルモデルは、ツールの使い方を間違えたり、依頼を取り違えたりすることがある。うまくいかないときは大きめのモデルを試す
-- 作り: 会話はどの LLM でも同じ形（`AssistantTurn`）で持ち、`Editor/AssistantProviders` が LLM ごとのリクエストと返事に変換する。通信は `Platform/HttpClient`（WinHTTP）。ツールは `Editor/AssistantTools`。どちらもテストからサーバーなしで呼べる
+- 作り: 会話はどの LLM でも同じ形（`AssistantTurn`）で持ち、`Editor/Assistant/ClaudeProvider`・`LocalProvider` が LLM ごとのリクエストと返事に変換する。通信は `Platform/HttpClient`（WinHTTP）。ツールは `Editor/Assistant/AssistantTools`。どちらもテストからサーバーなしで呼べる
 
 ## 旧エンジンからの主な変更
 
@@ -169,7 +175,7 @@ LLM に頼んでシーンを編集する。「赤い箱を 5 個、半径 3m の
 | アニメーション | ジョブで並列に姿勢計算、クロスフェード、別ファイルのアニメーション流用（単位の違いを自動補正） |
 | 物理 | 剛体（質量・慣性・重力・抵抗）、球/箱/カプセル/メッシュ（BVH）の衝突、動く物体のメッシュは凸包として当たる（分離軸判定）、スイープ&プルーンの広域判定、逐次インパルス法（反発・摩擦）、Enter/Stay/Exit イベント、トリガー、レイキャスト、レイヤー |
 | オーディオ | BGM / SE のバス音量、ループ、距離減衰とパンによる 3D 定位、WAV に加えて MP3 / AAC(m4a) / FLAC / WMA（Windows の Media Foundation で展開） |
-| エディタ | ドッキング UI、Undo/Redo、移動/回転/拡縮ギズモ（Ctrl でスナップ）、クリック選択、階層のドラッグ&ドロップで親子付け、アセットブラウザからのドラッグ&ドロップ、コンポーネント追加メニュー（検索付き）、プレイ/一時停止/ステップ/停止（停止で元に戻る）、プレハブ保存、コンソール、統計、シェーダのホットリロード（Ctrl+R） |
+| エディタ | ドッキング UI、Undo/Redo、移動/回転/拡縮ギズモ（Ctrl でスナップ）、クリック選択、階層のドラッグ&ドロップで親子付け、アセットブラウザからのドラッグ&ドロップ、コンポーネント追加メニュー（検索付き）、プレイ/一時停止/ステップ/停止（停止で元に戻る）、Scene / Game ビューの切り替えと縦横比、アクターのコピー&貼り付け・名前の変更、コンポーネントの並び替え・値のコピー&貼り付け、プレハブの作成と配置、Project パネル（フォルダの作成・名前変更・ごみ箱へ削除・ドラッグで移動）、コンソール（レベルごとの件数・まとめ表示・プレイ時に消去）、保存していない変更の確認、統計、シェーダのホットリロード（Ctrl+R） |
 
 ## ゲームコードの書き方
 
@@ -201,8 +207,9 @@ RD_REGISTER_COMPONENT(Spinner, "Game");// これだけでエディタの「Add C
 | W / E / R | 移動 / 回転 / 拡縮ギズモ |
 | Ctrl+Z / Ctrl+Y | Undo / Redo |
 | Ctrl+S / Ctrl+O | シーン保存 / 開く |
-| Ctrl+D / Delete | 複製 / 削除 |
-| Ctrl+P | プレイ / 停止 |
+| Ctrl+C / Ctrl+V | コピー / 貼り付け |
+| Ctrl+D / Delete / F2 | 複製 / 削除 / 名前の変更 |
+| Ctrl+P / Ctrl+Shift+P / Ctrl+Alt+P | プレイと停止 / 一時停止 / 1 フレーム進める |
 | F8 / F9 | AI アシスタント / プロファイラ |
 | F11 | 全画面の切り替え |
 
@@ -214,4 +221,4 @@ RD_REGISTER_COMPONENT(Spinner, "Game");// これだけでエディタの「Add C
 - 影を落とすのは最初の平行光源 1 つだけ（点光源・スポットライトの影はない）
 - 動く物体のメッシュコライダーは凸包として当たる（凹んだ形は凹みが埋まる。Unity の Convex と同じ）。凸包でないメッシュ同士は頂点の食い込みで調べるので、辺と辺だけの交差は拾えない
 - 音声は Ogg Vorbis に未対応（Windows 標準では読めないため）
-- 新しく増えたパネル（Profiler / AI Assistant）は、以前のレイアウト（`Logs/imgui.ini`）があると浮いた状態で開く。View → Reset Layout でドッキングされる
+- パネルの配置は `Logs/editor_layout.ini` に保存する。崩れたときは Window → Reset Layout で初期配置に戻る

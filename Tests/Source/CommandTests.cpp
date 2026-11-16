@@ -3,7 +3,12 @@
 #include "Scene/Scene.h"
 
 #if RD_EDITOR
-#include "Editor/CommandHistory.h"
+#include "Editor/Commands/CommandHistory.h"
+#include "Editor/Commands/ActorStateCommand.h"
+#include "Editor/Commands/ActorLifetimeCommand.h"
+#include "Editor/Commands/ReparentCommand.h"
+#include "Editor/Commands/CompositeCommand.h"
+#include "Editor/Commands/SceneSettingsCommand.h"
 #include <thread>
 
 using namespace rd;

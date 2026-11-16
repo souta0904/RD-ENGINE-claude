@@ -1,77 +1,53 @@
 #include "RdPch.h"
 #include "Editor/Editor.h"
-#include "Physics/Collision/ShapeCollision.h"
-#include "Editor/AIAssistant.h"
-#include "Asset/AssetManager.h"
-#include "Asset/Model/Model.h"
-#include "Components/Rendering/CameraComponent.h"
-#include "Components/Lighting/DirectionalLight.h"
-#include "Components/Lighting/PointLight.h"
-#include "Components/Lighting/SpotLight.h"
-#include "Components/Rendering/MeshRenderer.h"
-#include "Components/Effects/ParticleSystem.h"
-#include "Core/Util/StringUtil.h"
-#include "Core/Util/FileUtil.h"
+#include "Editor/Assistant/AIAssistant.h"
+#include "Editor/Commands/SceneSettingsCommand.h"
+#include "Editor/Commands/ActorStateCommand.h"
+#include "Editor/Panels/ConsolePanel.h"
+#include "Editor/Panels/HierarchyPanel.h"
+#include "Editor/Panels/InspectorPanel.h"
+#include "Editor/Panels/LightingPanel.h"
+#include "Editor/Panels/ProfilerPanel.h"
+#include "Editor/Panels/ProjectPanel.h"
+#include "Editor/Panels/SceneViewPanel.h"
+#include "Editor/Panels/StatsPanel.h"
+#include "Editor/Style/EditorStyle.h"
 #include "Engine.h"
-#include "Physics/Colliders/BoxCollider.h"
-#include "Physics/Colliders/SphereCollider.h"
-#include "Physics/Colliders/CapsuleCollider.h"
-#include "Physics/Colliders/MeshCollider.h"
-#include "Physics/World/PhysicsWorld.h"
-#include "Platform/Input/Input.h"
+#include "Physics/Colliders/Collider.h"
 #include "Render/Debug/DebugDraw.h"
-#include "Render/Renderer/Renderer.h"
 #include "Scene/Scene.h"
-#include <commdlg.h>
 #include <ImGui/imgui.h>
 #include <ImGui/imgui_internal.h>
-#include <ImGui/ImGuizmo.h>
-
-#pragma comment(lib, "comdlg32.lib")
 
 namespace rd
 {
 	namespace
 	{
-		// Win32 のファイルダイアログ（カレントディレクトリからの相対パスを返す）
-		std::string FileDialog(HWND owner, bool save, const wchar_t* filter, const wchar_t* defExt)
-		{
-			wchar_t buffer[MAX_PATH] = {};
-			OPENFILENAMEW ofn = {};
-			ofn.lStructSize = sizeof(ofn);
-			ofn.hwndOwner = owner;
-			ofn.lpstrFilter = filter;
-			ofn.lpstrFile = buffer;
-			ofn.nMaxFile = MAX_PATH;
-			ofn.lpstrDefExt = defExt;
-			std::wstring initial = std::filesystem::absolute(L"Assets").wstring();
-			ofn.lpstrInitialDir = initial.c_str();
-			ofn.Flags = OFN_NOCHANGEDIR | (save ? OFN_OVERWRITEPROMPT : OFN_FILEMUSTEXIST);
-			BOOL ok = save ? GetSaveFileNameW(&ofn) : GetOpenFileNameW(&ofn);
-			if (!ok) { return {}; }
-			std::error_code ec;
-			auto rel = std::filesystem::relative(buffer, std::filesystem::current_path(), ec);
-			return NormalizePath(ToUtf8(ec ? std::wstring(buffer) : rel.wstring()));
-		}
-
-		bool IsModelFile(const std::string& ext)
-		{
-			return ext == ".obj" || ext == ".gltf" || ext == ".glb" || ext == ".fbx" || ext == ".dae";
-		}
+		constexpr const char* kLayoutFile = "Logs/editor_layout.ini";
 	}
 
-	// ==================================================
-	// 初期化
-	// ==================================================
-	Editor::Editor(Engine& engine) : mEngine(engine), mAssistant(std::make_unique<AIAssistant>(*this)) {}
+	Editor::Editor(Engine& engine) : mEngine(engine)
+	{
+		mSceneView = AddPanel(std::make_unique<SceneViewPanel>(*this));
+		mHierarchy = AddPanel(std::make_unique<HierarchyPanel>(*this));
+		mInspector = AddPanel(std::make_unique<InspectorPanel>(*this));
+		mProject = AddPanel(std::make_unique<ProjectPanel>(*this));
+		mConsole = AddPanel(std::make_unique<ConsolePanel>(*this));
+		AddPanel(std::make_unique<LightingPanel>(*this));
+		AddPanel(std::make_unique<StatsPanel>(*this));
+		mProfiler = AddPanel(std::make_unique<ProfilerPanel>(*this));
+		mAssistant = AddPanel(std::make_unique<AIAssistant>(*this));
+	}
+
 	Editor::~Editor() = default;
 
 	void Editor::Initialize()
 	{
 		std::filesystem::create_directories("Logs");
 		mImGui.Initialize(mEngine.GetWindow().GetHandle());
-		// レイアウト保存ファイルがあればそれを使う
-		mFirstLayout = !std::filesystem::exists("Logs/imgui.ini");
+		ImGui::GetIO().IniFilename = kLayoutFile;
+		// 前回の配置が保存されていればそれを使う
+		mFirstLayout = !std::filesystem::exists(kLayoutFile);
 	}
 
 	void Editor::Shutdown()
@@ -79,8 +55,14 @@ namespace rd
 		mImGui.Shutdown();
 	}
 
+	// ウィンドウを閉じようとしたとき、保存していない変更があれば先に聞く
 	bool Editor::HandleMessage(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	{
+		if (msg == WM_CLOSE && !mAllowClose && mHistory.IsDirty())
+		{
+			RequestQuit();
+			return true;
+		}
 		return mImGui.HandleMessage(hwnd, msg, wParam, lParam);
 	}
 
@@ -89,9 +71,9 @@ namespace rd
 		mImGui.BeginFrame();
 	}
 
+	// プレイを止めて戻ったとき（keepSelection）は同じ ID のシーンに戻るので履歴を残し、別のシーンを開いたら捨てる
 	void Editor::OnSceneChanged(bool keepSelection)
 	{
-		// プレイの停止（keepSelection）では同じ ID のシーンに戻るので履歴は残す。別のシーンを開いたら捨てる
 		if (!keepSelection)
 		{
 			mSelectedId = 0;
@@ -99,6 +81,16 @@ namespace rd
 		}
 		RefreshSnapshots();
 		UpdateTitle();
+	}
+
+	Scene& Editor::GetScene() const
+	{
+		return mEngine.GetScene();
+	}
+
+	bool Editor::IsPlaying() const
+	{
+		return mEngine.IsPlaying();
 	}
 
 	Actor* Editor::GetSelected() const
@@ -109,12 +101,10 @@ namespace rd
 	void Editor::Select(Actor* actor)
 	{
 		mSelectedId = actor ? actor->GetId() : 0;
+		if (actor) { mProject->ClearSelection(); }
 		RefreshSnapshots();
 	}
 
-	// ==================================================
-	// Undo / Redo
-	// ==================================================
 	void Editor::RefreshSnapshots()
 	{
 		Scene& scene = mEngine.GetScene();
@@ -124,10 +114,10 @@ namespace rd
 		mSettingsSnapshot = scene.SerializeSettings();
 	}
 
+	// プレイ中の変更は止めたときに元に戻るので、履歴に残さない
 	void Editor::CommitActorEdit(const std::string& label)
 	{
-		// プレイ中の変更は停止時に元に戻るので履歴に残さない
-		if (mEngine.IsPlaying()) { return; }
+		if (IsPlaying()) { return; }
 		Actor* actor = GetSelected();
 		if (!actor || actor->GetId() != mSnapshotActor) { RefreshSnapshots(); return; }
 		Json after = mEngine.GetScene().SerializeActorState(actor);
@@ -137,7 +127,7 @@ namespace rd
 
 	void Editor::CommitSettingsEdit(const std::string& label)
 	{
-		if (mEngine.IsPlaying()) { return; }
+		if (IsPlaying()) { return; }
 		Json after = mEngine.GetScene().SerializeSettings();
 		if (after == mSettingsSnapshot) { return; }
 		PushCommand(std::make_unique<SceneSettingsCommand>(label, std::move(mSettingsSnapshot), after));
@@ -145,7 +135,7 @@ namespace rd
 
 	void Editor::PushCommand(std::unique_ptr<EditorCommand> command)
 	{
-		if (mEngine.IsPlaying()) { return; }
+		if (IsPlaying()) { return; }
 		mHistory.Push(std::move(command));
 		RefreshSnapshots();
 		UpdateTitle();
@@ -153,7 +143,7 @@ namespace rd
 
 	void Editor::Undo()
 	{
-		if (mEngine.IsPlaying() || !mHistory.CanUndo()) { return; }
+		if (IsPlaying() || !mHistory.CanUndo()) { return; }
 		mSelectedId = mHistory.Undo(mEngine.GetScene());
 		RefreshSnapshots();
 		UpdateTitle();
@@ -161,7 +151,7 @@ namespace rd
 
 	void Editor::Redo()
 	{
-		if (mEngine.IsPlaying() || !mHistory.CanRedo()) { return; }
+		if (IsPlaying() || !mHistory.CanRedo()) { return; }
 		mSelectedId = mHistory.Redo(mEngine.GetScene());
 		RefreshSnapshots();
 		UpdateTitle();
@@ -174,95 +164,24 @@ namespace rd
 
 	void Editor::GetViewportSize(uint32_t& width, uint32_t& height) const
 	{
-		width = std::max(1u, mViewportWidth);
-		height = std::max(1u, mViewportHeight);
-	}
-
-	bool Editor::UseEditorCamera() const
-	{
-		return !mEngine.IsPlaying() || mSceneCameraInPlay;
+		mSceneView->GetRenderSize(width, height);
 	}
 
 	bool Editor::OverrideCamera(float aspect, RenderCamera& camera) const
 	{
-		if (!UseEditorCamera()) { return false; }
-		camera = mCamera.GetRenderCamera(aspect);
+		if (!mSceneView->UsesEditorCamera()) { return false; }
+		camera = mSceneView->GetSceneCamera(aspect);
 		return true;
-	}
-
-	Scene& Editor::GetScene() const
-	{
-		return mEngine.GetScene();
-	}
-
-	// ==================================================
-	// 毎フレーム
-	// ==================================================
-	void Editor::Update(float dt)
-	{
-		// 統計用
-		mFrameTimes.push_back(dt * 1000.0f);
-		if (mFrameTimes.size() > 240) { mFrameTimes.erase(mFrameTimes.begin()); }
-
-		// 全画面のドッキング領域
-		ImGuiViewport* vp = ImGui::GetMainViewport();
-		ImGuiID dockId = ImGui::DockSpaceOverViewport(vp, ImGuiDockNodeFlags_PassthruCentralNode);
-		if (mFirstLayout)
-		{
-			mFirstLayout = false;
-			ImGui::DockBuilderRemoveNode(dockId);
-			ImGui::DockBuilderAddNode(dockId, ImGuiDockNodeFlags_DockSpace);
-			ImGui::DockBuilderSetNodeSize(dockId, vp->WorkSize);
-			ImGuiID center = dockId;
-			ImGuiID left = ImGui::DockBuilderSplitNode(center, ImGuiDir_Left, 0.17f, nullptr, &center);
-			ImGuiID right = ImGui::DockBuilderSplitNode(center, ImGuiDir_Right, 0.26f, nullptr, &center);
-			ImGuiID bottom = ImGui::DockBuilderSplitNode(center, ImGuiDir_Down, 0.28f, nullptr, &center);
-			ImGui::DockBuilderDockWindow("Hierarchy", left);
-			ImGui::DockBuilderDockWindow("Inspector", right);
-			ImGui::DockBuilderDockWindow("Render Settings", right);
-			ImGui::DockBuilderDockWindow("Stats", right);
-			ImGui::DockBuilderDockWindow("AI Assistant", right);
-			ImGui::DockBuilderDockWindow("Assets", bottom);
-			ImGui::DockBuilderDockWindow("Console", bottom);
-			ImGui::DockBuilderDockWindow("Profiler", bottom);
-			ImGui::DockBuilderDockWindow("Viewport", center);
-			ImGui::DockBuilderFinish(dockId);
-		}
-
-		DrawMenuBar();
-		DrawViewport();
-		if (mShowHierarchy) { DrawHierarchy(); }
-		if (mShowInspector) { DrawInspector(); }
-		if (mShowAssets) { DrawAssets(); }
-		if (mShowConsole) { DrawConsole(); }
-		if (mShowStats) { DrawStats(); }
-		if (mShowRenderSettings) { DrawRenderSettings(); }
-		if (mShowProfiler) { DrawProfiler(); }
-		mAssistant->Update();// パネルを閉じていても、届いた応答の処理は進める
-		if (mShowAssistant) { mAssistant->Draw(&mShowAssistant); }
-		if (mShowDemo) { ImGui::ShowDemoWindow(&mShowDemo); }
-		HandleShortcuts();
-
-		// エディタカメラ
-		if (UseEditorCamera()) { mCamera.Update(dt, mViewportHovered, mViewportFocused); }
-
-		// ゲームへの入力はビューポートにフォーカスがあるときだけ
-		ImGuiIO& io = ImGui::GetIO();
-		bool gameHasFocus = mEngine.IsPlaying() && mViewportFocused && !mCamera.IsControlling();
-		Input::SetBlocked(!gameHasFocus || io.WantTextInput, !gameHasFocus);
 	}
 
 	void Editor::DrawGizmos(DebugDraw& draw)
 	{
-		bool playView = !UseEditorCamera();
-		if (mShowGrid && !playView) { draw.Grid(50.0f, 1.0f, Color(0.5f, 0.5f, 0.5f, 0.25f)); }
+		if (!mSceneView->UsesEditorCamera()) { return; }
 		Scene& scene = mEngine.GetScene();
-		if (mShowGizmos && !playView) { scene.DrawGizmos(draw, GetSelected()); }
-		else if (Actor* sel = GetSelected(); sel && !playView)
-		{
-			draw.Axes(sel->GetTransform().GetWorldMatrix(), 1.0f);
-		}
-		if (mShowPhysics)
+		if (mSceneView->showGrid) { draw.Grid(50.0f, 1.0f, Color(0.5f, 0.5f, 0.5f, 0.25f)); }
+		if (mSceneView->showGizmos) { scene.DrawGizmos(draw, GetSelected()); }
+		else if (Actor* sel = GetSelected()) { draw.Axes(sel->GetTransform().GetWorldMatrix(), 1.0f); }
+		if (mSceneView->showPhysics)
 		{
 			for (auto* c : scene.FindComponents<Collider>()) { c->OnDrawGizmos(draw, false); }
 		}
@@ -273,475 +192,85 @@ namespace rd
 		mImGui.Render();
 	}
 
-	// ==================================================
-	// メニュー
-	// ==================================================
-	void Editor::DrawMenuBar()
+	// メニュー → ツールバー → ドッキング → パネル → 確認の画面 → ショートカット → 後回しにした操作 の順
+	void Editor::Update(float dt)
 	{
-		Engine& engine = mEngine;
-		if (!ImGui::BeginMainMenuBar()) { return; }
-		if (ImGui::BeginMenu("File"))
+		EditorStyle::SetPlayMode(IsPlaying(), mEngine.IsPaused());
+		DrawMenuBar();
+		DrawMainToolbar();
+		ImGuiID dockId = ImGui::DockSpaceOverViewport(ImGui::GetMainViewport(), ImGuiDockNodeFlags_PassthruCentralNode);
+		if (mFirstLayout)
 		{
-			if (ImGui::MenuItem("New Scene")) { engine.NewScene(); }
-			if (ImGui::MenuItem("Open Scene...", "Ctrl+O")) { OpenScene(); }
-			if (ImGui::MenuItem("Save Scene", "Ctrl+S")) { SaveScene(false); }
-			if (ImGui::MenuItem("Save Scene As...")) { SaveScene(true); }
-			ImGui::Separator();
-			if (ImGui::MenuItem("Reload Shaders", "Ctrl+R")) { Renderer::Get().ReloadShaders(); }
-			if (ImGui::MenuItem("Unload Unused Assets"))
-			{
-				Log::Info(LogCat::Editor, "Unloaded {} assets", AssetManager::Get().CollectGarbage());
-			}
-			ImGui::Separator();
-			if (ImGui::MenuItem("Exit")) { engine.Quit(); }
-			ImGui::EndMenu();
-		}
-		if (ImGui::BeginMenu("Edit"))
-		{
-			std::string undo = "Undo " + mHistory.GetUndoLabel();
-			std::string redo = "Redo " + mHistory.GetRedoLabel();
-			if (ImGui::MenuItem(undo.c_str(), "Ctrl+Z", false, mHistory.CanUndo())) { Undo(); }
-			if (ImGui::MenuItem(redo.c_str(), "Ctrl+Y", false, mHistory.CanRedo())) { Redo(); }
-			ImGui::Separator();
-			if (ImGui::MenuItem("Duplicate", "Ctrl+D", false, GetSelected() != nullptr)) { DuplicateSelected(); }
-			if (ImGui::MenuItem("Delete", "Del", false, GetSelected() != nullptr)) { DeleteSelected(); }
-			ImGui::EndMenu();
-		}
-		if (ImGui::BeginMenu("Actor"))
-		{
-			for (const char* kind : { "Empty", "Cube", "Sphere", "Plane", "Capsule", "Directional Light", "Point Light",
-				"Spot Light", "Camera", "Particle System" })
-			{
-				if (ImGui::MenuItem(kind)) { CreateActorFromMenu(kind); }
-			}
-			ImGui::Separator();
-			if (ImGui::MenuItem("Create Prefab from Selection", nullptr, false, GetSelected() != nullptr)) { CreatePrefab(GetSelected(), mAssetDir); }
-			ImGui::EndMenu();
-		}
-		if (ImGui::BeginMenu("View"))
-		{
-			ImGui::MenuItem("Hierarchy", nullptr, &mShowHierarchy);
-			ImGui::MenuItem("Inspector", nullptr, &mShowInspector);
-			ImGui::MenuItem("Assets", nullptr, &mShowAssets);
-			ImGui::MenuItem("Console", nullptr, &mShowConsole);
-			ImGui::MenuItem("Stats", nullptr, &mShowStats);
-			ImGui::MenuItem("Render Settings", nullptr, &mShowRenderSettings);
-			ImGui::MenuItem("Profiler", "F9", &mShowProfiler);
-			ImGui::MenuItem("AI Assistant", "F8", &mShowAssistant);
-			ImGui::Separator();
-			ImGui::MenuItem("Grid", nullptr, &mShowGrid);
-			ImGui::MenuItem("Gizmos", nullptr, &mShowGizmos);
-			ImGui::MenuItem("Physics Shapes", nullptr, &mShowPhysics);
-			ImGui::Separator();
-			{
-				Window& window = engine.GetWindow();
-				if (ImGui::MenuItem("Fullscreen", "F11", window.IsFullscreen())) { window.ToggleFullscreen(); }
-			}
-			if (ImGui::MenuItem("Reset Layout")) { mFirstLayout = true; }
-			ImGui::MenuItem("ImGui Demo", nullptr, &mShowDemo);
-			ImGui::EndMenu();
+			mFirstLayout = false;
+			SetupDockLayout(dockId);
 		}
 
-		// 右寄せで FPS
-		std::string fps = std::format("{:.0f} FPS  {:.2f} ms", engine.GetFps(), engine.GetFrameMs());
-		ImGui::SameLine(ImGui::GetWindowWidth() - ImGui::CalcTextSize(fps.c_str()).x - 16.0f);
-		ImGui::TextDisabled("%s", fps.c_str());
-		ImGui::EndMainMenuBar();
+		for (auto& panel : mPanels) { panel->Draw(); }
+		if (mSelectDefaultTabs) { SelectDefaultTabs(); }
+		// 最後に開いたウィンドウ（Stats）がフォーカスを持つと、そのタブが選ばれ続けるので、起動時はビューにフォーカスを移す
+		if (mFocusViewport)
+		{
+			ImGui::SetWindowFocus("Viewport");
+			mFocusViewport = false;
+		}
+		for (auto& panel : mPanels) { panel->Update(dt); }
+		if (mShowDemo) { ImGui::ShowDemoWindow(&mShowDemo); }
+		DrawDialogs();
+		HandleShortcuts();
+		RunDeferred();
 	}
 
-	void Editor::DrawToolbar()
+	void Editor::SetupDockLayout(unsigned int dockId)
 	{
-		Engine& engine = mEngine;
-		bool playing = engine.IsPlaying();
-
-		// プレイ操作
-		ImGui::PushStyleColor(ImGuiCol_Button, playing ? ImVec4(0.55f, 0.25f, 0.2f, 1.0f) : ImVec4(0.2f, 0.45f, 0.25f, 1.0f));
-		if (ImGui::Button(playing ? "Stop" : "Play", ImVec2(60, 0))) { playing ? engine.EndPlay() : engine.BeginPlay(); }
-		ImGui::PopStyleColor();
-		ImGui::SameLine();
-		ImGui::BeginDisabled(!playing);
-		if (ImGui::Button(engine.IsPaused() ? "Resume" : "Pause", ImVec2(60, 0))) { engine.SetPaused(!engine.IsPaused()); }
-		ImGui::SameLine();
-		if (ImGui::Button("Step")) { engine.SetPaused(true); engine.StepFrame(); }
-		ImGui::EndDisabled();
-
-		// ギズモ
-		ImGui::SameLine(0.0f, 20.0f);
-		const char* ops[] = { "Move (W)", "Rotate (E)", "Scale (R)" };
-		for (int i = 0; i < 3; ++i)
-		{
-			if (i > 0) { ImGui::SameLine(); }
-			bool active = mGizmoOp == i;
-			if (active) { ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive)); }
-			if (ImGui::Button(ops[i])) { mGizmoOp = i; }
-			if (active) { ImGui::PopStyleColor(); }
-		}
-		ImGui::SameLine();
-		if (ImGui::Button(mGizmoLocal ? "Local" : "World")) { mGizmoLocal = !mGizmoLocal; }
-		ImGui::SameLine(0.0f, 20.0f);
-		ImGui::Checkbox("Grid", &mShowGrid);
-		ImGui::SameLine();
-		ImGui::Checkbox("Gizmos", &mShowGizmos);
-		if (playing)
-		{
-			ImGui::SameLine();
-			ImGui::Checkbox("Scene Camera", &mSceneCameraInPlay);
-		}
-		ImGui::SameLine();
-		ImGui::SetNextItemWidth(80.0f);
-		ImGui::DragFloat("Cam Speed", &mCamera.moveSpeed, 0.1f, 0.5f, 500.0f, "%.1f");
+		ImGuiViewport* vp = ImGui::GetMainViewport();
+		ImGui::DockBuilderRemoveNode(dockId);
+		ImGui::DockBuilderAddNode(dockId, ImGuiDockNodeFlags_DockSpace);
+		ImGui::DockBuilderSetNodeSize(dockId, vp->WorkSize);
+		ImGuiID center = dockId;
+		ImGuiID left = ImGui::DockBuilderSplitNode(center, ImGuiDir_Left, 0.17f, nullptr, &center);
+		ImGuiID right = ImGui::DockBuilderSplitNode(center, ImGuiDir_Right, 0.26f, nullptr, &center);
+		ImGuiID bottom = ImGui::DockBuilderSplitNode(center, ImGuiDir_Down, 0.28f, nullptr, &center);
+		ImGui::DockBuilderDockWindow("Hierarchy", left);
+		ImGui::DockBuilderDockWindow("Inspector", right);
+		ImGui::DockBuilderDockWindow("Lighting", right);
+		ImGui::DockBuilderDockWindow("Stats", right);
+		ImGui::DockBuilderDockWindow("AI Assistant", right);
+		ImGui::DockBuilderDockWindow("Project", bottom);
+		ImGui::DockBuilderDockWindow("Console", bottom);
+		ImGui::DockBuilderDockWindow("Profiler", bottom);
+		ImGui::DockBuilderDockWindow("Viewport", center);
+		ImGui::DockBuilderFinish(dockId);
+		mSelectDefaultTabs = true;
 	}
 
-	// ==================================================
-	// ビューポート
-	// ==================================================
-	void Editor::DrawViewport()
+	// 配置を作り直すと最後に入れたタブが前に出るので、タブができてから Inspector と Project を選び直す
+	void Editor::SelectDefaultTabs()
 	{
-		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(2, 2));
-		ImGui::Begin("Viewport", nullptr, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
-		ImGui::PopStyleVar();
-		DrawToolbar();
-
-		ImVec2 avail = ImGui::GetContentRegionAvail();
-		mViewportWidth = uint32_t(std::max(1.0f, avail.x));
-		mViewportHeight = uint32_t(std::max(1.0f, avail.y));
-		ImVec2 pos = ImGui::GetCursorScreenPos();
-		mViewportX = pos.x;
-		mViewportY = pos.y;
-
-		const auto& output = Renderer::Get().GetOutput();
-		if (output.GetResource())
+		for (const char* name : { "Inspector", "Project" })
 		{
-			ImGui::Image(ImTextureID(output.GetGpuSrv().ptr), avail);
+			ImGuiWindow* window = ImGui::FindWindowByName(name);
+			if (!window || !window->DockNode || !window->DockNode->TabBar) { return; }
+			if (!ImGui::TabBarFindTabByID(window->DockNode->TabBar, window->TabId)) { return; }
 		}
-		else
+		for (const char* name : { "Inspector", "Project" })
 		{
-			ImGui::Dummy(avail);
+			ImGuiWindow* window = ImGui::FindWindowByName(name);
+			window->DockNode->TabBar->NextSelectedTabId = window->TabId;
+			window->DockNode->SelectedTabId = window->TabId;
 		}
-		mViewportHovered = ImGui::IsItemHovered();
-		mViewportFocused = ImGui::IsWindowFocused();
-		// 右クリックでカメラを操作し始めたらフォーカスを移す
-		if (mViewportHovered && (ImGui::IsMouseClicked(ImGuiMouseButton_Right) || ImGui::IsMouseClicked(ImGuiMouseButton_Middle)))
-		{
-			ImGui::SetWindowFocus();
-		}
-
-		float aspect = avail.x / std::max(avail.y, 1.0f);
-		RenderCamera cam = UseEditorCamera() ? mCamera.GetRenderCamera(aspect) : RenderCamera();
-		if (!UseEditorCamera())
-		{
-			if (auto main = CameraComponent::FindMain(mEngine.GetScene())) { cam = main->GetRenderCamera(aspect); }
-		}
-
-		// ドラッグ&ドロップ（モデル・プレハブ・シーン）
-		if (ImGui::BeginDragDropTarget())
-		{
-			if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("ASSET_PATH"))
-			{
-				ImVec2 m = ImGui::GetMousePos();
-				Vector2 uv((m.x - pos.x) / avail.x, (m.y - pos.y) / avail.y);
-				HandleViewportDrop(static_cast<const char*>(payload->Data), cam.ScreenPointToRay(uv));
-			}
-			ImGui::EndDragDropTarget();
-		}
-
-		// ギズモ
-		Actor* selected = GetSelected();
-		bool usingGizmo = false;
-		if (selected && UseEditorCamera())
-		{
-			ImGuizmo::SetOrthographic(false);
-			ImGuizmo::SetDrawlist();
-			ImGuizmo::SetRect(pos.x, pos.y, avail.x, avail.y);
-			Matrix4 world = selected->GetTransform().GetWorldMatrix();
-			ImGuizmo::OPERATION op = mGizmoOp == 0 ? ImGuizmo::TRANSLATE : (mGizmoOp == 1 ? ImGuizmo::ROTATE : ImGuizmo::SCALE);
-			ImGuizmo::MODE mode = (mGizmoLocal || mGizmoOp == 2) ? ImGuizmo::LOCAL : ImGuizmo::WORLD;
-			// Ctrl でスナップ
-			float snapValues[3] = { 0.5f, 0.5f, 0.5f };
-			if (mGizmoOp == 1) { snapValues[0] = snapValues[1] = snapValues[2] = 15.0f; }
-			if (mGizmoOp == 2) { snapValues[0] = snapValues[1] = snapValues[2] = 0.1f; }
-			bool snap = Input::GetKeyRaw(Key::Control);
-			if (ImGuizmo::Manipulate(cam.view.Data(), cam.proj.Data(), op, mode, world.Data(), nullptr, snap ? snapValues : nullptr))
-			{
-				selected->GetTransform().SetWorldMatrix(world);
-			}
-			usingGizmo = ImGuizmo::IsUsing();
-			if (mGizmoWasUsing && !usingGizmo) { CommitActorEdit("Transform"); }
-			mGizmoWasUsing = usingGizmo;
-		}
-
-		// クリックで選択
-		if (mViewportHovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !ImGuizmo::IsOver() && !usingGizmo &&
-			!Input::GetKeyRaw(Key::Alt) && UseEditorCamera())
-		{
-			ImVec2 m = ImGui::GetMousePos();
-			Vector2 uv((m.x - pos.x) / avail.x, (m.y - pos.y) / avail.y);
-			Select(Pick(cam.ScreenPointToRay(uv)));
-		}
-
-		// 読み込み中の表示
-		uint32_t loading = AssetManager::Get().GetLoadingCount();
-		if (loading > 0)
-		{
-			ImGui::SetCursorScreenPos(ImVec2(pos.x + 10, pos.y + 10));
-			ImGui::TextColored(ImVec4(1, 0.8f, 0.3f, 1), "Loading %u assets...", loading);
-		}
-		if (mEngine.IsPlaying())
-		{
-			ImGui::GetWindowDrawList()->AddRect(pos, ImVec2(pos.x + avail.x, pos.y + avail.y),
-				mEngine.IsPaused() ? IM_COL32(230, 180, 60, 255) : IM_COL32(60, 200, 90, 255), 0.0f, 0, 2.0f);
-		}
-		ImGui::End();
+		mFocusViewport = true;
+		ImGui::MarkIniSettingsDirty();
+		mSelectDefaultTabs = false;
 	}
 
-	Actor* Editor::Pick(const Ray& ray)
+	// 後回しにした操作の中でさらに Defer されることもあるので、入れ替えてから実行する
+	void Editor::RunDeferred()
 	{
-		Scene& scene = mEngine.GetScene();
-		Actor* best = nullptr;
-		float bestDist = math::kInfinity;
-		scene.ForEachActor([&](Actor* actor)
-			{
-				if (!actor->IsActive()) { return; }
-				float d;
-				if (auto mr = actor->GetComponent<MeshRenderer>(); mr && mr->Raycast(ray, d) && d < bestDist)
-				{
-					bestDist = d;
-					best = actor;
-				}
-				// メッシュを持たないもの（ライト・カメラなど）は小さな球で判定
-				if (!actor->GetComponent<MeshRenderer>())
-				{
-					WorldShape s;
-					s.type = ShapeType::Sphere;
-					s.center = actor->GetTransform().GetPosition();
-					s.radius = 0.35f;
-					Vector3 n;
-					if (RaycastShape(s, ray, bestDist, d, n) && d < bestDist)
-					{
-						bestDist = d;
-						best = actor;
-					}
-				}
-			});
-		// コライダーにも当てる
-		RaycastHit hit;
-		if (scene.GetSystem<PhysicsWorld>().Raycast(ray, bestDist, hit, ~0u, true) && hit.distance < bestDist)
+		while (!mDeferred.empty())
 		{
-			best = hit.collider->GetActor();
-		}
-		return best;
-	}
-
-	void Editor::HandleViewportDrop(const std::string& path, const Ray& ray)
-	{
-		Engine& engine = mEngine;
-		Scene& scene = engine.GetScene();
-		std::string ext = GetExtension(path);
-		if (ext == ".scene")
-		{
-			engine.LoadScene(path);
-			return;
-		}
-		// 置く位置: 何かに当たればそこ、なければ地面（y=0）か前方
-		Vector3 place = ray.GetPoint(10.0f);
-		RaycastHit hit;
-		if (scene.GetSystem<PhysicsWorld>().Raycast(ray, 500.0f, hit)) { place = hit.point; }
-		else if (ray.direction.y < -0.01f) { place = ray.GetPoint(-ray.origin.y / ray.direction.y); }
-
-		Actor* actor = nullptr;
-		if (ext == ".prefab")
-		{
-			actor = scene.Instantiate(path);
-		}
-		else if (IsModelFile(ext))
-		{
-			actor = scene.CreateActor(GetStem(path));
-			actor->AddComponent<MeshRenderer>()->SetModel(path);
-		}
-		else
-		{
-			Log::Warning(LogCat::Editor, "Cannot drop '{}' into the viewport", path);
-			return;
-		}
-		if (actor)
-		{
-			actor->GetTransform().SetPosition(place);
-			Select(actor);
-			PushCommand(ActorLifetimeCommand::Created("Drop " + GetFileName(path), scene, { actor }));
-		}
-	}
-
-	// ==================================================
-	// ショートカット
-	// ==================================================
-	void Editor::HandleShortcuts()
-	{
-		ImGuiIO& io = ImGui::GetIO();
-		if (io.WantTextInput) { return; }
-		bool ctrl = io.KeyCtrl;
-		if (ctrl && ImGui::IsKeyPressed(ImGuiKey_Z, false)) { Undo(); }
-		if (ctrl && ImGui::IsKeyPressed(ImGuiKey_Y, false)) { Redo(); }
-		if (ctrl && ImGui::IsKeyPressed(ImGuiKey_S, false)) { SaveScene(false); }
-		if (ctrl && ImGui::IsKeyPressed(ImGuiKey_O, false)) { OpenScene(); }
-		if (ImGui::IsKeyPressed(ImGuiKey_F9, false)) { mShowProfiler = !mShowProfiler; }
-		if (ImGui::IsKeyPressed(ImGuiKey_F8, false)) { mShowAssistant = !mShowAssistant; }
-		if (ctrl && ImGui::IsKeyPressed(ImGuiKey_D, false)) { DuplicateSelected(); }
-		if (ctrl && ImGui::IsKeyPressed(ImGuiKey_R, false)) { Renderer::Get().ReloadShaders(); }
-		if (ctrl && ImGui::IsKeyPressed(ImGuiKey_P, false))
-		{
-			mEngine.IsPlaying() ? mEngine.EndPlay() : mEngine.BeginPlay();
-		}
-		if (ImGui::IsKeyPressed(ImGuiKey_Delete, false) && (mViewportFocused || ImGui::IsWindowFocused(ImGuiFocusedFlags_AnyWindow)))
-		{
-			DeleteSelected();
-		}
-		// ギズモ切り替え・フォーカス（カメラ操作中は WASD と衝突するので無効）
-		if (!mCamera.IsControlling() && !ctrl && (mViewportFocused || mViewportHovered))
-		{
-			if (ImGui::IsKeyPressed(ImGuiKey_W, false)) { mGizmoOp = 0; }
-			if (ImGui::IsKeyPressed(ImGuiKey_E, false)) { mGizmoOp = 1; }
-			if (ImGui::IsKeyPressed(ImGuiKey_R, false)) { mGizmoOp = 2; }
-			if (ImGui::IsKeyPressed(ImGuiKey_F, false)) { FocusOn(GetSelected()); }
-		}
-	}
-
-	void Editor::FocusOn(Actor* actor)
-	{
-		if (!actor) { return; }
-		auto mr = actor->GetComponent<MeshRenderer>();
-		mCamera.Focus(mr ? mr->GetWorldBounds() : AABB::FromCenterExtents(actor->GetTransform().GetPosition(), Vector3(1, 1, 1)));
-	}
-
-	// ==================================================
-	// 操作
-	// ==================================================
-	Actor* Editor::CreatePrimitive(const std::string& name, const std::string& model)
-	{
-		Scene& scene = mEngine.GetScene();
-		Actor* actor = scene.CreateActor(name);
-		actor->AddComponent<MeshRenderer>()->SetModel(model);
-		return actor;
-	}
-
-	Actor* Editor::CreateActorFromMenu(const std::string& kind, Actor* parent)
-	{
-		Scene& scene = mEngine.GetScene();
-		Actor* actor = nullptr;
-		if (kind == "Empty") { actor = scene.CreateActor("Actor"); }
-		else if (kind == "Cube") { actor = CreatePrimitive("Cube", "Engine/Cube"); actor->AddComponent<BoxCollider>(); }
-		else if (kind == "Sphere") { actor = CreatePrimitive("Sphere", "Engine/Sphere"); actor->AddComponent<SphereCollider>(); }
-		else if (kind == "Plane") { actor = CreatePrimitive("Plane", "Engine/Plane"); actor->AddComponent<BoxCollider>()->size = Vector3(10, 0.01f, 10); }
-		else if (kind == "Capsule") { actor = CreatePrimitive("Capsule", "Engine/Capsule"); actor->AddComponent<CapsuleCollider>(); }
-		else if (kind == "Directional Light")
-		{
-			actor = scene.CreateActor("Directional Light");
-			actor->AddComponent<DirectionalLight>();
-			actor->GetTransform().SetLocalRotation(Quaternion::FromEuler({ math::ToRadians(50.0f), math::ToRadians(-30.0f), 0.0f }));
-		}
-		else if (kind == "Point Light") { actor = scene.CreateActor("Point Light"); actor->AddComponent<PointLight>(); }
-		else if (kind == "Spot Light") { actor = scene.CreateActor("Spot Light"); actor->AddComponent<SpotLight>(); }
-		else if (kind == "Camera") { actor = scene.CreateActor("Camera"); actor->AddComponent<CameraComponent>(); }
-		else if (kind == "Particle System") { actor = scene.CreateActor("Particles"); actor->AddComponent<ParticleSystem>(); }
-		if (!actor) { return nullptr; }
-
-		if (parent)
-		{
-			// 親の原点に子として置く
-			actor->SetParent(parent, false);
-			actor->GetTransform().SetLocalPosition(Vector3(0, 0, 0));
-		}
-		else if (kind != "Directional Light")
-		{
-			// カメラの前に置く
-			RenderCamera cam = mCamera.GetRenderCamera(1.0f);
-			actor->GetTransform().SetPosition(cam.position + cam.GetForward() * 6.0f);
-		}
-		Select(actor);
-		PushCommand(ActorLifetimeCommand::Created("Create " + kind, scene, { actor }));
-		return actor;
-	}
-
-	void Editor::DeleteSelected()
-	{
-		if (Actor* sel = GetSelected())
-		{
-			Scene& scene = mEngine.GetScene();
-			// 消す前に中身を覚えておく
-			auto command = ActorLifetimeCommand::Deleting("Delete " + sel->GetName(), scene, { sel });
-			sel->Destroy();
-			scene.FlushPendingDestroy();
-			Select(nullptr);
-			PushCommand(std::move(command));
-		}
-	}
-
-	void Editor::DuplicateSelected()
-	{
-		if (Actor* sel = GetSelected())
-		{
-			Scene& scene = mEngine.GetScene();
-			if (Actor* copy = scene.Duplicate(sel))
-			{
-				Select(copy);
-				PushCommand(ActorLifetimeCommand::Created("Duplicate " + sel->GetName(), scene, { copy }));
-			}
-		}
-	}
-
-	std::string Editor::CreatePrefab(Actor* actor, const std::string& dir)
-	{
-		if (!actor) { return {}; }
-		// ファイル名に使えない文字は _ にする
-		std::string stem = actor->GetName();
-		for (char& ch : stem)
-		{
-			if (std::string_view("\\/:*?\"<>|").find(ch) != std::string_view::npos || static_cast<unsigned char>(ch) < 0x20) { ch = '_'; }
-		}
-		if (stem.empty()) { stem = "Prefab"; }
-
-		// 上書きしないよう、同名があれば " 1", " 2" … を付ける
-		std::string path = dir + "/" + stem + ".prefab";
-		for (int n = 1; std::filesystem::exists(ToWide(path)); ++n)
-		{
-			path = std::format("{}/{} {}.prefab", dir, stem, n);
-		}
-		if (!Scene::SavePrefab(actor, path))
-		{
-			Log::Error(LogCat::Editor, "Failed to save prefab: {}", path);
-			return {};
-		}
-		Log::Info(LogCat::Editor, "Saved prefab: {}", path);
-		return path;
-	}
-
-	void Editor::SaveScene(bool saveAs)
-	{
-		if (mEngine.IsPlaying())
-		{
-			Log::Warning(LogCat::Editor, "Stop play mode before saving");
-			return;
-		}
-		Scene& scene = mEngine.GetScene();
-		std::string path = scene.GetPath();
-		if (saveAs || path.empty())
-		{
-			path = FileDialog(mEngine.GetWindow().GetHandle(), true, L"Scene (*.scene)\0*.scene\0", L"scene");
-			if (path.empty()) { return; }
-		}
-		if (scene.SaveToFile(path))
-		{
-			mHistory.MarkSaved();
-			UpdateTitle();
-		}
-	}
-
-	void Editor::OpenScene()
-	{
-		std::string path = FileDialog(mEngine.GetWindow().GetHandle(), false, L"Scene (*.scene)\0*.scene\0", L"scene");
-		if (!path.empty())
-		{
-			if (mEngine.IsPlaying()) { mEngine.EndPlay(); }
-			mEngine.LoadScene(path);
+			std::vector<std::function<void()>> actions;
+			actions.swap(mDeferred);
+			for (auto& action : actions) { action(); }
 		}
 	}
 }

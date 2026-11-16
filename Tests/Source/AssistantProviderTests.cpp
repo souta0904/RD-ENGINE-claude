@@ -1,8 +1,8 @@
 #include "TestFramework.h"
 
 #if RD_EDITOR
-#include "Editor/AssistantProviders.h"
-#include "Editor/AssistantTools.h"
+#include "Editor/Assistant/AssistantProvider.h"
+#include "Editor/Assistant/AssistantTools.h"
 
 using namespace rd;
 

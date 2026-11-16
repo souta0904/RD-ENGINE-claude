@@ -1,21 +1,33 @@
 #pragma once
-#include "Editor/EditorCamera.h"
-#include "Editor/ImGuiLayer.h"
-#include "Editor/CommandHistory.h"
+#include "Core/Serialization/Json.h"
+#include "Editor/Commands/CommandHistory.h"
+#include "Editor/Core/ImGuiLayer.h"
 #include "Runtime/FrameOverlay.h"
 #include "Scene/Actor/Actor.h"
+#include <functional>
+#include <memory>
 #include <string>
 #include <vector>
 
 namespace rd
 {
 	class AIAssistant;
-	class DebugDraw;
+	class ConsolePanel;
+	class EditorPanel;
 	class Engine;
+	class HierarchyPanel;
+	class InspectorPanel;
+	class LightingPanel;
+	class ProfilerPanel;
+	class ProjectPanel;
+	class SceneViewPanel;
 	class Scene;
+	class StatsPanel;
 
-	// ImGui ベースのエディタ
-	//  エンジンは作るときに渡される（グローバルの Engine::Get() には頼らない）
+	// ImGui のエディタ（Unity 風: Hierarchy / Inspector / Project / Console / Scene・Game ビュー）
+	//  パネルは EditorPanel の派生として別のクラスにし、ここは選択・Undo・シーンとアクターの操作・メニューを受け持つ。
+	//  エンジンは作るときに渡される（グローバルの Engine::Get() には頼らない）。
+	//  実装は Editor.cpp（全体）/ EditorActions.cpp（アクターとシーンの操作）/ EditorMenu.cpp（メニュー・ツールバー・ショートカット）
 	class Editor final : public FrameOverlay
 	{
 	public:
@@ -28,142 +40,110 @@ namespace rd
 
 		void BeginFrame();
 		void Update(float dt);
-		// シーンが差し替わった（keepSelection=true なら選択を ID で復元）
+		// シーンが差し替わった（keepSelection ならプレイを止めて戻ったので選択と履歴を残す）
 		void OnSceneChanged(bool keepSelection = false);
 
-		// FrameOverlay
 		void GetViewportSize(uint32_t& width, uint32_t& height) const override;
 		bool OverrideCamera(float aspect, RenderCamera& camera) const override;
 		void DrawGizmos(DebugDraw& draw) override;
 		void RenderUI() override;
 
-		bool UseEditorCamera() const;
-		RenderCamera GetEditorCamera(float aspect) const { return mCamera.GetRenderCamera(aspect); }
 		Engine& GetEngine() const { return mEngine; }
 		Scene& GetScene() const;
+		bool IsPlaying() const;
 
-		// 選択
 		Actor* GetSelected() const;
+		ActorId GetSelectedId() const { return mSelectedId; }
 		void Select(Actor* actor);
 
-		// --- Undo / Redo（操作した後に呼ぶ） ---
-		// 選択中のアクターの変更（インスペクタ・ギズモ・コンポーネントの追加/削除）を確定する
+		// 操作した後に呼ぶ: 選んでいるアクター / シーンの設定の変更を確定して Undo の履歴に積む
 		void CommitActorEdit(const std::string& label);
-		// シーン設定（環境・重力）の変更を確定する
 		void CommitSettingsEdit(const std::string& label);
-		// 実行済みのコマンドを履歴に積む
 		void PushCommand(std::unique_ptr<EditorCommand> command);
-
-	private:
-		// メイン
-		void DrawMenuBar();
-		void DrawToolbar();
-		void DrawViewport();
-		void HandleShortcuts();
-		void HandleViewportDrop(const std::string& path, const Ray& ray);
-		Actor* Pick(const Ray& ray);
-		// ヒエラルキー（HierarchyPanel.cpp）
-		void DrawHierarchy();
-		void DrawHierarchyNode(Actor* actor, bool flat);
-		void DrawHierarchyCreateMenu(Actor* parent);
-		void HandleHierarchyKeys();
-		void BeginRename(Actor* actor);
-		// パネル（EditorPanels.cpp）
-		void DrawInspector();
-		void DrawAssets();
-		void DrawConsole();
-		void DrawStats();
-		void DrawRenderSettings();
-		void DrawProfiler();// ProfilerPanel.cpp
-		// 操作
-		Actor* CreatePrimitive(const std::string& name, const std::string& model);
-		// parent を渡すとその子として親の原点に作る（渡さなければカメラの前）
-		Actor* CreateActorFromMenu(const std::string& kind, Actor* parent = nullptr);
-		void FocusOn(Actor* actor);
-		void DeleteSelected();
-		void DuplicateSelected();
-		// アクター（と子）を dir にプレハブとして保存する（同名があれば番号を付ける）。保存したパスを返す
-		std::string CreatePrefab(Actor* actor, const std::string& dir);
-		void SaveScene(bool saveAs);
-		void OpenScene();
 		void Undo();
 		void Redo();
-		// 「変更前」の状態を取り直す（選択の変更・確定・Undo の後）
+		const CommandHistory& GetHistory() const { return mHistory; }
+
+		// パネルを描き終えてから実行する（描いている途中にシーンを変えると辿っている途中の一覧が壊れるため）
+		void Defer(std::function<void()> action) { mDeferred.push_back(std::move(action)); }
+
+		// kind は "Empty" / "Cube" / "Sphere" / "Plane" / "Capsule" / "Directional Light" / "Point Light" /
+		// "Spot Light" / "Camera" / "Particle System"。parent を渡すとその子として親の原点に、なければカメラの前に作る
+		Actor* CreateActor(const std::string& kind, Actor* parent = nullptr);
+		// 作成のメニューの項目を並べる（選ばれたら後で作る）
+		void DrawCreateMenu(Actor* parent);
+		void DeleteSelected();
+		void DuplicateSelected();
+		void CopySelected();
+		void PasteClipboard();
+		bool HasClipboard() const { return !mClipboard.is_null(); }
+		void RenameSelected();
+		void FocusOn(Actor* actor);
+		// アクター（と子）を dir にプレハブとして保存する（同じ名前があれば番号を付ける）。保存したパスを返す
+		std::string CreatePrefab(Actor* actor, const std::string& dir);
+		Actor* InstantiatePrefab(const std::string& path, Actor* parent, int siblingIndex);
+
+		void NewScene();
+		void OpenScene();
+		void OpenScene(const std::string& path);
+		bool SaveScene(bool saveAs);
+		void RequestQuit();
+
+		void TogglePlay();
+		void TogglePause();
+		void StepFrame();
+
+		SceneViewPanel& GetSceneView() { return *mSceneView; }
+		HierarchyPanel& GetHierarchy() { return *mHierarchy; }
+		ProjectPanel& GetProject() { return *mProject; }
+
+	private:
+		template <class T>
+		T* AddPanel(std::unique_ptr<T> panel)
+		{
+			T* raw = panel.get();
+			mPanels.push_back(std::move(panel));
+			return raw;
+		}
+		Actor* CreatePrimitive(const std::string& name, const std::string& model);
 		void RefreshSnapshots();
 		void UpdateTitle();
+		void RunDeferred();
+		// 保存していない変更があれば「保存しますか？」を出してから action を実行する
+		void RunAfterSaveCheck(std::function<void()> action);
+
+		void SetupDockLayout(unsigned int dockId);
+		void SelectDefaultTabs();
+		void DrawMenuBar();
+		void DrawMainToolbar();
+		void DrawDialogs();
+		void HandleShortcuts();
 
 		Engine& mEngine;
 		ImGuiLayer mImGui;
-		EditorCamera mCamera;
 		CommandHistory mHistory;
 		ActorId mSelectedId = 0;
 		// 変更前の状態（確定したときに変更後と比べてコマンドを作る）
 		ActorId mSnapshotActor = 0;
 		Json mActorSnapshot;
 		Json mSettingsSnapshot;
+		Json mClipboard;
+		std::vector<std::function<void()>> mDeferred;
 
-		// ビューポート
-		uint32_t mViewportWidth = 1280;
-		uint32_t mViewportHeight = 720;
-		float mViewportX = 0.0f, mViewportY = 0.0f;
-		bool mViewportHovered = false;
-		bool mViewportFocused = false;
-		bool mSceneCameraInPlay = false;// プレイ中もエディタカメラで見る
-		bool mShowGrid = true;
-		bool mShowGizmos = true;
-		bool mShowPhysics = false;
-		int mGizmoOp = 0;// 0:移動 1:回転 2:拡縮
-		bool mGizmoLocal = false;
-		bool mGizmoWasUsing = false;
+		std::vector<std::unique_ptr<EditorPanel>> mPanels;
+		SceneViewPanel* mSceneView = nullptr;
+		HierarchyPanel* mHierarchy = nullptr;
+		InspectorPanel* mInspector = nullptr;
+		ProjectPanel* mProject = nullptr;
+		ConsolePanel* mConsole = nullptr;
+		AIAssistant* mAssistant = nullptr;
+		ProfilerPanel* mProfiler = nullptr;
 
-		// パネルの表示
-		bool mShowHierarchy = true;
-		bool mShowInspector = true;
-		bool mShowAssets = true;
-		bool mShowConsole = true;
-		bool mShowStats = true;
-		bool mShowRenderSettings = true;
-		bool mShowProfiler = false;
-		bool mShowAssistant = false;
-		std::unique_ptr<AIAssistant> mAssistant;
-		bool mShowDemo = false;
 		bool mFirstLayout = true;
-
-		// ヒエラルキー
-		struct HierarchyRow
-		{
-			ActorId id = 0;
-			ActorId parent = 0;
-			bool open = false;
-			bool hasChildren = false;
-		};
-		std::vector<HierarchyRow> mHierarchyRows;// 前のフレームで見えていた行（キー操作用）
-		int mHierarchyRowCount = 0;// 縞模様用
-		std::string mHierarchyFilter;
-		ActorId mHierarchyLastSelected = 0;// 選択が変わったら親を開いてスクロールする
-		bool mHierarchyReveal = false;
-		ActorId mHierarchyToggleId = 0;// キー操作での開閉の要求
-		bool mHierarchyToggleOpen = false;
-		ActorId mRenamingId = 0;
-		bool mRenameFocus = false;
-		std::string mRenameBuffer;
-
-		// アセットパネル
-		std::string mAssetDir = "Assets";
-		std::string mAssetFilter;
-		// コンソール
-		std::string mConsoleFilter;
-		bool mConsoleShowDebug = false;// Trace / Debug
-		bool mConsoleShowInfo = true;
-		bool mConsoleShowWarn = true;
-		bool mConsoleShowError = true;
-		uint64_t mConsoleVersion = 0;
-		// 統計
-		std::vector<float> mFrameTimes;
-		std::string mAddComponentFilter;
-		// プロファイラ
-		int mProfilerSelected = -1;// 選んだフレーム（-1 なら最新付近）
-		int mProfilerAverage = 60;
-		float mProfilerZoom = 1.0f;
+		bool mSelectDefaultTabs = false;
+		bool mFocusViewport = true;		bool mShowDemo = false;
+		bool mAllowClose = false;
+		std::function<void()> mPendingAfterSave;
+		bool mOpenSavePrompt = false;
 	};
 }

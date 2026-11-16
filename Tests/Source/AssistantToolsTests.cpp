@@ -2,8 +2,11 @@
 #include "TestComponents.h"
 
 #if RD_EDITOR
-#include "Editor/AssistantTools.h"
-#include "Editor/CommandHistory.h"
+#include "Editor/Assistant/AssistantTools.h"
+#include "Editor/Commands/CommandHistory.h"
+#include "Editor/Commands/ActorStateCommand.h"
+#include "Editor/Commands/ActorLifetimeCommand.h"
+#include "Editor/Commands/ReparentCommand.h"
 #include "Scene/Scene.h"
 
 using namespace rd;
