@@ -4,7 +4,7 @@
 #include "Core/Util/StringUtil.h"
 #include "Core/Util/FileUtil.h"
 #include "Core/Time/Time.h"
-#include "Render/DebugDraw.h"
+#include "Render/Debug/DebugDraw.h"
 #include "Scene/ComponentRegistry.h"
 #include "Scene/ObjectRef.h"
 #include <unordered_set>

@@ -1,23 +1,31 @@
 #include "RdPch.h"
-#include "Asset/Animation.h"
+#include "Asset/Animation/AnimationClip.h"
 
 namespace rd
 {
 	namespace
 	{
-		// time を挟む 2 つのキーを二分探索して補間する
-		template <class T, class Interp>
-		T SampleKeys(const std::vector<Keyframe<T>>& keys, float time, const T& fallback, Interp interp)
+		Vector3 Interpolate(const Vector3& a, const Vector3& b, float t) { return math::Lerp(a, b, t); }
+		Quaternion Interpolate(const Quaternion& a, const Quaternion& b, float t) { return Slerp(a, b, t); }
+
+		// time を挟む 2 つのキーを二分探索で見つけて補間する
+		template <class T>
+		T SampleKeys(const std::vector<Keyframe<T>>& keys, float time, const T& fallback)
 		{
 			if (keys.empty()) { return fallback; }
 			if (keys.size() == 1 || time <= keys.front().time) { return keys.front().value; }
 			if (time >= keys.back().time) { return keys.back().value; }
-			auto it = std::upper_bound(keys.begin(), keys.end(), time,
-				[](float t, const Keyframe<T>& k) { return t < k.time; });
-			const auto& next = *it;
-			const auto& prev = *(it - 1);
+			size_t lo = 0, hi = keys.size() - 1;
+			while (hi - lo > 1)
+			{
+				size_t mid = (lo + hi) / 2;
+				if (keys[mid].time <= time) { lo = mid; }
+				else { hi = mid; }
+			}
+			const auto& prev = keys[lo];
+			const auto& next = keys[hi];
 			float t = (time - prev.time) / std::max(next.time - prev.time, 1.0e-6f);
-			return interp(prev.value, next.value, t);
+			return Interpolate(prev.value, next.value, t);
 		}
 	}
 
@@ -31,6 +39,7 @@ namespace rd
 		return binding;
 	}
 
+	// 骨の長さの比で、単位の違い（cm と m など）を吸収する
 	std::vector<float> AnimationClip::BuildTranslationScale(const Skeleton& target, const Skeleton* source) const
 	{
 		std::vector<float> scales(channels.size(), 1.0f);
@@ -42,7 +51,6 @@ namespace rd
 			if (tj < 0 || sj < 0) { continue; }
 			float lt = Length(target.joints[size_t(tj)].bindLocal.translation);
 			float ls = Length(source->joints[size_t(sj)].bindLocal.translation);
-			// 骨の長さの比で単位の違い（cm と m など）を吸収する
 			scales[i] = ls > 1.0e-5f ? lt / ls : 0.0f;
 		}
 		return scales;
@@ -58,31 +66,9 @@ namespace rd
 			const auto& ch = channels[i];
 			auto& out = outLocal[size_t(joint)];
 			float ts = i < translationScale.size() ? translationScale[i] : 1.0f;
-			if (ts > 0.0f)
-			{
-				out.translation = SampleKeys(ch.positions, time, out.translation / ts,
-					[](const Vector3& a, const Vector3& b, float t) { return math::Lerp(a, b, t); }) * ts;
-			}
-			out.rotation = SampleKeys(ch.rotations, time, out.rotation,
-				[](const Quaternion& a, const Quaternion& b, float t) { return Slerp(a, b, t); });
-			out.scale = SampleKeys(ch.scales, time, out.scale,
-				[](const Vector3& a, const Vector3& b, float t) { return math::Lerp(a, b, t); });
-		}
-	}
-
-	void ComputeSkinningPalette(const Skeleton& skeleton, std::span<const TransformTRS> local,
-		std::vector<Matrix4>& outGlobal, std::vector<Matrix4>& outPalette)
-	{
-		size_t count = skeleton.joints.size();
-		outGlobal.resize(count);
-		outPalette.resize(count);
-		for (size_t i = 0; i < count; ++i)
-		{
-			const Joint& joint = skeleton.joints[i];
-			Matrix4 localMat = local[i].ToMatrix();
-			// 行ベクトル規約なので「子のローカル * 親のグローバル」
-			outGlobal[i] = joint.parent >= 0 ? localMat * outGlobal[size_t(joint.parent)] : localMat;
-			outPalette[i] = joint.inverseBind * outGlobal[i];
+			if (ts > 0.0f) { out.translation = SampleKeys(ch.positions, time, out.translation / ts) * ts; }
+			out.rotation = SampleKeys(ch.rotations, time, out.rotation);
+			out.scale = SampleKeys(ch.scales, time, out.scale);
 		}
 	}
 }

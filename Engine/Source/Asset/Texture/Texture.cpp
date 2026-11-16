@@ -1,8 +1,7 @@
 #include "RdPch.h"
-#include "Asset/Texture.h"
+#include "Asset/Texture/Texture.h"
 #include "Core/Util/StringUtil.h"
-#include "Core/Util/FileUtil.h"
-#include "RHI/Device/GpuScope.h"
+#include "RHI/Device/GraphicsDevice.h"
 #include <DirectXTex.h>
 
 namespace rd
@@ -67,7 +66,7 @@ namespace rd
 		auto& source = *static_cast<const DirectX::ScratchImage*>(scratchPtr);
 		const DirectX::ScratchImage* image = &source;
 
-		// ミップマップを生成（圧縮形式でなく 1 段しかない場合）
+		// 圧縮形式でなく 1 段しかないときはミップマップを作る
 		DirectX::ScratchImage mipChain;
 		const auto& meta = source.GetMetadata();
 		if (meta.mipLevels == 1 && !DirectX::IsCompressed(meta.format) && (meta.width > 1 || meta.height > 1))
@@ -90,7 +89,7 @@ namespace rd
 		hr = DirectX::PrepareUpload(device.GetDevice(), image->GetImages(), image->GetImageCount(), image->GetMetadata(), subresources);
 		if (FAILED(hr)) { return false; }
 
-		// ステージングバッファへ行ごとにコピー
+		// GPU のコピーに必要な行の幅（RowPitch）にそろえて、ステージングバッファへ 1 行ずつ写す
 		auto desc = resource->GetDesc();
 		UINT count = UINT(subresources.size());
 		UploadRequest req;
@@ -123,11 +122,8 @@ namespace rd
 
 		req.dst = resource;
 		req.finalState = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
-		auto finalState = req.finalState;
-		DXGI_FORMAT srvFormat = desc.Format;
-		// SRV はワーカーで作っておき、GPU 転送が終わったら Ready にする
-		mGpu.InitFromResource(resource, srvFormat, finalState);
-		// 転送完了前にアセットが破棄されないよう自分自身を保持しておく
+		// SRV は先に作っておき、転送が終わったら Ready にする（それまでアセットが消えないよう自分を持たせる）
+		mGpu.InitFromResource(resource, desc.Format, req.finalState);
 		auto self = std::static_pointer_cast<Texture>(shared_from_this());
 		req.onComplete = [self] { self->SetState(AssetState::Ready); };
 		device.EnqueueUpload(std::move(req));

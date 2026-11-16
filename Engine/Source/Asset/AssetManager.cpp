@@ -1,10 +1,9 @@
 #include "RdPch.h"
 #include "Asset/AssetManager.h"
-#include "Asset/Model.h"
-#include "Asset/Texture.h"
-#include "Asset/AudioClip.h"
+#include "Asset/Audio/AudioClip.h"
+#include "Asset/Model/Model.h"
+#include "Asset/Texture/Texture.h"
 #include "Core/Util/StringUtil.h"
-#include "Core/Util/FileUtil.h"
 
 namespace rd
 {
@@ -13,9 +12,9 @@ namespace rd
 		RD_ASSERT(!sInstance);
 		sInstance = this;
 
-		// 既定テクスチャ（白・平らな法線）
+		// 平らな法線は (0.5, 0.5, 1.0)
 		const uint32_t white = 0xFFFFFFFF;
-		const uint32_t flatNormal = 0xFFFF8080;// (0.5, 0.5, 1.0)
+		const uint32_t flatNormal = 0xFFFF8080;
 		mWhite = std::make_shared<Texture>();
 		mWhite->mPath = "Engine/White";
 		mWhite->LoadFromPixels(&white, 1, 1, false);
@@ -68,13 +67,13 @@ namespace rd
 		mAssets[key] = std::move(asset);
 	}
 
+	// キャッシュだけが持っていて、読み込みも終わっているものを消す（Engine/ の組み込みは残す）
 	uint32_t AssetManager::CollectGarbage()
 	{
 		std::lock_guard lock(mMutex);
 		uint32_t count = 0;
 		for (auto it = mAssets.begin(); it != mAssets.end();)
 		{
-			// キャッシュだけが保持していて、読み込みも終わっているもの
 			if (it->second.use_count() == 1 && !it->second->IsLoading() && !it->first.starts_with("Engine/"))
 			{
 				it = mAssets.erase(it);

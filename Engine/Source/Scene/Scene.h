@@ -1,7 +1,12 @@
 #pragma once
 #include "Core/Serialization/JsonReader.h"
 #include "Core/Serialization/JsonWriter.h"
-#include "Render/RenderTypes.h"
+#include "Render/RenderList/RenderList.h"
+#include "Render/Material/Material.h"
+#include "Render/Camera/RenderCamera.h"
+#include "Render/Settings/Environment.h"
+#include "Render/Settings/RenderSettings.h"
+#include "Render/Settings/RenderStats.h"
 #include "Scene/Actor.h"
 #include "Scene/SceneSystem.h"
 #include <memory>

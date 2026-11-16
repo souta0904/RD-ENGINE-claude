@@ -1,6 +1,6 @@
 #include "RdPch.h"
 #include "Components/CameraComponent.h"
-#include "Render/DebugDraw.h"
+#include "Render/Debug/DebugDraw.h"
 #include "Scene/Scene.h"
 
 namespace rd

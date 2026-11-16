@@ -1,7 +1,12 @@
 #pragma once
 #include "Math/Geometry/Frustum.h"
 #include "Math/Geometry/Intersection.h"
-#include "Render/RenderTypes.h"
+#include "Render/RenderList/RenderList.h"
+#include "Render/Material/Material.h"
+#include "Render/Camera/RenderCamera.h"
+#include "Render/Settings/Environment.h"
+#include "Render/Settings/RenderSettings.h"
+#include "Render/Settings/RenderStats.h"
 
 namespace rd
 {

@@ -1,11 +1,11 @@
 #include "RdPch.h"
-#include "Render/DebugDraw.h"
+#include "Render/Debug/DebugDraw.h"
 
 namespace rd
 {
 	namespace
 	{
-		// 法線に垂直な 2 軸
+		// n に垂直な 2 本の軸
 		void Basis(const Vector3& n, Vector3& u, Vector3& v)
 		{
 			u = Normalize(Cross(std::fabs(n.y) < 0.99f ? Vector3::kUnitY : Vector3::kUnitX, n));

@@ -1,11 +1,11 @@
 #include "RdPch.h"
 #include "Physics/Collider.h"
 #include "Asset/AssetManager.h"
-#include "Asset/Model.h"
+#include "Asset/Model/Model.h"
 #include "Components/MeshRenderer.h"
 #include "Physics/PhysicsWorld.h"
 #include "Physics/Rigidbody.h"
-#include "Render/DebugDraw.h"
+#include "Render/Debug/DebugDraw.h"
 #include "Scene/Actor.h"
 #include "Scene/Scene.h"
 

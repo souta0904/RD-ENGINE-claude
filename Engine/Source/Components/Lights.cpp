@@ -1,7 +1,12 @@
 #include "RdPch.h"
 #include "Components/Lights.h"
-#include "Render/DebugDraw.h"
-#include "Render/RenderTypes.h"
+#include "Render/Debug/DebugDraw.h"
+#include "Render/RenderList/RenderList.h"
+#include "Render/Material/Material.h"
+#include "Render/Camera/RenderCamera.h"
+#include "Render/Settings/Environment.h"
+#include "Render/Settings/RenderSettings.h"
+#include "Render/Settings/RenderStats.h"
 #include "Scene/Actor.h"
 
 namespace rd

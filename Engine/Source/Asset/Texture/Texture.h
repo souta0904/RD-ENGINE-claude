@@ -1,12 +1,11 @@
 #pragma once
 #include "Asset/Asset.h"
-#include "RHI/Texture/RenderTexture.h"
-#include "RHI/Texture/DepthTexture.h"
+#include "RHI/Texture/GpuTexture.h"
 #include <vector>
 
 namespace rd
 {
-	// 画像ファイルから読み込むテクスチャ（png/jpg/bmp/tga/dds/hdr）
+	// 画像ファイルから読むテクスチャ（png / jpg / bmp / tga / dds / hdr）
 	//  キーの末尾が "#linear" ならリニア（法線マップなど）、それ以外は sRGB として扱う
 	class Texture final : public Asset
 	{
@@ -18,9 +17,8 @@ namespace rd
 		uint32_t GetWidth() const { return mGpu.GetWidth(); }
 		uint32_t GetHeight() const { return mGpu.GetHeight(); }
 
-		// メモリ上の画像（モデル埋め込みなど）から読み込む。ワーカースレッドから呼んでよい
+		// メモリの上の画像（モデルに埋め込まれたものなど）から読む。ワーカースレッドから呼んでよい
 		void LoadFromMemory(const void* data, size_t size, bool srgb);
-		// 生の RGBA8 ピクセルから作成
 		void LoadFromPixels(const void* rgba, uint32_t width, uint32_t height, bool srgb);
 
 	protected:

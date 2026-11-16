@@ -1,13 +1,11 @@
 #pragma once
 #include "Math/Color.h"
-#include "Math/Geometry/Frustum.h"
-#include "Math/Geometry/Intersection.h"
+#include "Math/Geometry/AABB.h"
 #include <vector>
 
 namespace rd
 {
-	// デバッグ用の線描画（1 フレームだけ表示）
-	//  depthTest=false で手前に重ねて描く
+	// デバッグ用の線（そのフレームだけ表示される。depthTest=false なら手前に重ねて描く）
 	class DebugDraw
 	{
 	public:

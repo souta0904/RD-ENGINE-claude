@@ -1,55 +1,19 @@
 #pragma once
-#include "Asset/Animation.h"
+#include "Asset/Animation/AnimationClip.h"
 #include "Asset/Asset.h"
-#include "Math/Geometry/Frustum.h"
-#include "Math/Geometry/Intersection.h"
+#include "Asset/Model/MaterialDesc.h"
+#include "Asset/Model/MeshVertex.h"
+#include "Asset/Model/SubMesh.h"
 #include "RHI/D3D12Common.h"
 #include <memory>
 #include <vector>
 
+struct aiScene;
+struct aiNode;
+
 namespace rd
 {
-	class Texture;
-
-	// 頂点形式
-	struct MeshVertex
-	{
-		Vector3 position;
-		Vector3 normal;
-		Vector4 tangent;// w は従法線の向き
-		Vector2 uv;
-	};
-	struct SkinVertex
-	{
-		uint32_t joints[4] = {};
-		float weights[4] = {};
-	};
-
-	// モデル内マテリアルの初期値
-	struct MaterialDesc
-	{
-		std::string name;
-		Color baseColor = Color::kWhite;
-		float metallic = 0.0f;
-		float roughness = 0.6f;
-		Color emissive = Color::kBlack;
-		std::string albedoPath;
-		std::string normalPath;
-		bool transparent = false;
-	};
-
-	struct SubMesh
-	{
-		std::string name;
-		uint32_t indexStart = 0;
-		uint32_t indexCount = 0;
-		uint32_t materialIndex = 0;
-		bool skinned = false;
-		AABB bounds;
-	};
-
-	// 3D モデル（assimp で obj / gltf / fbx などを読み込む）
-	//  キーの末尾が "#anim" ならアニメーションだけを読み込む
+	// 3D モデル（assimp で obj / gltf / fbx などを読む。キーの末尾が "#anim" ならアニメーションだけを読む）
 	class Model final : public Asset
 	{
 	public:
@@ -67,17 +31,30 @@ namespace rd
 		const D3D12_VERTEX_BUFFER_VIEW& GetSkinView() const { return mSkinView; }
 		const D3D12_INDEX_BUFFER_VIEW& GetIndexView() const { return mIndexView; }
 
-		// 衝突判定用（静的メッシュはノード変換を適用済み）
+		// 衝突判定用（静的メッシュはノードの変換を焼き込み済み）
 		const std::vector<Vector3>& GetCollisionPositions() const { return mCollisionPositions; }
 		const std::vector<uint32_t>& GetCollisionIndices() const { return mCollisionIndices; }
 
-		// プリミティブ形状を生成（"Engine/Cube" などの組み込みモデル用）
+		// プリミティブなど、手で作った頂点からモデルを作る
 		void BuildFromData(std::vector<MeshVertex> vertices, std::vector<uint32_t> indices);
 
 	protected:
 		void Load() override;
 
 	private:
+		struct MeshData
+		{
+			std::vector<MeshVertex> vertices;
+			std::vector<SkinVertex> skins;
+			std::vector<uint32_t> indices;
+		};
+
+		bool LoadBuiltin();
+		void ImportSkeleton(const aiNode* node, int32_t parent);
+		void ImportAnimations(const aiScene* scene);
+		void ImportMaterials(const aiScene* scene, const std::string& path);
+		std::string ImportTexture(const aiScene* scene, const std::string& dir, const std::string& texPath, bool srgb);
+		void ImportMeshes(const aiScene* scene, const aiNode* node, const Matrix4& parentGlobal, MeshData& out);
 		void CreateGpuBuffers(const std::vector<MeshVertex>& vertices, const std::vector<SkinVertex>& skins,
 			const std::vector<uint32_t>& indices);
 
@@ -98,13 +75,4 @@ namespace rd
 		std::vector<Vector3> mCollisionPositions;
 		std::vector<uint32_t> mCollisionIndices;
 	};
-
-	// 組み込みプリミティブ（キー: "Engine/Cube", "Engine/Sphere", "Engine/Plane", "Engine/Capsule"）
-	namespace Primitives
-	{
-		void Cube(std::vector<MeshVertex>& v, std::vector<uint32_t>& i);
-		void Sphere(std::vector<MeshVertex>& v, std::vector<uint32_t>& i, uint32_t segments = 32, uint32_t rings = 16);
-		void Plane(std::vector<MeshVertex>& v, std::vector<uint32_t>& i, float size = 10.0f);
-		void Capsule(std::vector<MeshVertex>& v, std::vector<uint32_t>& i, float radius = 0.5f, float height = 2.0f);
-	}
 }

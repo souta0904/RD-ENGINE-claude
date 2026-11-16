@@ -8,15 +8,14 @@
 namespace rd
 {
 	// 音声データ
-	//  WAV（PCM / IEEE float / ADPCM）はそのまま、MP3 / AAC(m4a) / FLAC / WMA は読み込み時に PCM へ展開する
+	//  WAV（PCM / IEEE float / ADPCM）はそのまま、MP3 / AAC(m4a) / FLAC / WMA は読み込むときに PCM へ展開する
+	//  mFormat は拡張部分を含む WAVEFORMATEX
 	class AudioClip final : public Asset
 	{
 	public:
 		const char* GetTypeName() const override { return "AudioClip"; }
-		// 読み込める拡張子か（".wav" など小文字で）
+		// ext は ".wav" などの小文字
 		static bool IsSupportedExtension(const std::string& ext);
-		// ファイルを WAVEFORMATEX と波形データに展開する（アセット管理を通さずに使える。COM を初期化したスレッドで呼ぶ）
-		static bool Decode(const std::string& path, std::vector<uint8_t>& format, std::vector<uint8_t>& data);
 
 		const WAVEFORMATEX* GetFormat() const { return reinterpret_cast<const WAVEFORMATEX*>(mFormat.data()); }
 		const std::vector<uint8_t>& GetData() const { return mData; }
@@ -26,7 +25,7 @@ namespace rd
 		void Load() override;
 
 	private:
-		std::vector<uint8_t> mFormat;// WAVEFORMATEX（拡張部分を含む）
+		std::vector<uint8_t> mFormat;
 		std::vector<uint8_t> mData;
 		float mDuration = 0.0f;
 	};

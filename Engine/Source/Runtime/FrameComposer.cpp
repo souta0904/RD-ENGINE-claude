@@ -2,7 +2,7 @@
 #include "FrameComposer.h"
 #include "Components/CameraComponent.h"
 #include "Platform/Window/Window.h"
-#include "Render/Renderer.h"
+#include "Render/Renderer/Renderer.h"
 #include "RHI/Device/GpuScope.h"
 #include "Runtime/FrameOverlay.h"
 #include "Scene/Scene.h"

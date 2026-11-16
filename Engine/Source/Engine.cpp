@@ -11,7 +11,7 @@
 #include "Core/Time/Timer.h"
 #include "Core/Time/ScopedTimer.h"
 #include "Platform/Input/Input.h"
-#include "Render/Renderer.h"
+#include "Render/Renderer/Renderer.h"
 #include "RHI/Device/GpuScope.h"
 #include "Scene/Scene.h"
 #if RD_EDITOR

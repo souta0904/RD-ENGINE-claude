@@ -1,5 +1,6 @@
 #include "TestFramework.h"
-#include "Asset/AudioClip.h"
+#include "Asset/Audio/AudioClip.h"
+#include "Asset/Audio/AudioDecoder.h"
 #include "Core/Util/StringUtil.h"
 #include "Core/Util/FileUtil.h"
 #include <Windows.h>
@@ -79,7 +80,7 @@ namespace
 RD_TEST(Audio, DecodeWav)
 {
 	std::vector<uint8_t> format, data;
-	RD_REQUIRE(rd::AudioClip::Decode(FindAssets() + "/Sample/Audio/ChipGet.wav", format, data));
+	RD_REQUIRE(rd::AudioDecoder::Decode(FindAssets() + "/Sample/Audio/ChipGet.wav", format, data));
 	RD_CHECK(format.size() >= sizeof(WAVEFORMATEX));
 	RD_CHECK(!data.empty());
 }
@@ -94,7 +95,7 @@ RD_TEST(Audio, DecodeAacWithMediaFoundation)
 	RD_REQUIRE(written);
 
 	std::vector<uint8_t> format, data;
-	RD_REQUIRE(rd::AudioClip::Decode(rd::ToUtf8(path.wstring()), format, data));
+	RD_REQUIRE(rd::AudioDecoder::Decode(rd::ToUtf8(path.wstring()), format, data));
 	auto fmt = reinterpret_cast<const WAVEFORMATEX*>(format.data());
 	RD_CHECK_EQ(fmt->wFormatTag, WORD(WAVE_FORMAT_PCM));
 	RD_CHECK_EQ(fmt->wBitsPerSample, WORD(16));
@@ -114,7 +115,7 @@ RD_TEST(Audio, DecodeAacWithMediaFoundation)
 RD_TEST(Audio, UnsupportedFileFails)
 {
 	std::vector<uint8_t> format, data;
-	RD_CHECK(!rd::AudioClip::Decode("does/not/exist.mp3", format, data));
+	RD_CHECK(!rd::AudioDecoder::Decode("does/not/exist.mp3", format, data));
 	RD_CHECK(rd::AudioClip::IsSupportedExtension(".mp3"));
 	RD_CHECK(!rd::AudioClip::IsSupportedExtension(".ogg"));
 }

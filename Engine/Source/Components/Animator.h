@@ -1,5 +1,5 @@
 #pragma once
-#include "Asset/Animation.h"
+#include "Asset/Animation/AnimationClip.h"
 #include "Asset/Asset.h"
 #include "Core/Jobs/JobSystem.h"
 #include "RHI/D3D12Common.h"

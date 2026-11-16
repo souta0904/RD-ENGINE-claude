@@ -11,7 +11,7 @@ namespace rd
 	class Model;
 	class AudioClip;
 
-	// アセットのキャッシュと非同期読み込み
+	// アセットのキャッシュと非同期の読み込み（同じキーなら同じインスタンスを返す）
 	class AssetManager
 	{
 	public:
@@ -20,7 +20,6 @@ namespace rd
 		void Initialize();
 		void Shutdown();
 
-		// 非同期読み込み（同じキーなら同じインスタンスを返す）
 		template <class T>
 		AssetRef<T> Load(const std::string& key)
 		{
@@ -38,23 +37,21 @@ namespace rd
 			return asset;
 		}
 
-		// 便利関数
 		AssetRef<Texture> LoadTexture(const std::string& path, bool srgb = true);
 		AssetRef<Model> LoadModel(const std::string& path);
-		AssetRef<Model> LoadAnimations(const std::string& path);// メッシュを作らずアニメーションだけ読む
+		// メッシュを作らず、アニメーションだけを読む
+		AssetRef<Model> LoadAnimations(const std::string& path);
 		AssetRef<AudioClip> LoadAudio(const std::string& path);
 
-		// 読み込み済みのアセットを登録（モデル埋め込みテクスチャなど）
+		// 読み込み済みのアセットを登録する（モデルに埋め込まれたテクスチャなど）
 		void Register(const std::string& key, std::shared_ptr<Asset> asset);
-		// どこからも参照されていないアセットを解放
+		// どこからも使われていないアセットを解放する
 		uint32_t CollectGarbage();
-		// アセットを読み直す（ファイル更新時）
 		void Reload(const std::string& key);
 
 		uint32_t GetLoadingCount() const { return mLoadingCount.load(); }
 		std::vector<std::shared_ptr<Asset>> GetAllAssets();
 
-		// 既定のテクスチャ
 		AssetRef<Texture> GetWhiteTexture() const { return mWhite; }
 		AssetRef<Texture> GetFlatNormalTexture() const { return mFlatNormal; }
 

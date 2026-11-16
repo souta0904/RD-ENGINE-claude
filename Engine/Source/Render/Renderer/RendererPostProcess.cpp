@@ -1,0 +1,208 @@
+#include "RdPch.h"
+#include "Render/Renderer/Renderer.h"
+#include "Asset/AssetManager.h"
+#include "Core/Util/StringUtil.h"
+#include "Math/Matrix3.h"
+#include "Render/Renderer/RendererCommon.h"
+#include "RHI/Device/GpuScope.h"
+#include <DirectXTex.h>
+
+namespace rd
+{
+	using namespace render;
+
+	void Renderer::DrawFullscreen(ID3D12GraphicsCommandList* cmd, ID3D12PipelineState* pso, const Vector4& params,
+		D3D12_GPU_DESCRIPTOR_HANDLE t0, D3D12_GPU_DESCRIPTOR_HANDLE t1)
+	{
+		if (!pso) { return; }
+		SimpleConstants c;
+		c.params = params;
+		cmd->SetPipelineState(pso);
+		cmd->SetGraphicsRoot32BitConstants(kSimpleConstants, sizeof(c) / 4, &c, 0);
+		cmd->SetGraphicsRootDescriptorTable(kSimpleTex0, t0);
+		cmd->SetGraphicsRootDescriptorTable(kSimpleTex1, t1.ptr ? t1 : t0);
+		cmd->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+		cmd->DrawInstanced(3, 1, 0, 0);
+		++mStats.drawCalls;
+	}
+
+	void Renderer::RenderToBloom(ID3D12GraphicsCommandList* cmd, RenderTexture& target)
+	{
+		target.Transition(cmd, D3D12_RESOURCE_STATE_RENDER_TARGET);
+		auto rtv = target.GetRtv();
+		cmd->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
+		SetViewport(cmd, target.GetWidth(), target.GetHeight());
+	}
+
+	// 明るい部分を取り出して半分に縮め、さらに段階的に縮めてから、拡大しながら上の段へ足し戻す
+	void Renderer::BloomPass(ID3D12GraphicsCommandList* cmd)
+	{
+		RD_GPU_SCOPE("Bloom");
+		cmd->SetGraphicsRootSignature(mSimpleRS.Get());
+		if (!mSettings.bloom) { return; }
+
+		RenderToBloom(cmd, mBloom[0]);
+		DrawFullscreen(cmd, mBloomPrefilterPSO.Get(), Vector4(mSettings.bloomThreshold, mSettings.bloomKnee, 0, 0), mHdr.GetGpuSrv());
+		mBloom[0].Transition(cmd, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+		for (uint32_t i = 1; i < kBloomLevels; ++i)
+		{
+			RenderToBloom(cmd, mBloom[i]);
+			DrawFullscreen(cmd, mBloomDownPSO.Get(), Vector4(), mBloom[i - 1].GetGpuSrv());
+			mBloom[i].Transition(cmd, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+		}
+		for (uint32_t i = kBloomLevels - 1; i > 0; --i)
+		{
+			RenderToBloom(cmd, mBloom[i - 1]);
+			DrawFullscreen(cmd, mBloomUpPSO.Get(), Vector4(1.0f, 0, 0, 0), mBloom[i].GetGpuSrv());
+			mBloom[i - 1].Transition(cmd, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+		}
+	}
+
+	void Renderer::TonemapPass(ID3D12GraphicsCommandList* cmd)
+	{
+		RD_GPU_SCOPE("Tonemap");
+		cmd->SetGraphicsRootSignature(mSimpleRS.Get());
+		mOutput.Transition(cmd, D3D12_RESOURCE_STATE_RENDER_TARGET);
+		auto rtv = mOutput.GetRtv();
+		cmd->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
+		SetViewport(cmd, mOutput.GetWidth(), mOutput.GetHeight());
+		Vector4 params(mSettings.exposure, mSettings.bloom ? mSettings.bloomIntensity : 0.0f, mSettings.vignette, mSettings.tonemap ? 1.0f : 0.0f);
+		// ブルームがないときはブルームの代わりに HDR を渡し、強さ 0 で使わない
+		DrawFullscreen(cmd, mTonemapPSO.Get(), params, mHdr.GetGpuSrv(), mSettings.bloom ? mBloom[0].GetGpuSrv() : mHdr.GetGpuSrv());
+	}
+
+	void Renderer::OverlayPass(ID3D12GraphicsCommandList* cmd, const Matrix4& viewProj)
+	{
+		RD_GPU_SCOPE("Overlay");
+		auto rtv = mOutput.GetRtv();
+		auto dsv = mDepth.GetDsv();
+		cmd->OMSetRenderTargets(1, &rtv, FALSE, &dsv);
+		SetViewport(cmd, mOutput.GetWidth(), mOutput.GetHeight());
+		cmd->SetGraphicsRootSignature(mSimpleRS.Get());
+		DrawLines(cmd, mDebug.GetDepthTested(), mLineDepthPSO.Get(), viewProj);
+		DrawLines(cmd, mDebug.GetOverlay(), mLineOverlayPSO.Get(), viewProj);
+		DrawSprites(cmd);
+	}
+
+	void Renderer::DrawLines(ID3D12GraphicsCommandList* cmd, const std::vector<DebugDraw::Vertex>& lines, ID3D12PipelineState* pso, const Matrix4& viewProj)
+	{
+		if (lines.empty() || !pso) { return; }
+		auto& device = GraphicsDevice::Get();
+		uint64_t size = sizeof(DebugDraw::Vertex) * lines.size();
+		D3D12_VERTEX_BUFFER_VIEW vbv = { device.UploadData(lines.data(), size), UINT(size), sizeof(DebugDraw::Vertex) };
+		SimpleConstants c;
+		c.matrix = viewProj;
+		cmd->SetPipelineState(pso);
+		cmd->SetGraphicsRoot32BitConstants(kSimpleConstants, sizeof(c) / 4, &c, 0);
+		cmd->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_LINELIST);
+		cmd->IASetVertexBuffers(0, 1, &vbv);
+		cmd->DrawInstanced(UINT(lines.size()), 1, 0, 0);
+		++mStats.drawCalls;
+	}
+
+	// レイヤーの順に並べて頂点を作り、同じテクスチャが続く範囲を 1 回の描画にまとめる
+	void Renderer::DrawSprites(ID3D12GraphicsCommandList* cmd)
+	{
+		auto& sprites = mList.sprites;
+		if (sprites.empty() || !mSpritePSO) { return; }
+		auto& device = GraphicsDevice::Get();
+		auto& assets = AssetManager::Get();
+		std::stable_sort(sprites.begin(), sprites.end(), [](auto& a, auto& b) { return a.layer < b.layer; });
+
+		std::vector<SpriteVertex> vertices;
+		vertices.reserve(sprites.size() * 6);
+		for (const auto& s : sprites)
+		{
+			Matrix3 m = Matrix3::CreateAffine(s.size, s.rotation, s.position);
+			Vector2 corners[4] = { { -s.pivot.x, -s.pivot.y }, { 1.0f - s.pivot.x, -s.pivot.y }, { -s.pivot.x, 1.0f - s.pivot.y }, { 1.0f - s.pivot.x, 1.0f - s.pivot.y } };
+			Vector2 uvs[4] = { { s.uvRect.x, s.uvRect.y }, { s.uvRect.z, s.uvRect.y }, { s.uvRect.x, s.uvRect.w }, { s.uvRect.z, s.uvRect.w } };
+			SpriteVertex v[4];
+			for (int i = 0; i < 4; ++i) { v[i] = { corners[i] * m, uvs[i], s.color }; }
+			vertices.insert(vertices.end(), { v[0], v[1], v[2], v[2], v[1], v[3] });
+		}
+		uint64_t size = sizeof(SpriteVertex) * vertices.size();
+		D3D12_VERTEX_BUFFER_VIEW vbv = { device.UploadData(vertices.data(), size), UINT(size), sizeof(SpriteVertex) };
+
+		SimpleConstants c;
+		c.matrix = Matrix4::CreateOrthographic(0.0f, 0.0f, float(mOutput.GetWidth()), float(mOutput.GetHeight()), 0.0f, 1.0f);
+		cmd->SetPipelineState(mSpritePSO.Get());
+		cmd->SetGraphicsRoot32BitConstants(kSimpleConstants, sizeof(c) / 4, &c, 0);
+		cmd->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+		cmd->IASetVertexBuffers(0, 1, &vbv);
+
+		size_t start = 0;
+		while (start < sprites.size())
+		{
+			const Texture* tex = sprites[start].texture;
+			size_t end = start + 1;
+			while (end < sprites.size() && sprites[end].texture == tex) { ++end; }
+			cmd->SetGraphicsRootDescriptorTable(kSimpleTex0, TextureSrv(tex, assets.GetWhiteTexture()));
+			cmd->DrawInstanced(UINT((end - start) * 6), 1, UINT(start * 6), 0);
+			++mStats.drawCalls;
+			start = end;
+		}
+		mStats.sprites = uint32_t(sprites.size());
+	}
+
+	void Renderer::BlitToBackBuffer()
+	{
+		auto& device = GraphicsDevice::Get();
+		auto cmd = device.GetCommandList();
+		auto rtv = device.GetBackBufferRtv();
+		cmd->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
+		float black[4] = { 0, 0, 0, 1 };
+		cmd->ClearRenderTargetView(rtv, black, 0, nullptr);
+		SetViewport(cmd, device.GetWidth(), device.GetHeight());
+		cmd->SetGraphicsRootSignature(mSimpleRS.Get());
+		if (mOutput.GetResource()) { DrawFullscreen(cmd, mBlitPSO.Get(), Vector4(), mOutput.GetGpuSrv()); }
+	}
+
+	// スクリーンショット用に読み戻しのバッファへ写す
+	//  total は最後の行のパディングを含まないので、読む側（RowPitch * Height）に合わせて確保する
+	void Renderer::CopyOutputForCapture(ID3D12GraphicsCommandList* cmd)
+	{
+		auto& device = GraphicsDevice::Get();
+		auto desc = mOutput.GetResource()->GetDesc();
+		UINT64 total = 0;
+		device.GetDevice()->GetCopyableFootprints(&desc, 0, 1, 0, &mCaptureFootprint, nullptr, nullptr, &total);
+		CD3DX12_HEAP_PROPERTIES heap(D3D12_HEAP_TYPE_READBACK);
+		UINT64 size = std::max<UINT64>(total, UINT64(mCaptureFootprint.Footprint.RowPitch) * mCaptureFootprint.Footprint.Height);
+		auto bufDesc = CD3DX12_RESOURCE_DESC::Buffer(size);
+		mCaptureBuffer.Reset();
+		RD_CHECK_HR(device.GetDevice()->CreateCommittedResource(&heap, D3D12_HEAP_FLAG_NONE, &bufDesc,
+			D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&mCaptureBuffer)));
+		mOutput.Transition(cmd, D3D12_RESOURCE_STATE_COPY_SOURCE);
+		CD3DX12_TEXTURE_COPY_LOCATION dst(mCaptureBuffer.Get(), mCaptureFootprint);
+		CD3DX12_TEXTURE_COPY_LOCATION src(mOutput.GetResource(), 0);
+		cmd->CopyTextureRegion(&dst, 0, 0, 0, &src, nullptr);
+		mPendingCapturePath = std::move(mCapturePath);
+		mCapturePath.clear();
+	}
+
+	void Renderer::FinishCapture()
+	{
+		if (mPendingCapturePath.empty() || !mCaptureBuffer) { return; }
+		GraphicsDevice::Get().WaitIdle();
+		uint8_t* data = nullptr;
+		D3D12_RANGE range = { 0, SIZE_T(mCaptureFootprint.Footprint.RowPitch) * mCaptureFootprint.Footprint.Height };
+		if (SUCCEEDED(mCaptureBuffer->Map(0, &range, reinterpret_cast<void**>(&data))))
+		{
+			DirectX::Image image = {};
+			image.width = mCaptureFootprint.Footprint.Width;
+			image.height = mCaptureFootprint.Footprint.Height;
+			image.format = DXGI_FORMAT_R8G8B8A8_UNORM;
+			image.rowPitch = mCaptureFootprint.Footprint.RowPitch;
+			image.slicePitch = image.rowPitch * image.height;
+			image.pixels = data;
+			std::filesystem::path path(ToWide(mPendingCapturePath));
+			if (path.has_parent_path()) { std::filesystem::create_directories(path.parent_path()); }
+			HRESULT hr = DirectX::SaveToWICFile(image, DirectX::WIC_FLAGS_NONE,
+				DirectX::GetWICCodec(DirectX::WIC_CODEC_PNG), path.c_str());
+			mCaptureBuffer->Unmap(0, nullptr);
+			if (SUCCEEDED(hr)) { Log::Info(LogCat::Render, "Saved screenshot: {}", mPendingCapturePath); }
+			else { Log::Error(LogCat::Render, "Failed to save screenshot: {}", mPendingCapturePath); }
+		}
+		mPendingCapturePath.clear();
+		mCaptureBuffer.Reset();
+	}
+}

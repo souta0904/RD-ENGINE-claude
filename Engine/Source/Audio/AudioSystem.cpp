@@ -1,6 +1,6 @@
 #include "RdPch.h"
 #include "Audio/AudioSystem.h"
-#include "Asset/AudioClip.h"
+#include "Asset/Audio/AudioClip.h"
 #include <xaudio2.h>
 
 #pragma comment(lib, "xaudio2.lib")

@@ -1,6 +1,6 @@
 #include "RdPch.h"
 #include "FrameCapture.h"
-#include "Render/Renderer.h"
+#include "Render/Renderer/Renderer.h"
 
 namespace rd
 {

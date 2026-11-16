@@ -2,7 +2,7 @@
 #include "Editor/Editor.h"
 #include "Editor/AIAssistant.h"
 #include "Asset/AssetManager.h"
-#include "Asset/Model.h"
+#include "Asset/Model/Model.h"
 #include "Components/CameraComponent.h"
 #include "Components/Lights.h"
 #include "Components/MeshRenderer.h"
@@ -13,8 +13,8 @@
 #include "Physics/Collider.h"
 #include "Physics/PhysicsWorld.h"
 #include "Platform/Input/Input.h"
-#include "Render/DebugDraw.h"
-#include "Render/Renderer.h"
+#include "Render/Debug/DebugDraw.h"
+#include "Render/Renderer/Renderer.h"
 #include "Scene/Scene.h"
 #include <commdlg.h>
 #include <ImGui/imgui.h>

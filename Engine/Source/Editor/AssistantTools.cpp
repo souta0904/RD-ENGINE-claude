@@ -1,6 +1,6 @@
 #include "RdPch.h"
 #include "Editor/AssistantTools.h"
-#include "Asset/AudioClip.h"
+#include "Asset/Audio/AudioClip.h"
 #include "Core/Util/StringUtil.h"
 #include "Core/Util/FileUtil.h"
 #include "Scene/ComponentRegistry.h"
