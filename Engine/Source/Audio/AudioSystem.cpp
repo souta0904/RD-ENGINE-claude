@@ -7,18 +7,6 @@
 
 namespace rd
 {
-	struct AudioSystem::Voice
-	{
-		VoiceId id = 0;
-		IXAudio2SourceVoice* source = nullptr;
-		AssetRef<AudioClip> clip;// 再生中はデータを保持しておく
-		PlayParams params;
-		uint32_t channels = 1;
-	};
-
-	AudioSystem::AudioSystem() = default;
-	AudioSystem::~AudioSystem() = default;
-
 	bool AudioSystem::Initialize()
 	{
 		RD_ASSERT(!sInstance);
@@ -61,7 +49,7 @@ namespace rd
 	{
 		for (auto it = mVoices.begin(); it != mVoices.end();)
 		{
-			Voice& v = **it;
+			AudioVoice& v = **it;
 			XAUDIO2_VOICE_STATE state = {};
 			v.source->GetState(&state, XAUDIO2_VOICE_NOSAMPLESPLAYED);
 			if (state.BuffersQueued == 0)
@@ -79,7 +67,7 @@ namespace rd
 	{
 		if (!mXAudio || !clip || !clip->IsReady()) { return kInvalidVoice; }
 
-		auto voice = std::make_unique<Voice>();
+		auto voice = std::make_unique<AudioVoice>();
 		voice->id = mNextId++;
 		voice->clip = clip;
 		voice->params = params;
@@ -176,43 +164,42 @@ namespace rd
 		mListenerRight = Normalize(right);
 	}
 
-	void AudioSystem::ApplySpatial(Voice& v)
+	void AudioSystem::ApplySpatial(AudioVoice& v)
 	{
-		// 距離減衰（逆数カーブ）
+		// 距離の逆数で弱め、maxDistance に向けて 0 まで下げる
 		Vector3 toSource = v.params.position - mListenerPos;
 		float dist = Length(toSource);
 		float att = 1.0f;
 		if (dist > v.params.minDistance)
 		{
 			att = v.params.minDistance / dist;
-			// 最大距離に向けて 0 へフェード
 			float fade = math::Saturate((v.params.maxDistance - dist) / std::max(v.params.maxDistance * 0.2f, 0.001f));
 			att *= fade;
 		}
 		v.source->SetVolume(v.params.volume * att);
 
-		// 左右のパン（ステレオ出力のみ）
+		// 左右のパン（ステレオ以上の出力のとき。pan は -1 が左、1 が右）
 		if (mOutputChannels < 2) { return; }
-		float pan = dist > 1.0e-3f ? Dot(toSource / dist, mListenerRight) : 0.0f;// -1 (左) ～ 1 (右)
+		float pan = dist > 1.0e-3f ? Dot(toSource / dist, mListenerRight) : 0.0f;
 		float left = std::sqrt(0.5f * (1.0f - pan));
 		float right = std::sqrt(0.5f * (1.0f + pan));
 		std::vector<float> matrix(size_t(v.channels) * mOutputChannels, 0.0f);
 		for (uint32_t c = 0; c < v.channels; ++c)
 		{
-			// 行列は [出力ch][入力ch]
+			// 出力行列の並びは [出力チャンネル][入力チャンネル]
 			matrix[0 * v.channels + c] = left;
 			matrix[1 * v.channels + c] = right;
 		}
 		v.source->SetOutputMatrix(mBuses[size_t(v.params.bus)], v.channels, mOutputChannels, matrix.data());
 	}
 
-	AudioSystem::Voice* AudioSystem::Find(VoiceId id)
+	AudioVoice* AudioSystem::Find(VoiceId id)
 	{
 		for (auto& v : mVoices) { if (v->id == id) { return v.get(); } }
 		return nullptr;
 	}
 
-	const AudioSystem::Voice* AudioSystem::Find(VoiceId id) const
+	const AudioVoice* AudioSystem::Find(VoiceId id) const
 	{
 		for (auto& v : mVoices) { if (v->id == id) { return v.get(); } }
 		return nullptr;

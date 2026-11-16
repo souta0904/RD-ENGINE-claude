@@ -8,14 +8,13 @@ namespace rd
 	class Scene;
 	class Window;
 
-	// 1 フレームの描画の組み立て
-	//  カメラの決定 → シーンの描画 → バックバッファへの合成（エディタ UI か、ゲーム画面のコピー）
-	//  デバイスの BeginFrame / EndFrame の間で呼ぶ。
+	// 1 フレームの描画の組み立て（デバイスの BeginFrame / EndFrame の間で呼ぶ）
+	//  カメラを決める → シーンを描く → バックバッファへまとめる（エディタの UI か、ゲーム画面のコピー）
+	//  overlay（エディタなど）がなければゲーム画面をそのまま出す
 	class FrameComposer
 	{
 	public:
 		void Initialize(Window& window, GraphicsDevice& device, Renderer& renderer);
-		// エディタなどの割り込み層（nullptr でゲーム画面をそのまま表示）
 		void SetOverlay(FrameOverlay* overlay) { mOverlay = overlay; }
 		void Render(Scene& scene, float realTime);
 

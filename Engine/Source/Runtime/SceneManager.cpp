@@ -1,8 +1,7 @@
 #include "RdPch.h"
-#include "SceneManager.h"
-#include "Components/CameraComponent.h"
-#include "Components/Lights.h"
-#include "Core/Util/StringUtil.h"
+#include "Runtime/SceneManager.h"
+#include "Components/Lighting/DirectionalLight.h"
+#include "Components/Rendering/CameraComponent.h"
 #include "Core/Util/FileUtil.h"
 #include "Scene/Scene.h"
 
@@ -14,7 +13,7 @@ namespace rd
 	void SceneManager::CreateInitial(const std::string& path, const std::function<void(Scene&)>& build)
 	{
 		mScene = std::make_unique<Scene>();
-		if (!path.empty() && std::filesystem::exists(ToWide(path)))
+		if (!path.empty() && FileExists(path))
 		{
 			mScene->LoadFromFile(path);
 		}
@@ -30,9 +29,9 @@ namespace rd
 		mPendingScenePath = path;
 	}
 
+	// 太陽とカメラだけの空のシーン
 	void SceneManager::NewScene()
 	{
-		// 空のシーン（太陽とカメラだけ）
 		auto scene = std::make_unique<Scene>();
 		Actor* sun = scene->CreateActor("Directional Light");
 		sun->AddComponent<DirectionalLight>();

@@ -7,33 +7,31 @@ namespace rd
 {
 	class Scene;
 
-	// 現在のシーンの所有と切り替え
-	//  LoadScene / NewScene / ReplaceScene は保留され、フレームの区切りの ApplyPending で差し替わる。
+	// 今のシーンを持ち、切り替える
+	//  LoadScene / NewScene / ReplaceScene は予約だけして、フレームの区切りの ApplyPending で差し替える
+	//  差し替える直前に BeforeSwap が呼ばれる（GPU の完了待ちや音の停止。エンジンが設定する）
 	class SceneManager
 	{
 	public:
 		SceneManager();
 		~SceneManager();
 
-		// シーンを差し替える直前に呼ばれる（GPU の完了待ちや音の停止。エンジンが設定する）
 		void SetBeforeSwap(std::function<void()> callback) { mBeforeSwap = std::move(callback); }
 
-		// 起動時のシーン（path のファイルがあれば読み、なければ build で組み立てる）
+		// path のファイルがあれば読み、なければ build で組み立てる
 		void CreateInitial(const std::string& path, const std::function<void(Scene&)>& build);
 
 		Scene& GetScene() { return *mScene; }
 		bool HasScene() const { return mScene != nullptr; }
 
-		// シーン切り替えの予約（フレームの区切りで行われる）
 		void LoadScene(const std::string& path);
 		void NewScene();
 		void ReplaceScene(std::unique_ptr<Scene> scene);
 
-		// 予約された切り替えを反映する。切り替えたら true
+		// 差し替えたら true
 		bool ApplyPending();
-		// 即座に差し替える（BeforeSwap は呼ぶ）
+		// すぐに差し替える（BeforeSwap は呼ぶ）
 		void SetScene(std::unique_ptr<Scene> scene);
-		// すべてのシーンを破棄（終了時）
 		void Clear();
 
 	private:

@@ -3,16 +3,15 @@
 #include "Asset/AssetManager.h"
 #include "Audio/AudioSystem.h"
 #include "Runtime/BuiltinComponents.h"
-#include "Components/CameraComponent.h"
+#include "Components/Rendering/CameraComponent.h"
 #include "Core/Debug/CrashHandler.h"
 #include "Core/Jobs/JobSystem.h"
 #include "Core/Profiling/ProfileScope.h"
 #include "Core/Time/Time.h"
 #include "Core/Time/Timer.h"
-#include "Core/Time/ScopedTimer.h"
 #include "Platform/Input/Input.h"
 #include "Render/Renderer/Renderer.h"
-#include "RHI/Device/GpuScope.h"
+#include "RHI/Device/GraphicsDevice.h"
 #include "Scene/Scene.h"
 #if RD_EDITOR
 #include "Editor/Editor.h"
@@ -53,7 +52,8 @@ namespace rd
 				timer.Tick();
 				continue;
 			}
-			float dt = std::min(timer.Tick(), 0.1f);// デバッガ停止などの巨大な dt を防ぐ
+			// デバッガで止めたときなどの大きすぎる dt を防ぐ
+			float dt = std::min(timer.Tick(), 0.1f);
 			Time::sRealTime = timer.GetTotalSeconds();
 			Frame(dt);
 		}
@@ -75,7 +75,6 @@ namespace rd
 			CrashHandler::Settings crash = mConfig.crash;
 			crash.directory = mConfig.log.directory;
 			CrashHandler::Install(crash);
-			// レポートに載せる情報（落ちたときに呼ばれる）
 			CrashHandler::SetContext("Engine", [] { return std::format("{} {}{}", kName, kVersion, RD_EDITOR ? "" : " (Game)"); });
 			CrashHandler::SetContext("Frame", [this] { return std::to_string(mFrameCount); });
 			CrashHandler::SetContext("Scene", [this] { return mScenes.HasScene() ? mScenes.GetScene().GetPath() : std::string("(none)"); });
@@ -134,7 +133,6 @@ namespace rd
 				mAudio->StopAll();
 			});
 
-		// 初期シーン
 		mScenes.CreateInitial(mConfig.startScene, mConfig.buildDefaultScene);
 
 #if RD_EDITOR
@@ -143,7 +141,7 @@ namespace rd
 		if (mEditor && mConfig.autoPlay) { BeginPlay(); }
 		SetWindowTitleSuffix("");
 #else
-		mPlay.SetPlaying(true);// エディタなしでは常にプレイ中
+		mPlay.SetPlaying(true);
 #endif
 		return true;
 	}
@@ -185,7 +183,7 @@ namespace rd
 		mDevice->BeginFrame();
 
 #if RD_EDITOR
-		// エディタ UI（ビューポートの大きさやカメラもここで決まる。Stop でシーンが差し替わることもある）
+		// ビューポートの大きさやカメラもここで決まる（Stop でシーンが差し替わることもある）
 		if (mEditor)
 		{
 			RD_PROFILE_SCOPE("Editor");
@@ -198,7 +196,6 @@ namespace rd
 			Input::SetBlocked(false, false);
 		}
 
-		// シーン更新（プレイ中でなければ編集用の更新のみ）
 		Scene& scene = mScenes.GetScene();
 		{
 			RD_PROFILE_SCOPE("Scene Update");
@@ -209,7 +206,6 @@ namespace rd
 			UpdateAudio(scene);
 		}
 
-		// 描画 → バックバッファへ
 		mCapture.BeforeRender(*mRenderer, mFrameCount);
 		{
 			RD_PROFILE_SCOPE("Render");
@@ -227,7 +223,7 @@ namespace rd
 
 	void Engine::UpdateAudio(Scene& scene)
 	{
-		// リスナーはゲームカメラ
+		// 音を聞く位置はゲームのカメラ
 		if (CameraComponent* mainCam = CameraComponent::FindMain(scene))
 		{
 			mAudio->SetListener(mainCam->GetTransform().GetPosition(), mainCam->GetTransform().GetRight());
@@ -235,9 +231,6 @@ namespace rd
 		mAudio->Update();
 	}
 
-	// ==================================================
-	// プレイ（エディタ）
-	// ==================================================
 #if RD_EDITOR
 	void Engine::BeginPlay()
 	{
@@ -255,9 +248,6 @@ namespace rd
 	}
 #endif
 
-	// ==================================================
-	// シーン
-	// ==================================================
 	void Engine::ApplyPendingScene()
 	{
 		if (!mScenes.ApplyPending()) { return; }

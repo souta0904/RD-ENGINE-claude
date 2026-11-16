@@ -3,7 +3,7 @@
 #include "Asset/Audio/AudioClip.h"
 #include "Core/Util/StringUtil.h"
 #include "Core/Util/FileUtil.h"
-#include "Scene/ComponentRegistry.h"
+#include "Scene/Component/ComponentRegistry.h"
 #include "Scene/Scene.h"
 
 // AI アシスタントが使うツール（シーンの読み書き）

@@ -1,7 +1,6 @@
 #include "RdPch.h"
 #include "EngineConfig.h"
 #include "Core/Util/StringUtil.h"
-#include "Core/Util/FileUtil.h"
 #include <shellapi.h>
 
 namespace rd
@@ -32,7 +31,7 @@ namespace rd
 			else if (arg == "-nocrashdialog") { crash.showDialog = false; }
 			else if (arg == "-capture" && i + 1 < argc)
 			{
-				crash.showDialog = false;// 自動テスト中は止めない
+				crash.showDialog = false;
 				captureFrame = std::stoi(ToUtf8(argv[++i]));
 				if (i + 1 < argc && argv[i + 1][0] != L'-') { capturePath = ToUtf8(argv[++i]); }
 			}

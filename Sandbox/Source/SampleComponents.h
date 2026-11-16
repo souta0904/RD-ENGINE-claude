@@ -1,9 +1,10 @@
 #pragma once
 // エンジンの使い方を示すサンプルのゲーム用コンポーネント
-#include "Scene/Actor.h"
-#include "Scene/Component.h"
-#include "Scene/ObjectRef.h"
-#include "Components/Animator.h"
+#include "Scene/Actor/Actor.h"
+#include "Scene/Component/Component.h"
+#include "Scene/Reference/ActorRef.h"
+#include "Scene/Reference/ComponentRef.h"
+#include "Components/Animation/Animator.h"
 
 namespace sample
 {

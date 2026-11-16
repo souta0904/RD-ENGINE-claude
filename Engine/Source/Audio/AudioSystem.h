@@ -1,35 +1,15 @@
 #pragma once
-#include "Asset/Asset.h"
-#include "Math/Vector4.h"
-#include <cstdint>
+#include "Audio/AudioVoice.h"
 #include <memory>
 #include <vector>
 
 struct IXAudio2;
 struct IXAudio2MasteringVoice;
 struct IXAudio2SubmixVoice;
-struct IXAudio2SourceVoice;
 
 namespace rd
 {
-	class AudioClip;
-
-	enum class AudioBus : uint8_t { Music, Effects, Count };
-
-	struct PlayParams
-	{
-		float volume = 1.0f;
-		float pitch = 1.0f;
-		bool loop = false;
-		AudioBus bus = AudioBus::Effects;
-		bool spatial = false;// 3D 定位（position を使う）
-		Vector3 position;
-		float minDistance = 1.0f;// これより近いと音量最大
-		float maxDistance = 50.0f;// これより遠いと無音
-	};
-
-	// XAudio2 による音声再生
-	//  BGM/SE のバスごとの音量、ループ、簡易 3D 定位（距離減衰とパン）に対応
+	// XAudio2 での音の再生（BGM / 効果音のバスごとの音量、ループ、簡単な 3D（距離での減衰と左右のパン））
 	class AudioSystem
 	{
 	public:
@@ -37,12 +17,10 @@ namespace rd
 		static constexpr VoiceId kInvalidVoice = 0;
 
 		static AudioSystem& Get() { return *sInstance; }
-		AudioSystem();
-		~AudioSystem();
 
 		bool Initialize();
 		void Shutdown();
-		// 再生終了したボイスの片付けと 3D 定位の更新
+		// 鳴り終わった音を片付け、3D の音の位置を反映する
 		void Update();
 
 		VoiceId Play(const AssetRef<AudioClip>& clip, const PlayParams& params = {});
@@ -61,10 +39,9 @@ namespace rd
 		uint32_t GetActiveVoiceCount() const { return uint32_t(mVoices.size()); }
 
 	private:
-		struct Voice;
-		void ApplySpatial(Voice& voice);
-		Voice* Find(VoiceId id);
-		const Voice* Find(VoiceId id) const;
+		void ApplySpatial(AudioVoice& voice);
+		AudioVoice* Find(VoiceId id);
+		const AudioVoice* Find(VoiceId id) const;
 
 		static inline AudioSystem* sInstance = nullptr;
 		IXAudio2* mXAudio = nullptr;
@@ -72,7 +49,7 @@ namespace rd
 		IXAudio2SubmixVoice* mBuses[size_t(AudioBus::Count)] = {};
 		float mBusVolumes[size_t(AudioBus::Count)] = { 1.0f, 1.0f };
 		uint32_t mOutputChannels = 2;
-		std::vector<std::unique_ptr<Voice>> mVoices;
+		std::vector<std::unique_ptr<AudioVoice>> mVoices;
 		VoiceId mNextId = 1;
 		Vector3 mListenerPos;
 		Vector3 mListenerRight = Vector3::kUnitX;

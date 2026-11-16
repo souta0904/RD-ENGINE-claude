@@ -1,5 +1,5 @@
 #include "RdPch.h"
-#include "PlayController.h"
+#include "Runtime/PlayController.h"
 #include "Core/Time/Time.h"
 #include "Scene/Scene.h"
 
@@ -16,12 +16,12 @@ namespace rd
 		return true;
 	}
 
+	// パスは今のシーンのものを引き継ぐ
 	std::unique_ptr<Scene> PlayController::End(const Scene& current)
 	{
 		if (!mPlaying) { return nullptr; }
 		mPlaying = false;
 		mPaused = false;
-		// プレイ前の状態へ戻す（パスは現在のものを引き継ぐ）
 		std::string path = current.GetPath();
 		auto scene = std::make_unique<Scene>();
 		scene->Deserialize(Json::parse(mSnapshot));
@@ -30,6 +30,7 @@ namespace rd
 	}
 #endif
 
+	// 一時停止中でも Step を頼まれたら固定時間 1 回分だけ進める
 	PlayController::FrameTime PlayController::AdvanceTime(float dt)
 	{
 		FrameTime t;

@@ -2,6 +2,6 @@
 
 namespace rd
 {
-	// エンジン組み込みコンポーネントを ComponentRegistry に登録
+	// エンジンの組み込みのコンポーネントを ComponentRegistry に登録する
 	void RegisterBuiltinComponents();
 }

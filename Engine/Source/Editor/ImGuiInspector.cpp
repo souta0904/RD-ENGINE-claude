@@ -3,7 +3,8 @@
 #include "Core/Util/StringUtil.h"
 #include "Core/Util/FileUtil.h"
 #include "Editor/Editor.h"
-#include "Scene/ObjectRef.h"
+#include "Scene/Reference/ActorRef.h"
+#include "Scene/Reference/ComponentRef.h"
 #include "Scene/Scene.h"
 #include <ImGui/imgui.h>
 #include <ImGui/imgui_stdlib.h>

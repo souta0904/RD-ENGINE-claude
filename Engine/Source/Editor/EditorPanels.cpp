@@ -11,10 +11,10 @@
 #include "Core/Time/Time.h"
 #include "Editor/ImGuiInspector.h"
 #include "Engine.h"
-#include "Physics/PhysicsWorld.h"
+#include "Physics/World/PhysicsWorld.h"
 #include "Render/Renderer/Renderer.h"
 #include "RHI/Device/GpuScope.h"
-#include "Scene/ComponentRegistry.h"
+#include "Scene/Component/ComponentRegistry.h"
 #include "Scene/Scene.h"
 #include <ImGui/imgui.h>
 #include <ImGui/imgui_internal.h>

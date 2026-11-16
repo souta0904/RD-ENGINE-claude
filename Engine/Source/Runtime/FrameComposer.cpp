@@ -1,6 +1,6 @@
 #include "RdPch.h"
-#include "FrameComposer.h"
-#include "Components/CameraComponent.h"
+#include "Runtime/FrameComposer.h"
+#include "Components/Rendering/CameraComponent.h"
 #include "Platform/Window/Window.h"
 #include "Render/Renderer/Renderer.h"
 #include "RHI/Device/GpuScope.h"
@@ -16,9 +16,9 @@ namespace rd
 		mRenderer = &renderer;
 	}
 
+	// カメラは overlay のカメラ → シーンのメインカメラ → 決まった位置、の順に使う
 	void FrameComposer::Render(Scene& scene, float realTime)
 	{
-		// カメラを決める（割り込み層のカメラ → シーンのメインカメラ → 既定位置）
 		uint32_t viewW = mWindow->GetWidth(), viewH = mWindow->GetHeight();
 		if (mOverlay) { mOverlay->GetViewportSize(viewW, viewH); }
 		float aspect = float(std::max(1u, viewW)) / float(std::max(1u, viewH));
@@ -37,7 +37,6 @@ namespace rd
 			}
 		}
 
-		// 描画
 		auto& renderer = *mRenderer;
 		{
 			RD_PROFILE_SCOPE("Collect Render");
@@ -49,6 +48,7 @@ namespace rd
 		ComposeBackBuffer();
 	}
 
+	// overlay があれば UI を描く（ゲーム画面は UI の中にテクスチャとして描かれる）
 	void FrameComposer::ComposeBackBuffer()
 	{
 		RD_GPU_SCOPE(mOverlay ? "Editor UI" : "Blit");
@@ -57,7 +57,6 @@ namespace rd
 		TransitionBarrier(cmd, device.GetBackBuffer(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
 		if (mOverlay)
 		{
-			// 割り込み層の UI（ゲーム画面はその中にテクスチャとして描かれる）
 			auto rtv = device.GetBackBufferRtv();
 			cmd->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
 			float clear[4] = { 0.08f, 0.08f, 0.09f, 1.0f };

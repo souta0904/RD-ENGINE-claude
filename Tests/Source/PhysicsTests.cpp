@@ -1,5 +1,6 @@
 #include "TestFramework.h"
-#include "Physics/Shapes.h"
+#include "Physics/Collision/ShapeCollision.h"
+#include "Physics/Collision/ClosestPoint.h"
 
 using namespace rd;
 

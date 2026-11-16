@@ -1,7 +1,7 @@
 #pragma once
 #include "Core/Serialization/JsonReader.h"
 #include "Core/Serialization/JsonWriter.h"
-#include "Scene/Actor.h"
+#include "Scene/Actor/Actor.h"
 #include <chrono>
 #include <memory>
 #include <string>

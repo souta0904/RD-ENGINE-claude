@@ -1,7 +1,8 @@
 #include "TestFramework.h"
 #include "TestComponents.h"
 #include "Core/Time/Time.h"
-#include "Scene/ComponentRegistry.h"
+#include "Scene/Component/ComponentRegistry.h"
+#include "Core/Serialization/JsonReader.h"
 #include "Scene/Scene.h"
 #include <algorithm>
 #include <filesystem>

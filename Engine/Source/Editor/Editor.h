@@ -3,7 +3,7 @@
 #include "Editor/ImGuiLayer.h"
 #include "Editor/CommandHistory.h"
 #include "Runtime/FrameOverlay.h"
-#include "Scene/Actor.h"
+#include "Scene/Actor/Actor.h"
 #include <string>
 #include <vector>
 

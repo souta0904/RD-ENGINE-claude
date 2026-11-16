@@ -1,6 +1,7 @@
 #pragma once
-#include "Scene/Actor.h"
-#include "Scene/ObjectRef.h"
+#include "Scene/Actor/Actor.h"
+#include "Scene/Reference/ActorRef.h"
+#include "Scene/Reference/ComponentRef.h"
 #include <string>
 #include <vector>
 

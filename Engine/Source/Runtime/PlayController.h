@@ -6,33 +6,32 @@ namespace rd
 {
 	class Scene;
 
-	// プレイ状態（Play / Pause / Step）とゲーム時間の進行
+	// プレイの状態（Play / Pause / Step）とゲーム時間の進め方
+	//  エディタではプレイを始めるときにシーンを保存しておき、止めたときにその状態へ戻す
 	class PlayController
 	{
 	public:
-		// 1 フレーム分の時間の進め方
+		// advance: ゲームを進めるか、gameDt: TimeScale を掛けた経過時間（進めないときは 0）
 		struct FrameTime
 		{
-			bool advance = false;// ゲームを進めるか
-			float gameDt = 0.0f;// timeScale 適用済み（進めないときは 0）
+			bool advance = false;
+			float gameDt = 0.0f;
 		};
 
 		bool IsPlaying() const { return mPlaying; }
 		bool IsPaused() const { return mPaused; }
 		void SetPaused(bool paused) { mPaused = paused; }
 		void StepFrame() { mStepRequested = true; }
-
-		// プレイ状態を直接設定（エディタなしの常時プレイ、シーン切り替え時の停止）
+		// エディタなしでの常時プレイや、シーンの切り替えでの停止に使う
 		void SetPlaying(bool playing) { mPlaying = playing; }
 
 #if RD_EDITOR
-		// プレイ開始（停止時に戻すためシーンのスナップショットを取る）。すでにプレイ中なら false
+		// もうプレイ中なら false
 		bool Begin(const Scene& scene);
-		// プレイ終了。スナップショットから復元したシーンを返す（プレイ中でなければ nullptr）
+		// 保存しておいたシーンを作り直して返す（プレイ中でなければ nullptr）
 		std::unique_ptr<Scene> End(const Scene& current);
 #endif
 
-		// 実時間 dt からゲーム時間を決めて Time を更新する
 		FrameTime AdvanceTime(float dt);
 
 	private:
@@ -40,7 +39,7 @@ namespace rd
 		bool mPaused = false;
 		bool mStepRequested = false;
 #if RD_EDITOR
-		std::string mSnapshot;// プレイ開始時のシーン
+		std::string mSnapshot;
 #endif
 	};
 }

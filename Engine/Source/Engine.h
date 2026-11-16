@@ -20,10 +20,10 @@ namespace rd
 	class Renderer;
 	class Scene;
 
-	// エンジン本体
-	//  サブシステムの所有と初期化・終了の順番、メインループの進行を受け持つ。
-	//  シーン切り替えは SceneManager、プレイ状態は PlayController、描画の組み立ては FrameComposer に任せる。
-	//  RD_EDITOR=0（Game 構成）ではエディタを持たず、常にプレイ中として動く。
+	// エンジン本体（サブシステムを持ち、初期化と終了の順番とメインループを受け持つ）
+	//  シーンの切り替えは SceneManager、プレイの状態は PlayController、描画の組み立ては FrameComposer に任せる。
+	//  RD_EDITOR=0（Game 構成）ではエディタを持たず、いつもプレイ中として動く。
+	//  サブシステムは上から順に作り、Shutdown で逆の順に消す
 	class Engine
 	{
 	public:
@@ -45,18 +45,17 @@ namespace rd
 		SceneManager& GetSceneManager() { return mScenes; }
 		PlayController& GetPlayController() { return mPlay; }
 
-		// プレイ状態（エディタなしでは常にプレイ中）
 		bool IsPlaying() const { return mPlay.IsPlaying(); }
 		bool IsPaused() const { return mPlay.IsPaused(); }
 		void SetPaused(bool paused) { mPlay.SetPaused(paused); }
 		void StepFrame() { mPlay.StepFrame(); }
 #if RD_EDITOR
-		// エディタの Play / Stop（Stop でプレイ前のシーンに戻す）
+		// Stop でプレイ前のシーンに戻す
 		void BeginPlay();
 		void EndPlay();
 #endif
 
-		// シーン（切り替えはフレームの区切りで行われる）
+		// 切り替えはフレームの区切りで行われる
 		Scene& GetScene() { return mScenes.GetScene(); }
 		void LoadScene(const std::string& path) { mScenes.LoadScene(path); }
 		void NewScene() { mScenes.NewScene(); }
@@ -65,7 +64,7 @@ namespace rd
 		float GetFps() const { return mStats.GetFps(); }
 		float GetFrameMs() const { return mStats.GetFrameMs(); }
 #if RD_EDITOR
-		// タイトルを「エンジン名 - シーンパス + suffix」にする（未保存の * 表示など）
+		// タイトルを「エンジン名 - シーンのパス + suffix」にする（保存していない * など）
 		void SetWindowTitleSuffix(const std::string& suffix);
 #endif
 
@@ -79,7 +78,6 @@ namespace rd
 		static inline Engine* sInstance = nullptr;
 		EngineConfig mConfig;
 
-		// サブシステム（生成は上から順、破棄は Shutdown で逆順）
 		Window mWindow;
 		std::unique_ptr<GraphicsDevice> mDevice;
 		std::unique_ptr<AssetManager> mAssets;
