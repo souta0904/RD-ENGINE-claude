@@ -23,6 +23,9 @@ namespace rd
 		bool loop = true;
 		bool playOnStart = true;
 		bool previewInEditor = false;
+		// 子孫のうち関節と同じ名前のアクターを、アニメーションの姿勢に合わせて動かす
+		//  （手や頭に付けた当たり判定を骨に付いて行かせるため。姿勢の計算を LateUpdate で待つ）
+		bool driveBoneActors = false;
 
 		~Animator() override { JobSystem::Wait(mJob); }
 		void Reflect(PropertyVisitor& v) override;
@@ -30,6 +33,7 @@ namespace rd
 		void OnDestroy() override { JobSystem::Wait(mJob); }
 		void Start() override;
 		void Update(float dt) override;
+		void LateUpdate(float dt) override;
 		void OnEditorUpdate(float dt) override;
 #if RD_EDITOR
 		void OnInspectorGUI() override;
@@ -42,6 +46,11 @@ namespace rd
 		float GetTime() const { return mTime; }
 		float GetNormalizedTime() const;
 		std::vector<std::string> GetClipNames() const;
+
+		// 関節の向きに、アニメーションの後からワールド空間の回転を足す（首をネズミに向けるなど）
+		//  消すまで毎フレームかかる。identity を渡すと消える
+		void SetJointRotationOffset(const std::string& joint, const Quaternion& worldRotation);
+		void ClearJointRotationOffsets() { mJointOffsets.clear(); }
 
 		// 描くときのスキニング行列（このフレームの GPU アドレス。まだなら 0）
 		D3D12_GPU_VIRTUAL_ADDRESS GetPaletteGpu(const Model* skinModel);
@@ -62,6 +71,27 @@ namespace rd
 		void SchedulePose(const Skeleton& skeleton);
 		std::shared_ptr<AnimationClip> ResolveClip(const std::string& source, const std::string& name);
 		void BindLayer(Layer& layer, const Skeleton& skeleton);
+		void BindBoneActors(const Skeleton& skeleton);
+		void WriteBoneActors();
+
+		// 関節に付いて行くアクター（offset はバインドポーズでのアクターのワールド * 関節のバインドの逆）
+		struct BoneActor
+		{
+			int32_t joint = -1;
+			Actor* actor = nullptr;
+			Matrix4 offset;
+		};
+		// rotation はモデル空間の回転
+		struct JointOffset
+		{
+			std::string name;
+			int32_t joint = -1;
+			Quaternion rotation;
+		};
+		std::vector<BoneActor> mBoneActors;
+		const Skeleton* mBoneSkeleton = nullptr;
+		std::vector<JointOffset> mJointOffsets;
+		bool mPoseReady = false;
 
 		AssetRef<Model> mSource;
 		std::shared_ptr<Skeleton> mResolvedSkeleton;

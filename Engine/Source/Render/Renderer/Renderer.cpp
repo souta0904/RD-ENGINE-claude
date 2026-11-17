@@ -215,6 +215,28 @@ namespace rd
 
 		DrawMeshes(cmd, transparent, false);
 		DrawParticles(cmd);
+		DrawTranslucentTriangles(cmd);
+	}
+
+	// ルートシグネチャを Simple に切り替えるので、メインパスの最後に描く
+	void Renderer::DrawTranslucentTriangles(ID3D12GraphicsCommandList* cmd)
+	{
+		auto& tris = mList.translucentTriangles;
+		if (tris.size() < 3 || !mTranslucentTrianglePSO) { return; }
+		auto& device = GraphicsDevice::Get();
+		UINT count = UINT(tris.size() / 3 * 3);
+		uint64_t size = sizeof(ColorVertex) * count;
+		D3D12_VERTEX_BUFFER_VIEW vbv = { device.UploadData(tris.data(), size), UINT(size), sizeof(ColorVertex) };
+		SimpleConstants c;
+		c.matrix = mFrameData.viewProj;
+		cmd->SetGraphicsRootSignature(mSimpleRS.Get());
+		cmd->SetPipelineState(mTranslucentTrianglePSO.Get());
+		cmd->SetGraphicsRoot32BitConstants(kSimpleConstants, sizeof(c) / 4, &c, 0);
+		cmd->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+		cmd->IASetVertexBuffers(0, 1, &vbv);
+		cmd->DrawInstanced(count, 1, 0, 0);
+		++mStats.drawCalls;
+		mStats.triangles += count / 3;
 	}
 
 	// 描画したものを切り替えながら描く（パイプラインと頂点バッファは変わったときだけ設定する）

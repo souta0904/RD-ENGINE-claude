@@ -19,6 +19,7 @@ namespace rd
 		v.Property("Loop", loop);
 		v.Property("Play On Start", playOnStart);
 		v.Property("Preview In Editor", previewInEditor);
+		v.Property("Drive Bone Actors", driveBoneActors);
 	}
 
 	void Animator::OnValidate()
@@ -91,6 +92,69 @@ namespace rd
 	void Animator::Update(float dt)
 	{
 		Advance(dt);
+	}
+
+	void Animator::LateUpdate(float)
+	{
+		if (!driveBoneActors || !mBoundSkeleton) { return; }
+		JobSystem::Wait(mJob);
+		if (!mPoseReady || mGlobal.size() != mBoundSkeleton->joints.size()) { return; }
+		if (mBoneSkeleton != mBoundSkeleton) { BindBoneActors(*mBoundSkeleton); }
+		WriteBoneActors();
+	}
+
+	void Animator::SetJointRotationOffset(const std::string& joint, const Quaternion& worldRotation)
+	{
+		// ワールドの回転をモデル空間に直す（v_model * M * R * M^-1 = モデル空間で R を掛けたもの）
+		Quaternion model = GetActor()->GetTransform().GetRotation();
+		Quaternion local = Normalize(model * worldRotation * Inverse(model));
+		bool identity = std::abs(local.w) > 0.99999f;
+		for (size_t i = 0; i < mJointOffsets.size(); ++i)
+		{
+			if (mJointOffsets[i].name != joint) { continue; }
+			if (identity) { mJointOffsets.erase(mJointOffsets.begin() + ptrdiff_t(i)); }
+			else { mJointOffsets[i].rotation = local; }
+			return;
+		}
+		if (!identity) { mJointOffsets.push_back({ joint, -1, local }); }
+	}
+
+	// バインドポーズのうちに、アクターと関節の対応とずれを覚える（アクターはシーンに置いたときの姿勢 = バインドポーズ）
+	void Animator::BindBoneActors(const Skeleton& skeleton)
+	{
+		mBoneSkeleton = &skeleton;
+		mBoneActors.clear();
+		std::vector<TransformTRS> bindLocal(skeleton.joints.size());
+		for (size_t i = 0; i < bindLocal.size(); ++i) { bindLocal[i] = skeleton.joints[i].bindLocal; }
+		std::vector<Matrix4> bindGlobal, unused;
+		ComputeSkinningPalette(skeleton, bindLocal, bindGlobal, unused);
+
+		Matrix4 invModel = Inverse(GetActor()->GetTransform().GetWorldMatrix());
+		std::vector<Actor*> stack(GetActor()->GetChildren().begin(), GetActor()->GetChildren().end());
+		while (!stack.empty())
+		{
+			Actor* a = stack.back();
+			stack.pop_back();
+			int32_t joint = skeleton.Find(a->GetName());
+			if (joint >= 0)
+			{
+				Matrix4 offset = a->GetTransform().GetWorldMatrix() * invModel * Inverse(bindGlobal[size_t(joint)]);
+				mBoneActors.push_back({ joint, a, offset });
+			}
+			for (Actor* c : a->GetChildren()) { stack.push_back(c); }
+		}
+		// 親から順に書くので関節の順に並べる
+		std::sort(mBoneActors.begin(), mBoneActors.end(), [](auto& x, auto& y) { return x.joint < y.joint; });
+		Log::Debug(LogCat::Scene, "Animator: {} bone actors bound on '{}'", mBoneActors.size(), GetActor()->GetName());
+	}
+
+	void Animator::WriteBoneActors()
+	{
+		const Matrix4& model = GetActor()->GetTransform().GetWorldMatrix();
+		for (auto& b : mBoneActors)
+		{
+			b.actor->GetTransform().SetWorldMatrix(b.offset * mGlobal[size_t(b.joint)] * model);
+		}
 	}
 
 	void Animator::OnEditorUpdate(float dt)
@@ -180,8 +244,11 @@ namespace rd
 		Layer previous = mPrevious;
 		float weight = mPrevious.clip ? math::Saturate(mFade / std::max(mFadeDuration, 1.0e-4f)) : 1.0f;
 		const Skeleton* sk = &skeleton;
+		for (auto& o : mJointOffsets) { o.joint = skeleton.Find(o.name); }
+		std::vector<JointOffset> offsets = mJointOffsets;
 		JobSystem::Wait(mJob);
-		mJob = JobSystem::Schedule([this, current, previous, weight, sk]
+		mPoseReady = true;
+		mJob = JobSystem::Schedule([this, current, previous, weight, sk, offsets = std::move(offsets)]
 			{
 				size_t count = sk->joints.size();
 				mLocal.resize(count);
@@ -193,6 +260,18 @@ namespace rd
 					for (size_t i = 0; i < count; ++i) { mBlend[i] = sk->joints[i].bindLocal; }
 					previous.clip->Sample(previous.time, previous.binding, mBlend, previous.translationScale);
 					for (size_t i = 0; i < count; ++i) { mLocal[i] = TransformTRS::Blend(mBlend[i], mLocal[i], weight); }
+				}
+				// 足す回転: グローバルの向き G を G * R にしたいので、ローカルは L * Gp * R * Gp^-1（Gp は親のグローバルの向き）
+				for (const JointOffset& o : offsets)
+				{
+					if (o.joint < 0) { continue; }
+					Quaternion parent = Quaternion::kIdentity;
+					for (int32_t p = sk->joints[size_t(o.joint)].parent; p >= 0; p = sk->joints[size_t(p)].parent)
+					{
+						parent = parent * mLocal[size_t(p)].rotation;
+					}
+					TransformTRS& l = mLocal[size_t(o.joint)];
+					l.rotation = Normalize(l.rotation * parent * o.rotation * Inverse(parent));
 				}
 				ComputeSkinningPalette(*sk, mLocal, mGlobal, mPalette);
 			}, JobPriority::High, "Animator Pose");

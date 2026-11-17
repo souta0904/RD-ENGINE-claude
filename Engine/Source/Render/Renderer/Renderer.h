@@ -64,6 +64,7 @@ namespace rd
 		void ShadowPass(ID3D12GraphicsCommandList* cmd, const CasterLists& casters);
 		void DrawMeshes(ID3D12GraphicsCommandList* cmd, const std::vector<const MeshDrawItem*>& items, bool shadow);
 		void DrawParticles(ID3D12GraphicsCommandList* cmd);
+		void DrawTranslucentTriangles(ID3D12GraphicsCommandList* cmd);
 		void BloomPass(ID3D12GraphicsCommandList* cmd);
 		void TonemapPass(ID3D12GraphicsCommandList* cmd);
 		void OverlayPass(ID3D12GraphicsCommandList* cmd, const Matrix4& viewProj);
@@ -88,6 +89,7 @@ namespace rd
 		ComPtr<ID3D12PipelineState> mSkyPSO;
 		ComPtr<ID3D12PipelineState> mParticleAlphaPSO;
 		ComPtr<ID3D12PipelineState> mParticleAddPSO;
+		ComPtr<ID3D12PipelineState> mTranslucentTrianglePSO;
 		ComPtr<ID3D12PipelineState> mLineDepthPSO;
 		ComPtr<ID3D12PipelineState> mLineOverlayPSO;
 		ComPtr<ID3D12PipelineState> mSpritePSO;

@@ -34,6 +34,13 @@ namespace rd
 		Vector3 center;
 	};
 
+	// 色付きの三角形の頂点（ワールド座標。ライティングなしの半透明で描く）
+	struct ColorVertex
+	{
+		Vector3 position;
+		Color color;
+	};
+
 	// スプライトの描画（position は左上が原点のスクリーン座標（ピクセル）、uvRect は u0, v0, u1, v1）
 	struct SpriteDrawItem
 	{

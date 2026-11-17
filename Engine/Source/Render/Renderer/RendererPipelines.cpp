@@ -115,6 +115,18 @@ namespace rd
 		mLineDepthPSO = line.SetDepth(DepthMode::ReadOnly).Build(device, L"LineDepthPSO");
 		mLineOverlayPSO = line.SetDepth(DepthMode::Disabled).Build(device, L"LineOverlayPSO");
 
+		// 線と同じシェーダで三角形を描く（HDR に描くのでトーンマップがかかる）
+		mTranslucentTrianglePSO = PipelineBuilder()
+			.SetRootSignature(mSimpleRS.Get())
+			.SetVS(CompileShader("Simple.hlsl", "LineVS", ShaderStage::Vertex))
+			.SetPS(CompileShader("Simple.hlsl", "LinePS", ShaderStage::Pixel))
+			.SetInputLayout(kLineLayout)
+			.SetBlend(BlendMode::Alpha)
+			.SetCull(CullMode::None)
+			.SetDepth(DepthMode::ReadOnly)
+			.SetRenderTargets({ kHdrFormat }, DepthTexture::kDsvFormat)
+			.Build(device, L"TranslucentTrianglePSO");
+
 		mSpritePSO = PipelineBuilder()
 			.SetRootSignature(mSimpleRS.Get())
 			.SetVS(CompileShader("Simple.hlsl", "SpriteVS", ShaderStage::Vertex))
