@@ -144,6 +144,8 @@ namespace rd
 		f.time = time;
 		f.ambientSky = ToVector3(env.ambientSky) * env.ambientIntensity;
 		f.ambientGround = ToVector3(env.ambientGround) * env.ambientIntensity;
+		Vector3 equator = ToVector3(env.ambientEquator) * env.ambientIntensity;
+		f.ambientEquator = Vector4(equator.x, equator.y, equator.z, env.ambientTrilight ? 1.0f : 0.0f);
 		f.skyZenith = ToVector3(env.skyZenith);
 		f.skyHorizon = ToVector3(env.skyHorizon);
 		f.fogColor = ToVector3(env.fogColor);

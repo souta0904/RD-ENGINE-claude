@@ -57,8 +57,10 @@ namespace rd
 		uint32_t debugCascades = 0;
 		float shadowFadeStart = 0.0f;
 		float pad = 0.0f;
+		// 地平線の環境光（w が 1 なら空・地平線・地面の 3 色、0 なら空と地面の 2 色）
+		Vector4 ambientEquator;
 	};
-	static_assert(sizeof(GpuFrameData) == 704);
+	static_assert(sizeof(GpuFrameData) == 720);
 
 	struct GpuMaterialData
 	{

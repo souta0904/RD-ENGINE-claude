@@ -59,6 +59,7 @@ struct FrameData
     uint debugCascades;// カスケードを色分けして表示
     float shadowFadeStart;// ここから先は影を薄くする
     float framePad;
+    float4 ambientEquator;// w が 1 なら空・地平線・地面の 3 色の環境光
 };
 
 struct MaterialData
@@ -171,9 +172,16 @@ float3 EnvBRDFApprox(float3 f0, float roughness, float NoV)
     return f0 * ab.x + ab.y;
 }
 
+// 環境光の色（2 色は地面から空へ、3 色は地平線を挟んで空と地面へ混ぜる）
+//  3 色のときは、向いた半球の光を余弦で平均したように少しぼかす（真上を向いても地平線の色が 1/3 入る）
 float3 Hemisphere(float3 dir)
 {
-    return lerp(gFrame.ambientGround, gFrame.ambientSky, dir.y * 0.5f + 0.5f);
+    if (gFrame.ambientEquator.w < 0.5f)
+    {
+        return lerp(gFrame.ambientGround, gFrame.ambientSky, dir.y * 0.5f + 0.5f);
+    }
+    float y = dir.y * (2.0f / 3.0f);
+    return y >= 0.0f ? lerp(gFrame.ambientEquator.xyz, gFrame.ambientSky, y) : lerp(gFrame.ambientEquator.xyz, gFrame.ambientGround, -y);
 }
 
 float3 ShadeAmbient(float3 N, float3 V, float3 albedo, float metallic, float roughness)

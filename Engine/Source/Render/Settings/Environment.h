@@ -13,6 +13,9 @@ namespace rd
 	{
 		Color ambientSky = { 0.35f, 0.42f, 0.55f, 1.0f };
 		Color ambientGround = { 0.18f, 0.16f, 0.14f, 1.0f };
+		// 地平線の色も使う（Unity の Gradient の環境光）。使わなければ空と地面の 2 色
+		bool ambientTrilight = false;
+		Color ambientEquator = { 0.3f, 0.3f, 0.3f, 1.0f };
 		float ambientIntensity = 1.0f;
 		bool drawSky = true;
 		Color skyZenith = { 0.18f, 0.36f, 0.75f, 1.0f };

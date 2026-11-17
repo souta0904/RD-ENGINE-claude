@@ -7,6 +7,8 @@ namespace rd
 	{
 		v.Property("Ambient Sky", ambientSky);
 		v.Property("Ambient Ground", ambientGround);
+		v.Property("Ambient Trilight", ambientTrilight);
+		v.Property("Ambient Equator", ambientEquator);
 		v.Property("Ambient Intensity", ambientIntensity, { .speed = 0.01f, .min = 0.0f, .max = 10.0f });
 		v.Property("Draw Sky", drawSky);
 		v.Property("Sky Zenith", skyZenith, { .flags = PropertyMeta::HDR });
