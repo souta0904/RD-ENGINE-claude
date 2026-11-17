@@ -20,6 +20,8 @@ namespace rd
 		kMatAlphaClip = 1u << 3,
 		kMatReceiveShadow = 1u << 4,
 		kMatHasEmissive = 1u << 5,
+		kMatFlat = 1u << 6,
+		kMatTriplanar = 1u << 7,
 	};
 
 	struct GpuObjectData
@@ -62,9 +64,12 @@ namespace rd
 	{
 		Color baseColor;
 		Vector3 emissive; float metallic = 0.0f;
-		float roughness = 0.5f; float alphaCutoff = 0.5f; uint32_t flags = 0; float pad = 0.0f;
+		float roughness = 0.5f; float alphaCutoff = 0.5f; uint32_t flags = 0; float triplanarTile = 1.0f;
+		// Flat の陰影（影の色と、縁を光らせる色と鋭さ）
+		Vector3 shadowColor; float rimPower = 3.0f;
+		Vector3 rimColor; float pad = 0.0f;
 	};
-	static_assert(sizeof(GpuMaterialData) == 48);
+	static_assert(sizeof(GpuMaterialData) == 80);
 
 	struct GpuDirLight
 	{

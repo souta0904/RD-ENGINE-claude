@@ -17,6 +17,8 @@ static const uint kMatUnlit = 1u << 2;
 static const uint kMatAlphaClip = 1u << 3;
 static const uint kMatReceiveShadow = 1u << 4;
 static const uint kMatHasEmissive = 1u << 5;
+static const uint kMatFlat = 1u << 6;
+static const uint kMatTriplanar = 1u << 7;
 
 struct ObjectData
 {
@@ -67,7 +69,11 @@ struct MaterialData
     float roughness;
     float alphaCutoff;
     uint flags;
-    float pad;
+    float triplanarTile;
+    float3 shadowColor;
+    float rimPower;
+    float3 rimColor;
+    float materialPad;
 };
 
 struct DirLight

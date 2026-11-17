@@ -80,6 +80,7 @@ namespace rd
 			mShadowMap.Resize(mSettings.shadowMapSize * 2, mSettings.shadowMapSize * 2);
 		}
 
+		mEnv = env;
 		SetupFrameData(camera, env, width, height, time);
 		GpuLightData lights = SetupLights();
 		mShadowActive = mFrameData.dirLightCount > 0 && lights.dirLights[0].castShadow;

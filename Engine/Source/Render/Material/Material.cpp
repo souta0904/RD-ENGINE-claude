@@ -19,6 +19,12 @@ namespace rd
 	{
 		v.Property("Base Color", baseColor);
 		v.Property("Albedo Map", albedoPath, { .flags = PropertyMeta::AssetTexture });
+		v.Property("Shading", shading);
+		v.Property("Shadow Color", shadowColor);
+		v.Property("Rim Color", rimColor);
+		v.Property("Rim Power", rimPower, { .speed = 0.05f, .min = 0.5f, .max = 8.0f });
+		v.Property("Triplanar", triplanar);
+		v.Property("Triplanar Tile", triplanarTile, { .speed = 0.01f, .min = 0.0001f, .max = 100.0f });
 		v.Property("Normal Map", normalPath, { .flags = PropertyMeta::AssetTexture });
 		v.Property("Metallic", metallic, { .speed = 0.01f, .min = 0.0f, .max = 1.0f });
 		v.Property("Roughness", roughness, { .speed = 0.01f, .min = 0.0f, .max = 1.0f });
@@ -55,6 +61,12 @@ namespace rd
 		if (unlit) { d.flags |= kMatUnlit; }
 		if (alphaClip) { d.flags |= kMatAlphaClip; }
 		if (receiveShadows) { d.flags |= kMatReceiveShadow; }
+		if (shading == ShadingModel::Flat) { d.flags |= kMatFlat; }
+		if (triplanar) { d.flags |= kMatTriplanar; }
+		d.triplanarTile = triplanarTile;
+		d.shadowColor = Vector3(shadowColor.r, shadowColor.g, shadowColor.b);
+		d.rimColor = Vector3(rimColor.r, rimColor.g, rimColor.b);
+		d.rimPower = rimPower;
 		return d;
 	}
 }

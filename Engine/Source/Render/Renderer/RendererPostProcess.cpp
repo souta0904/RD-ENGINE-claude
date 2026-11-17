@@ -66,9 +66,29 @@ namespace rd
 		auto rtv = mT->output.GetRtv();
 		cmd->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
 		SetViewport(cmd, mT->output.GetWidth(), mT->output.GetHeight());
-		Vector4 params(mSettings.exposure, mSettings.bloom ? mSettings.bloomIntensity : 0.0f, mSettings.vignette, mSettings.tonemap ? 1.0f : 0.0f);
+		if (!mTonemapPSO) { return; }
+		// トーンマップの方式は 0 = ACES, 1 = Neutral, 2 = なし（Render Settings で切ってあればなし）
+		float tonemapper = mSettings.tonemap ? float(int(mEnv.tonemapper)) : 2.0f;
+		SimpleConstants c;
+		c.params = Vector4(mSettings.exposure, mSettings.bloom ? mSettings.bloomIntensity : 0.0f, mSettings.vignette, tonemapper);
+		// 行列の場所に色の調整とレトロ表示の値を入れる（シェーダーでは gExtra[0], gExtra[1]）
+		float* extra = c.matrix.Data();
+		extra[0] = std::exp2(mEnv.postExposure);
+		extra[1] = 1.0f + mEnv.contrast / 100.0f;
+		extra[2] = 1.0f + mEnv.saturation / 100.0f;
+		extra[3] = 0.0f;
+		extra[4] = float(mEnv.retroHeight);
+		extra[5] = float(std::max(2u, mEnv.retroColorLevels));
+		extra[6] = 0.0f;
+		extra[7] = 0.0f;
+		cmd->SetPipelineState(mTonemapPSO.Get());
+		cmd->SetGraphicsRoot32BitConstants(kSimpleConstants, sizeof(c) / 4, &c, 0);
+		cmd->SetGraphicsRootDescriptorTable(kSimpleTex0, mT->hdr.GetGpuSrv());
 		// ブルームがないときはブルームの代わりに HDR を渡し、強さ 0 で使わない
-		DrawFullscreen(cmd, mTonemapPSO.Get(), params, mT->hdr.GetGpuSrv(), mSettings.bloom ? mT->bloom[0].GetGpuSrv() : mT->hdr.GetGpuSrv());
+		cmd->SetGraphicsRootDescriptorTable(kSimpleTex1, mSettings.bloom ? mT->bloom[0].GetGpuSrv() : mT->hdr.GetGpuSrv());
+		cmd->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+		cmd->DrawInstanced(3, 1, 0, 0);
+		++mStats.drawCalls;
 	}
 
 	void Renderer::OverlayPass(ID3D12GraphicsCommandList* cmd, const Matrix4& viewProj)

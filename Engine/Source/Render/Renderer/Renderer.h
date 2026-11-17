@@ -124,6 +124,8 @@ namespace rd
 		D3D12_GPU_VIRTUAL_ADDRESS mFrameCB = 0;
 		D3D12_GPU_VIRTUAL_ADDRESS mLightCB = 0;
 		GpuFrameData mFrameData;
+		// 今描いている画面の環境（トーンマップで色の調整とレトロ表示に使う）
+		Environment mEnv;
 		bool mShadowActive = false;
 		Frustum mCascadeFrustums[kMaxShadowCascades];
 

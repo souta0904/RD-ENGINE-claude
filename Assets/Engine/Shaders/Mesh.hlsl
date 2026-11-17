@@ -55,6 +55,28 @@ Texture2D<float4> gAlbedo : register(t0);
 Texture2D<float4> gNormalMap : register(t1);
 Texture2D<float4> gEmissiveMap : register(t4);
 
+// ワールド座標で 3 方向から貼り、法線の向きで混ぜる（Unity の Triplanar ノードと同じ。混ぜ方の鋭さは 1）
+float4 SampleTriplanar(Texture2D<float4> tex, float3 worldPos, float3 normal, float tile)
+{
+    float3 p = worldPos * tile;
+    float3 w = abs(normal);
+    w /= max(w.x + w.y + w.z, 1e-5f);
+    return tex.Sample(gSamplerWrap, p.zy) * w.x + tex.Sample(gSamplerWrap, p.xz) * w.y + tex.Sample(gSamplerWrap, p.xy) * w.z;
+}
+
+// Flat: 面ごとの平らな法線で、先頭の平行光源に向いているほど白く、背くほど影の色にする。縁はリムの色で光らせる
+//  ライトの色や環境光・影は使わない（Unity の mouse/Flat と同じ）
+float3 ShadeFlat(float3 base, float3 worldPos)
+{
+    float3 N = normalize(cross(ddy(worldPos), ddx(worldPos)));
+    float3 V = normalize(gFrame.cameraPos - worldPos);
+    if (dot(N, V) < 0.0f) { N = -N; }// 三角形の巻き方によらずカメラ側を向ける
+    float ndl = gFrame.dirLightCount > 0 ? saturate(dot(N, -gLights.dirLights[0].direction)) : 1.0f;
+    float3 color = base * lerp(gMaterial.shadowColor, 1.0f.xxx, ndl);
+    float rim = pow(1.0f - saturate(dot(N, V)), gMaterial.rimPower);
+    return color + gMaterial.rimColor * rim;
+}
+
 float4 PSMain(VSOutput input, bool frontFace : SV_IsFrontFace) : SV_TARGET
 {
     float3 emissive = gMaterial.emissive;
@@ -65,7 +87,9 @@ float4 PSMain(VSOutput input, bool frontFace : SV_IsFrontFace) : SV_TARGET
     float4 base = gMaterial.baseColor;
     if (gMaterial.flags & kMatHasAlbedo)
     {
-        base *= gAlbedo.Sample(gSamplerWrap, input.uv);
+        base *= (gMaterial.flags & kMatTriplanar)
+            ? SampleTriplanar(gAlbedo, input.worldPos, normalize(input.normal), gMaterial.triplanarTile)
+            : gAlbedo.Sample(gSamplerWrap, input.uv);
     }
     base *= gObject.tint;
     if ((gMaterial.flags & kMatAlphaClip) && base.a < gMaterial.alphaCutoff)
@@ -75,6 +99,10 @@ float4 PSMain(VSOutput input, bool frontFace : SV_IsFrontFace) : SV_TARGET
     if (gMaterial.flags & kMatUnlit)
     {
         return float4(ApplyFog(base.rgb + emissive, input.worldPos), base.a);
+    }
+    if (gMaterial.flags & kMatFlat)
+    {
+        return float4(ApplyFog(ShadeFlat(base.rgb, input.worldPos) + emissive, input.worldPos), base.a);
     }
 
     float3 N = normalize(input.normal);
