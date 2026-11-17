@@ -51,10 +51,11 @@ namespace rd
 	}
 
 	// アセットがまだ読み込み中かもしれないので、ここでは読み込みを始めるだけで、クリップを決めるのは Advance
-	void Animator::Play(const std::string& clipName, float fade, const std::string& source)
+	void Animator::Play(const std::string& clipName, float fade, const std::string& source, bool restart)
 	{
 		mPendingClip = clipName;
 		mHasPending = true;
+		mPendingRestart = restart;
 		mPendingSource = source;
 		mPendingFade = fade;
 		mPlaying = true;
@@ -141,7 +142,7 @@ namespace rd
 	{
 		auto c = ResolveClip(mPendingSource, mPendingClip);
 		if (!c) { return; }
-		if (c != mCurrent.clip)
+		if (c != mCurrent.clip || mPendingRestart)
 		{
 			if (mPendingFade > 0.0f && mCurrent.clip)
 			{
@@ -159,6 +160,7 @@ namespace rd
 			BindLayer(mCurrent, skeleton);
 		}
 		mHasPending = false;
+		mPendingRestart = false;
 	}
 
 	void Animator::AdvanceLayer(Layer& layer, float dt) const

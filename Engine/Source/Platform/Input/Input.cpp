@@ -31,11 +31,48 @@ namespace rd
 		rid.usUsage = 0x02;
 		rid.hwndTarget = hwnd;
 		RegisterRawInputDevices(&rid, 1, sizeof(rid));
+		sHwnd = hwnd;
 		ResetState();
+	}
+
+	// エディタが前のフレームで決めたマウスの止め具合を見るので、切り替わりは 1 フレーム遅れる
+	void Input::UpdateCursorLock()
+	{
+		bool want = sCursorLocked && !sBlockMouse && sHwnd && GetForegroundWindow() == sHwnd && !IsIconic(sHwnd);
+		ApplyCursorLock(want);
+		if (!sCursorApplied) { return; }
+
+		// ウィンドウが動いたり大きさが変わったりしても外へ出ないよう、毎フレーム囲い直す
+		RECT rect;
+		GetClientRect(sHwnd, &rect);
+		POINT tl = { rect.left, rect.top };
+		POINT br = { rect.right, rect.bottom };
+		ClientToScreen(sHwnd, &tl);
+		ClientToScreen(sHwnd, &br);
+		RECT clip = { tl.x, tl.y, br.x, br.y };
+		ClipCursor(&clip);
+	}
+
+	// ShowCursor は回数で数えるので、切り替わるときだけ表示の数を 0 の前後へ合わせる
+	void Input::ApplyCursorLock(bool lock)
+	{
+		if (lock == sCursorApplied) { return; }
+		sCursorApplied = lock;
+		if (lock)
+		{
+			while (ShowCursor(FALSE) >= 0) {}
+		}
+		else
+		{
+			ClipCursor(nullptr);
+			while (ShowCursor(TRUE) < 0) {}
+		}
 	}
 
 	void Input::NewFrame()
 	{
+		UpdateCursorLock();
+
 		std::memcpy(sPrevKeys, sKeys, sizeof(sKeys));
 		std::memcpy(sPrevMouse, sMouse, sizeof(sMouse));
 
@@ -120,6 +157,8 @@ namespace rd
 		std::memset(sMouse, 0, sizeof(sMouse));
 		sMouseDeltaAccum = Vector2::kZero;
 		sWheelAccum = 0.0f;
+		// ほかのウィンドウへ移ったら、次のフレームを待たずにカーソルを返す
+		ApplyCursorLock(false);
 	}
 
 	bool Input::GetKey(Key key) { return !sBlockKeyboard && sKeys[uint8_t(key)]; }

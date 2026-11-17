@@ -254,6 +254,7 @@ namespace rd
 				cmd->SetGraphicsRootConstantBufferView(kRootMaterial, device.UploadConstants(mat.ToGpu()));
 				cmd->SetGraphicsRootDescriptorTable(kRootAlbedo, TextureSrv(mat.albedo.get(), assets.GetWhiteTexture()));
 				cmd->SetGraphicsRootDescriptorTable(kRootNormal, TextureSrv(mat.normal.get(), assets.GetFlatNormalTexture()));
+				cmd->SetGraphicsRootDescriptorTable(kRootEmissive, TextureSrv(mat.emissiveMap.get(), assets.GetWhiteTexture()));
 			}
 			if (skinned) { cmd->SetGraphicsRootShaderResourceView(kRootPalette, item->palette); }
 

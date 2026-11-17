@@ -53,9 +53,15 @@ VSOutput VSMain(VSInput input)
 
 Texture2D<float4> gAlbedo : register(t0);
 Texture2D<float4> gNormalMap : register(t1);
+Texture2D<float4> gEmissiveMap : register(t4);
 
 float4 PSMain(VSOutput input, bool frontFace : SV_IsFrontFace) : SV_TARGET
 {
+    float3 emissive = gMaterial.emissive;
+    if (gMaterial.flags & kMatHasEmissive)
+    {
+        emissive *= gEmissiveMap.Sample(gSamplerWrap, input.uv).rgb;
+    }
     float4 base = gMaterial.baseColor;
     if (gMaterial.flags & kMatHasAlbedo)
     {
@@ -68,7 +74,7 @@ float4 PSMain(VSOutput input, bool frontFace : SV_IsFrontFace) : SV_TARGET
     }
     if (gMaterial.flags & kMatUnlit)
     {
-        return float4(ApplyFog(base.rgb + gMaterial.emissive, input.worldPos), base.a);
+        return float4(ApplyFog(base.rgb + emissive, input.worldPos), base.a);
     }
 
     float3 N = normalize(input.normal);
@@ -125,7 +131,7 @@ float4 PSMain(VSOutput input, bool frontFace : SV_IsFrontFace) : SV_TARGET
         color += ShadeLight(N, V, L, light.color * light.intensity * att * cone * cone, base.rgb, metallic, roughness);
     }
 
-    color += gMaterial.emissive;
+    color += emissive;
     if (gFrame.debugCascades != 0 && gFrame.shadowEnabled != 0) { color *= CascadeDebugColor(input.worldPos); }
     color = ApplyFog(color, input.worldPos);
     return float4(color, base.a);

@@ -24,6 +24,7 @@ namespace rd
 		v.Property("Roughness", roughness, { .speed = 0.01f, .min = 0.0f, .max = 1.0f });
 		v.Property("Emissive", emissive);
 		v.Property("Emissive Intensity", emissiveIntensity, { .speed = 0.05f, .min = 0.0f, .max = 100.0f });
+		v.Property("Emissive Map", emissivePath, { .flags = PropertyMeta::AssetTexture });
 		v.Property("Blend", blend);
 		v.Property("Double Sided", doubleSided);
 		v.Property("Unlit", unlit);
@@ -37,6 +38,7 @@ namespace rd
 	{
 		ResolveTexture(albedoPath, albedo, true);
 		ResolveTexture(normalPath, normal, false);
+		ResolveTexture(emissivePath, emissiveMap, true);
 	}
 
 	GpuMaterialData Material::ToGpu() const
@@ -49,6 +51,7 @@ namespace rd
 		d.alphaCutoff = alphaCutoff;
 		if (albedo && albedo->IsReady()) { d.flags |= kMatHasAlbedo; }
 		if (normal && normal->IsReady()) { d.flags |= kMatHasNormal; }
+		if (emissiveMap && emissiveMap->IsReady()) { d.flags |= kMatHasEmissive; }
 		if (unlit) { d.flags |= kMatUnlit; }
 		if (alphaClip) { d.flags |= kMatAlphaClip; }
 		if (receiveShadows) { d.flags |= kMatReceiveShadow; }

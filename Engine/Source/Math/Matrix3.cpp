@@ -11,6 +11,7 @@ namespace rd
 		return r;
 	}
 
+	// 1 行目が回転後の X 軸 (cos, sin)、2 行目が回転後の Y 軸 (-sin, cos)
 	Matrix3 Matrix3::CreateRotate(float radians)
 	{
 		float c = std::cos(radians), s = std::sin(radians);
@@ -28,6 +29,7 @@ namespace rd
 		return r;
 	}
 
+	// 行列を 3 つ掛ける代わりに、回転行列の各行（各軸）を拡大率で伸ばし、3 行目に移動を入れる
 	Matrix3 Matrix3::CreateAffine(const Vector2& s, float radians, const Vector2& t)
 	{
 		Matrix3 r = CreateRotate(radians);
@@ -37,6 +39,7 @@ namespace rd
 		return r;
 	}
 
+	// 結果の i 行 j 列 = a の i 行目と b の j 列目の内積
 	Matrix3 operator*(const Matrix3& a, const Matrix3& b)
 	{
 		Matrix3 r;
@@ -50,11 +53,13 @@ namespace rd
 		return r;
 	}
 
+	// (x, y, 1) * m の x と y。最後の 1 が 3 行目（移動量）に掛かる
 	Vector2 operator*(const Vector2& v, const Matrix3& m)
 	{
 		return { v.x * m.m[0][0] + v.y * m.m[1][0] + m.m[2][0], v.x * m.m[0][1] + v.y * m.m[1][1] + m.m[2][1] };
 	}
 
+	// 1 行目で展開する（各成分 × 残りの 2x2 の行列式 を +, -, + の符号で足す）
 	float Determinant(const Matrix3& m)
 	{
 		return
@@ -67,6 +72,7 @@ namespace rd
 	Matrix3 Inverse(const Matrix3& m)
 	{
 		float d = Determinant(m);
+		// 行列式が 0 の行列（singular、特異行列）は逆行列がない
 		RD_ASSERT(std::fabs(d) > 1.0e-12f, "Matrix3 is singular");
 		float inv = 1.0f / d;
 		Matrix3 r;

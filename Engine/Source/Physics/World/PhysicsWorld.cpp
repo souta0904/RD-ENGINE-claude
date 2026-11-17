@@ -193,6 +193,18 @@ namespace rd
 		return found;
 	}
 
+	void PhysicsWorld::QueryShapes(const AABB& area, uint32_t layerMask, std::vector<ShapeQuery>& out)
+	{
+		out.clear();
+		for (Collider* c : mColliders)
+		{
+			if (!c->IsActiveAndEnabled() || c->isTrigger || !InLayerMask(layerMask, c)) { continue; }
+			ShapeQuery q;
+			q.collider = c;
+			if (c->UpdateShape(q.shape) && q.shape.bounds.Overlaps(area)) { out.push_back(q); }
+		}
+	}
+
 	std::vector<Collider*> PhysicsWorld::OverlapSphere(const Vector3& center, float radius, uint32_t layerMask)
 	{
 		std::vector<Collider*> result;

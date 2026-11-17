@@ -19,6 +19,7 @@ namespace rd
 		kMatUnlit = 1u << 2,
 		kMatAlphaClip = 1u << 3,
 		kMatReceiveShadow = 1u << 4,
+		kMatHasEmissive = 1u << 5,
 	};
 
 	struct GpuObjectData

@@ -3,7 +3,8 @@
 
 namespace rd
 {
-	// 3次元ベクトル（Vector2 と同じ機能をそろえる）
+	// 3次元ベクトル（Vector2 と同じ機能をそろえる）。位置・向き・拡大率などに使う
+	// 各関数の意味は Vector2.h のコメントと同じ
 	struct Vector3
 	{
 		float x = 0.0f;
@@ -12,6 +13,7 @@ namespace rd
 
 		constexpr Vector3() = default;
 		constexpr Vector3(float x, float y, float z) : x(x), y(y), z(z) {}
+		// explicit を付けて、Vector2 が知らないうちに Vector3 へ変換されないようにする
 		constexpr explicit Vector3(const Vector2& v, float z = 0.0f) : x(v.x), y(v.y), z(z) {}
 
 		float* Data() { return &x; }
@@ -52,6 +54,8 @@ namespace rd
 	constexpr Vector3& operator/=(Vector3& a, float s) { return a = a / s; }
 
 	constexpr float Dot(const Vector3& a, const Vector3& b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
+	// 外積。a と b の両方に垂直なベクトルを返す（長さは a と b が作る平行四辺形の面積）
+	// 左手座標系なので Cross(右, 上) = 奥（Cross(kUnitX, kUnitY) = kUnitZ）
 	constexpr Vector3 Cross(const Vector3& a, const Vector3& b)
 	{
 		return { a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x };
@@ -70,6 +74,7 @@ namespace rd
 	constexpr Vector3 Reflect(const Vector3& v, const Vector3& n) { return v - 2.0f * Dot(v, n) * n; }
 	constexpr Vector3 ProjectOnPlane(const Vector3& v, const Vector3& n) { return v - Dot(v, n) * n; }
 
+	// メンバの中では Normalize がメンバを指すので、自由関数は rd:: を付けて呼ぶ
 	inline Vector3& Vector3::Normalize() { return *this = rd::Normalize(*this); }
 	inline Vector3 Vector3::Normalized() const { return rd::Normalize(*this); }
 }

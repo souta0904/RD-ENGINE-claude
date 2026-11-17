@@ -2,6 +2,7 @@
 #include "Runtime/BuiltinComponents.h"
 #include "Components/Animation/Animator.h"
 #include "Components/Audio/AudioSource.h"
+#include "Components/Animation/AnimatorController.h"
 #include "Components/Effects/ParticleSystem.h"
 #include "Components/Lighting/DirectionalLight.h"
 #include "Components/Lighting/PointLight.h"
@@ -9,6 +10,7 @@
 #include "Components/Rendering/CameraComponent.h"
 #include "Components/Rendering/MeshRenderer.h"
 #include "Components/Rendering/SpriteRenderer.h"
+#include "Physics/Character/CharacterController.h"
 #include "Physics/Colliders/BoxCollider.h"
 #include "Physics/Colliders/CapsuleCollider.h"
 #include "Physics/Colliders/MeshCollider.h"
@@ -28,7 +30,9 @@ namespace rd
 		ComponentRegistry::Register<PointLight>("Light");
 		ComponentRegistry::Register<SpotLight>("Light");
 		ComponentRegistry::Register<Animator>("Animation");
+		ComponentRegistry::Register<AnimatorController>("Animation");
 		ComponentRegistry::Register<Rigidbody>("Physics");
+		ComponentRegistry::Register<CharacterController>("Physics");
 		ComponentRegistry::Register<SphereCollider>("Physics");
 		ComponentRegistry::Register<BoxCollider>("Physics");
 		ComponentRegistry::Register<CapsuleCollider>("Physics");

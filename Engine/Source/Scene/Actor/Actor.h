@@ -75,6 +75,16 @@ namespace rd
 			}
 			return nullptr;
 		}
+		// 自分から親へ順に探す
+		template <class T>
+		T* GetComponentInParent() const
+		{
+			for (const Actor* a = this; a; a = a->mParent)
+			{
+				if (auto c = a->GetComponent<T>()) { return c; }
+			}
+			return nullptr;
+		}
 		template <class T>
 		std::vector<T*> GetComponents() const
 		{

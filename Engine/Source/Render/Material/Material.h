@@ -9,7 +9,8 @@ namespace rd
 {
 	class Texture;
 
-	// 描画のマテリアル（albedo / normal はパスから読み込んだテクスチャ）
+	// 描画のマテリアル（albedo / normal / emissive はパスから読み込んだテクスチャ）
+	//  発光マップがあるときは、発光の色にマップの色を掛ける
 	struct Material
 	{
 		Color baseColor = Color::kWhite;
@@ -26,9 +27,11 @@ namespace rd
 		bool receiveShadows = true;
 		std::string albedoPath;
 		std::string normalPath;
+		std::string emissivePath;
 
 		AssetRef<Texture> albedo;
 		AssetRef<Texture> normal;
+		AssetRef<Texture> emissiveMap;
 
 		void Reflect(PropertyVisitor& v);
 		// パスが変わっていればテクスチャを読み込み直す

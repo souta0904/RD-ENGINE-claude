@@ -35,8 +35,8 @@ namespace rd
 		void OnInspectorGUI() override;
 #endif
 
-		// fade 秒かけて今のクリップから切り替える
-		void Play(const std::string& clipName, float fade = 0.2f, const std::string& source = "");
+		// fade 秒かけて今のクリップから切り替える（restart なら同じクリップでも最初から）
+		void Play(const std::string& clipName, float fade = 0.2f, const std::string& source = "", bool restart = false);
 		void Stop() { mPlaying = false; }
 		bool IsPlaying() const { return mPlaying; }
 		float GetTime() const { return mTime; }
@@ -67,6 +67,7 @@ namespace rd
 		std::shared_ptr<Skeleton> mResolvedSkeleton;
 		std::string mPendingClip;
 		bool mHasPending = false;
+		bool mPendingRestart = false;
 		std::string mPendingSource;
 		float mPendingFade = 0.0f;
 		bool mPlaying = false;

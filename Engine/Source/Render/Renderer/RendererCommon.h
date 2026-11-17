@@ -23,6 +23,7 @@ namespace rd::render
 		kRootNormal,
 		kRootPalette,
 		kRootShadow,
+		kRootEmissive,
 	};
 
 	// 2D / ポストエフェクト用のルートシグネチャの引数の番号

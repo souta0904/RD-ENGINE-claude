@@ -31,6 +31,11 @@ namespace rd
 		static Vector2 GetMouseDelta() { return sBlockMouse ? Vector2::kZero : sMouseDelta; }
 		static float GetMouseWheel() { return sBlockMouse ? 0.0f : sWheel; }
 
+		// カーソルを隠してウィンドウ内に閉じ込める（FPS・TPS のカメラ操作用）
+		//  マウス入力が止められている間やウィンドウが前面でない間は外れ、戻ると自動でかかり直す
+		static void SetCursorLocked(bool locked) { sCursorLocked = locked; }
+		static bool IsCursorLocked() { return sCursorLocked && sCursorApplied; }
+
 		static bool IsGamepadConnected(uint32_t index = 0);
 		static bool GetGamepadButton(GamepadButton button, uint32_t index = 0);
 		static bool GetGamepadButtonDown(GamepadButton button, uint32_t index = 0);
@@ -47,6 +52,12 @@ namespace rd
 		static float GetMouseWheelRaw() { return sWheel; }
 
 	private:
+		static void UpdateCursorLock();
+		static void ApplyCursorLock(bool lock);
+
+		static inline HWND sHwnd = nullptr;
+		static inline bool sCursorLocked = false;
+		static inline bool sCursorApplied = false;
 		static inline bool sKeys[256] = {};
 		static inline bool sPrevKeys[256] = {};
 		static inline bool sMouse[uint8_t(MouseButton::Count)] = {};

@@ -16,6 +16,7 @@ static const uint kMatHasNormal = 1u << 1;
 static const uint kMatUnlit = 1u << 2;
 static const uint kMatAlphaClip = 1u << 3;
 static const uint kMatReceiveShadow = 1u << 4;
+static const uint kMatHasEmissive = 1u << 5;
 
 struct ObjectData
 {

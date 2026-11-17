@@ -72,11 +72,18 @@ namespace rd
 	void MeshRenderer::SyncMaterials()
 	{
 		if (!mModel || !mModel->IsReady() || mSyncedModel == mModel.get()) { return; }
+		// 数が合わないときは、読み込んだマテリアルを残して足りない分だけモデルの既定値で埋める
 		const auto& defaults = mModel->GetMaterials();
-		if (mResetMaterials || mMaterials.size() != defaults.size())
+		if (mResetMaterials || mMaterials.empty())
 		{
 			mMaterials.clear();
 			for (const auto& d : defaults) { mMaterials.push_back(ToMaterial(d)); }
+		}
+		else if (mMaterials.size() != defaults.size())
+		{
+			size_t loaded = mMaterials.size();
+			mMaterials.resize(defaults.size());
+			for (size_t i = loaded; i < defaults.size(); ++i) { mMaterials[i] = ToMaterial(defaults[i]); }
 		}
 		mResetMaterials = false;
 		mSyncedModel = mModel.get();

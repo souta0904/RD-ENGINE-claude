@@ -51,7 +51,7 @@ namespace rd
 		}
 	}
 
-	// メッシュ: b0 Object / b1 Frame / b2 Material / b3 Lights / t0 Albedo / t1 Normal / t2 Palette（またはパーティクル）/ t3 ShadowMap
+	// メッシュ: b0 Object / b1 Frame / b2 Material / b3 Lights / t0 Albedo / t1 Normal / t2 Palette（またはパーティクル）/ t3 ShadowMap / t4 Emissive
 	void Renderer::CreateRootSignatures()
 	{
 		auto device = GraphicsDevice::Get().GetDevice();
@@ -64,6 +64,7 @@ namespace rd
 			.AddSrvTable(1)
 			.AddSrv(2, D3D12_SHADER_VISIBILITY_VERTEX)
 			.AddSrvTable(3)
+			.AddSrvTable(4)
 			.AddStaticSampler(Samplers::AnisotropicWrap(0))
 			.AddStaticSampler(Samplers::LinearClamp(1))
 			.AddStaticSampler(Samplers::ShadowCompare(2))

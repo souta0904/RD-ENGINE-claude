@@ -30,6 +30,13 @@ namespace rd
 
 		bool Raycast(const Ray& ray, float maxDistance, RaycastHit& hit, uint32_t layerMask = ~0u, bool hitTriggers = false);
 		std::vector<Collider*> OverlapSphere(const Vector3& center, float radius, uint32_t layerMask = ~0u);
+		// 範囲と重なるコライダーの形を集める（トリガーは除く。キャラクターの移動で使う）
+		struct ShapeQuery
+		{
+			Collider* collider = nullptr;
+			WorldShape shape;
+		};
+		void QueryShapes(const AABB& area, uint32_t layerMask, std::vector<ShapeQuery>& out);
 
 		int solverIterations = 10;
 

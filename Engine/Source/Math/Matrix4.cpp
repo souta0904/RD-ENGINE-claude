@@ -12,6 +12,8 @@ namespace rd
 		return r;
 	}
 
+	// 各軸の回転行列。回す軸の行と列はそのままで、残りの 2 軸が cos / sin で回る
+	// 左手座標系なので、軸の正の向きから見て時計回りが正の角度になる
 	Matrix4 Matrix4::CreateRotateX(float radians)
 	{
 		float c = std::cos(radians), s = std::sin(radians);
@@ -39,6 +41,7 @@ namespace rd
 		return r;
 	}
 
+	// クォータニオンを回転行列にする公式。2 倍した値（ww, xx, ...）を先に作って掛け算を減らしている
 	Matrix4 Matrix4::CreateRotate(const Quaternion& q)
 	{
 		float ww = 2.0f * q.w, xx = 2.0f * q.x, yy = 2.0f * q.y, zz = 2.0f * q.z;
@@ -64,6 +67,8 @@ namespace rd
 		return r;
 	}
 
+	// 行列を 3 つ掛ける代わりに、回転行列の各行（各軸）を拡大率で伸ばし、4 行目に移動を入れる
+	// Transform が毎フレーム呼ぶので、64 回の掛け算 2 回分を省いている
 	Matrix4 Matrix4::CreateAffine(const Vector3& s, const Quaternion& q, const Vector3& t)
 	{
 		Matrix4 r = CreateRotate(q);
@@ -79,6 +84,9 @@ namespace rd
 		return r;
 	}
 
+	// カメラの前（z）・右（x）・上（y）の軸を作り、「カメラのワールド行列の逆行列」を直接組み立てる
+	//   回転部分 … 軸を列に並べる（回転行列の逆は転置なので、行ではなく列に入れる）
+	//   移動部分 … 各軸と eye の内積をマイナスにしたもの（カメラの位置を原点へ戻す）
 	Matrix4 Matrix4::CreateLookAt(const Vector3& eye, const Vector3& target, const Vector3& up)
 	{
 		Vector3 z = Normalize(target - eye);
@@ -91,6 +99,11 @@ namespace rd
 			-Dot(x, eye), -Dot(y, eye), -Dot(z, eye), 1.0f };
 	}
 
+	// 透視投影（DirectXMath の XMMatrixPerspectiveFovLH と同じ式）
+	//   yScale … 視野角の端が画面の端（±1）に来るように縮める。視野角が狭いほど大きく写る
+	//   xScale … 画面の縦横比の分だけ横を縮める
+	//   range  … 奥行き z を nearZ で 0、farZ で 1 になるように変換する係数
+	//   3 行 4 列目の 1 … 変換後の w に z（奥行き）を入れる。GPU が後で x, y を w で割るので遠くが小さくなる
 	Matrix4 Matrix4::CreatePerspectiveFov(float fovY, float aspect, float nearZ, float farZ)
 	{
 		float yScale = 1.0f / std::tan(fovY * 0.5f);
@@ -103,6 +116,8 @@ namespace rd
 			0.0f, 0.0f, -nearZ * range, 0.0f };
 	}
 
+	// 指定した箱（left～right, top～bottom, nearZ～farZ）を、画面の範囲（x, y は -1～1、z は 0～1）に
+	// 拡大と移動だけで合わせる。top < bottom（下向きが +y のスクリーン座標）を渡すと上下が反転する
 	Matrix4 Matrix4::CreateOrthographic(float left, float top, float right, float bottom, float nearZ, float farZ)
 	{
 		return {
@@ -122,6 +137,7 @@ namespace rd
 			(left + right) / (left - right), (top + bottom) / (bottom - top), -nearZ * range, 1.0f };
 	}
 
+	// 各軸の長さが拡大率（回転では長さが変わらないので、残っているのは拡大の分だけ）
 	Vector3 Matrix4::GetScale() const
 	{
 		return { Length(GetAxisX()), Length(GetAxisY()), Length(GetAxisZ()) };
@@ -136,10 +152,12 @@ namespace rd
 		return r;
 	}
 
+	// 移動は 4 行目、拡大は各軸の長さ、回転は各軸を長さ 1 に戻した行列から求める
 	void Matrix4::Decompose(Vector3& scale, Quaternion& rotation, Vector3& translation) const
 	{
 		translation = GetTranslation();
 		scale = GetScale();
+		// 各軸を拡大率で割って、回転だけの行列を作る（拡大率 0 の軸は 0 のまま）
 		Matrix4 rot;
 		Vector3 axes[3] = { GetAxisX(), GetAxisY(), GetAxisZ() };
 		for (int i = 0; i < 3; ++i)
@@ -150,6 +168,8 @@ namespace rd
 			rot.m[i][2] = axes[i].z * s;
 		}
 		// 鏡像（負のスケール）は X 軸に押し付ける
+		//   長さは常に正なので、負の拡大率は回転行列の側に「裏返し」として残る（行列式が負になる）。
+		//   裏返しは回転では表せないので、X の拡大率を負にして回転行列の X 軸を反転させ、ふつうの回転に戻す
 		if (Determinant(rot) < 0.0f)
 		{
 			scale.x = -scale.x;
@@ -158,14 +178,19 @@ namespace rd
 		rotation = Quaternion::FromMatrix(rot);
 	}
 
+	// 例: 画面のクリック位置からワールドの位置を求めるとき、ビュー射影行列の逆行列と一緒に使う
 	Vector3 TransformCoord(const Vector3& v, const Matrix4& m)
 	{
 		Vector3 p = TransformPoint(v, m);
+		// TransformPoint は 4 列目を計算しないので、w だけ別に求める（w が 0 に近いときは割らない）
 		float w = v.x * m.m[0][3] + v.y * m.m[1][3] + v.z * m.m[2][3] + m.m[3][3];
 		return std::fabs(w) > math::kEpsilon ? p / w : p;
 	}
 
 	// 上 2 行と下 2 行の 2x2 小行列式（s, c）を組み合わせて求める（ラプラス展開）
+	//   s0～s5 … 上 2 行（0 行と 1 行）から 2 列ずつ選んだ 6 通りの 2x2 行列式
+	//   c0～c5 … 下 2 行（2 行と 3 行）から、残りの 2 列を選んだ 2x2 行列式
+	//   4x4 を 1 行ずつ展開するより掛け算がずっと少なく、Inverse でも同じ値を使い回せる
 	float Determinant(const Matrix4& a)
 	{
 		const auto& m = a.m;
@@ -185,6 +210,8 @@ namespace rd
 	}
 
 	// Determinant と同じ 2x2 小行列式から余因子を作って割る
+	//   逆行列 = 余因子行列の転置 / 行列式。各成分の式は、この s と c の組み合わせで書ける
+	//   旧版はアフィン変換専用だったが、これは射影行列を含むどんな 4x4 でも使える
 	Matrix4 Inverse(const Matrix4& a)
 	{
 		const auto& m = a.m;
