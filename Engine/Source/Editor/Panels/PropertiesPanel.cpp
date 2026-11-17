@@ -1,5 +1,5 @@
 #include "RdPch.h"
-#include "Editor/Panels/InspectorPanel.h"
+#include "Editor/Panels/PropertiesPanel.h"
 #include "Asset/AssetManager.h"
 #include "Asset/Model/Model.h"
 #include "Asset/Texture/Texture.h"
@@ -36,9 +36,9 @@ namespace rd
 		}
 	}
 
-	InspectorPanel::InspectorPanel(Editor& editor) : EditorPanel(editor, "Inspector") {}
+	PropertiesPanel::PropertiesPanel(Editor& editor) : EditorPanel(editor, "Properties") {}
 
-	void InspectorPanel::OnGui()
+	void PropertiesPanel::OnGui()
 	{
 		Actor* actor = mEditor.GetSelected();
 		if (!actor)
@@ -68,7 +68,7 @@ namespace rd
 	}
 
 	// アイコン・有効 / 無効・名前を 1 行に、その下にタグとレイヤー
-	void InspectorPanel::DrawActorHeader(Actor* actor, bool& commit)
+	void PropertiesPanel::DrawActorHeader(Actor* actor, bool& commit)
 	{
 		EditorIcons::Inline(EditorIcons::ForActor(actor));
 		ImGui::SameLine();
@@ -90,7 +90,7 @@ namespace rd
 		ImGui::Spacing();
 	}
 
-	void InspectorPanel::DrawComponents(Actor* actor, ImGuiInspector& inspector, bool& commit)
+	void PropertiesPanel::DrawComponents(Actor* actor, ImGuiInspector& inspector, bool& commit)
 	{
 		ImGui::PushID("Transform");
 		bool open = ImGui::CollapsingHeader("      Transform", ImGuiTreeNodeFlags_DefaultOpen);
@@ -127,7 +127,7 @@ namespace rd
 	}
 
 	// 見出しをドラッグして並べ替える（上半分へのドロップで前、下半分で後ろ）。右端に有効 / 無効、左にアイコン
-	bool InspectorPanel::DrawComponentHeader(Component* c, int index, int count, bool& commit)
+	bool PropertiesPanel::DrawComponentHeader(Component* c, int index, int count, bool& commit)
 	{
 		std::string label = std::string("      ") + c->GetTypeName();
 		bool open = ImGui::CollapsingHeader(label.c_str(), ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_AllowOverlap);
@@ -177,7 +177,7 @@ namespace rd
 		return open;
 	}
 
-	void InspectorPanel::DrawComponentMenu(Component* c, int index, int count)
+	void PropertiesPanel::DrawComponentMenu(Component* c, int index, int count)
 	{
 		if (!ImGui::BeginPopupContextItem("comp")) { return; }
 		if (ImGui::MenuItem("Remove Component")) { mOps.remove = c; }
@@ -195,7 +195,7 @@ namespace rd
 		ImGui::EndPopup();
 	}
 
-	void InspectorPanel::ApplyPendingOps(Actor* actor, bool& commit)
+	void PropertiesPanel::ApplyPendingOps(Actor* actor, bool& commit)
 	{
 		if (mOps.remove)
 		{
@@ -233,7 +233,7 @@ namespace rd
 		}
 	}
 
-	void InspectorPanel::DrawAddComponent()
+	void PropertiesPanel::DrawAddComponent()
 	{
 		ImGui::Spacing();
 		ImGui::Separator();
@@ -264,8 +264,8 @@ namespace rd
 		ImGui::EndPopup();
 	}
 
-	// アセットの種類・大きさと、テクスチャなら絵、モデルなら中身の数を出す
-	void InspectorPanel::DrawAssetInfo(const std::string& path)
+	// アセットの種類・大きさと、テクスチャなら縦横の大きさ、モデルなら中身の数を出す（絵はプレビューパネル）
+	void PropertiesPanel::DrawAssetInfo(const std::string& path)
 	{
 		std::string ext = GetExtension(path);
 		EditorIcons::Inline(EditorIcons::ForFile(ext, false));
@@ -282,11 +282,7 @@ namespace rd
 		if (icon == Icon::Image)
 		{
 			auto tex = AssetManager::Get().LoadTexture(path);
-			if (tex->IsReady())
-			{
-				ImGui::Text("%u x %u", tex->GetWidth(), tex->GetHeight());
-				DrawTexturePreview(*tex, std::max(ImGui::GetContentRegionAvail().y - ImGui::GetStyle().ItemSpacing.y, 64.0f));
-			}
+			if (tex->IsReady()) { ImGui::Text("%u x %u", tex->GetWidth(), tex->GetHeight()); }
 			else { ImGui::TextDisabled(tex->IsFailed() ? "Failed to load" : "Loading..."); }
 		}
 		else if (icon == Icon::Model)
@@ -294,8 +290,6 @@ namespace rd
 			auto model = AssetManager::Get().LoadModel(path);
 			if (model->IsReady())
 			{
-				mModelPreview.Draw(path);
-				ImGui::Spacing();
 				ImGui::Text("Meshes: %zu", model->GetSubMeshes().size());
 				ImGui::Text("Materials: %zu", model->GetMaterials().size());
 				ImGui::Text("Animations: %zu", model->GetClips().size());

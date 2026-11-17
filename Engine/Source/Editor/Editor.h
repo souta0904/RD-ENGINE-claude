@@ -16,7 +16,7 @@ namespace rd
 	class EditorPanel;
 	class Engine;
 	class HierarchyPanel;
-	class InspectorPanel;
+	class PropertiesPanel;
 	class LightingPanel;
 	class ProfilerPanel;
 	class ProjectPanel;
@@ -24,7 +24,7 @@ namespace rd
 	class Scene;
 	class StatsPanel;
 
-	// ImGui のエディタ（Unity 風: Hierarchy / Inspector / Project / Console / Scene・Game ビュー）
+	// ImGui のエディタ（Unity 風: Hierarchy / Properties / Preview / Project / Console / Scene・Game ビュー）
 	//  パネルは EditorPanel の派生として別のクラスにし、ここは選択・Undo・シーンとアクターの操作・メニューを受け持つ。
 	//  エンジンは作るときに渡される（グローバルの Engine::Get() には頼らない）。
 	//  実装は Editor.cpp（全体）/ EditorActions.cpp（アクターとシーンの操作）/ EditorMenu.cpp（メニュー・ツールバー・ショートカット）
@@ -133,7 +133,7 @@ namespace rd
 		std::vector<std::unique_ptr<EditorPanel>> mPanels;
 		SceneViewPanel* mSceneView = nullptr;
 		HierarchyPanel* mHierarchy = nullptr;
-		InspectorPanel* mInspector = nullptr;
+		PropertiesPanel* mProperties = nullptr;
 		ProjectPanel* mProject = nullptr;
 		ConsolePanel* mConsole = nullptr;
 		AIAssistant* mAssistant = nullptr;

@@ -1,6 +1,5 @@
 #pragma once
 #include "Core/Serialization/Json.h"
-#include "Editor/Core/AssetPreview.h"
 #include "Editor/Panels/EditorPanel.h"
 #include <string>
 
@@ -10,13 +9,13 @@ namespace rd
 	class Component;
 	class ImGuiInspector;
 
-	// インスペクタ（選んだアクターの名前・Transform・コンポーネントを編集する）
+	// プロパティ（選んだアクターの名前・Transform・コンポーネントを編集する。Unity のインスペクタにあたる）
 	//  コンポーネントの見出しをドラッグして並べ替え、右クリックで削除・リセット・値のコピーと貼り付け・並べ替え
-	//  アクターを選んでいないときは、プロジェクトパネルで選んだアセットの情報を出す
-	class InspectorPanel final : public EditorPanel
+	//  アクターを選んでいないときは、プロジェクトパネルで選んだアセットの情報を出す（絵はプレビューパネル）
+	class PropertiesPanel final : public EditorPanel
 	{
 	public:
-		explicit InspectorPanel(Editor& editor);
+		explicit PropertiesPanel(Editor& editor);
 
 	protected:
 		void OnGui() override;
@@ -47,7 +46,6 @@ namespace rd
 		std::string mAddFilter;
 		Json mComponentClipboard;
 		PendingOps mOps;
-		ModelPreviewWidget mModelPreview;
 		bool mDropLine = false;
 		float mDropLineY = 0.0f;
 		float mDropLineX0 = 0.0f;

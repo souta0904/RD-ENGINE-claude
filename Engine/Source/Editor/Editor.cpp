@@ -5,8 +5,9 @@
 #include "Editor/Commands/ActorStateCommand.h"
 #include "Editor/Panels/ConsolePanel.h"
 #include "Editor/Panels/HierarchyPanel.h"
-#include "Editor/Panels/InspectorPanel.h"
+#include "Editor/Panels/PropertiesPanel.h"
 #include "Editor/Panels/LightingPanel.h"
+#include "Editor/Panels/PreviewPanel.h"
 #include "Editor/Panels/ProfilerPanel.h"
 #include "Editor/Panels/ProjectPanel.h"
 #include "Editor/Panels/SceneViewPanel.h"
@@ -18,20 +19,29 @@
 #include "Scene/Scene.h"
 #include <ImGui/imgui.h>
 #include <ImGui/imgui_internal.h>
+#include <fstream>
 
 namespace rd
 {
 	namespace
 	{
 		constexpr const char* kLayoutFile = "Logs/editor_layout.ini";
+
+		bool LayoutHasWindow(const char* name)
+		{
+			std::ifstream file(kLayoutFile);
+			std::string text((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+			return text.find(std::string("[Window][") + name + "]") != std::string::npos;
+		}
 	}
 
 	Editor::Editor(Engine& engine) : mEngine(engine)
 	{
 		mSceneView = AddPanel(std::make_unique<SceneViewPanel>(*this));
 		mHierarchy = AddPanel(std::make_unique<HierarchyPanel>(*this));
-		mInspector = AddPanel(std::make_unique<InspectorPanel>(*this));
+		mProperties = AddPanel(std::make_unique<PropertiesPanel>(*this));
 		mProject = AddPanel(std::make_unique<ProjectPanel>(*this));
+		AddPanel(std::make_unique<PreviewPanel>(*this));
 		mConsole = AddPanel(std::make_unique<ConsolePanel>(*this));
 		AddPanel(std::make_unique<LightingPanel>(*this));
 		AddPanel(std::make_unique<StatsPanel>(*this));
@@ -46,8 +56,8 @@ namespace rd
 		std::filesystem::create_directories("Logs");
 		mImGui.Initialize(mEngine.GetWindow().GetHandle());
 		ImGui::GetIO().IniFilename = kLayoutFile;
-		// 前回の配置が保存されていればそれを使う
-		mFirstLayout = !std::filesystem::exists(kLayoutFile);
+		// 前回の配置が保存されていればそれを使う（後から足したパネルが入っていない古い配置なら作り直す）
+		mFirstLayout = !std::filesystem::exists(kLayoutFile) || !LayoutHasWindow("Preview");
 	}
 
 	void Editor::Shutdown()
@@ -228,13 +238,15 @@ namespace rd
 		ImGui::DockBuilderSetNodeSize(dockId, vp->WorkSize);
 		ImGuiID center = dockId;
 		ImGuiID left = ImGui::DockBuilderSplitNode(center, ImGuiDir_Left, 0.17f, nullptr, &center);
-		ImGuiID right = ImGui::DockBuilderSplitNode(center, ImGuiDir_Right, 0.26f, nullptr, &center);
+		ImGuiID right = ImGui::DockBuilderSplitNode(center, ImGuiDir_Right, 0.3f, nullptr, &center);
+		ImGuiID rightBottom = ImGui::DockBuilderSplitNode(right, ImGuiDir_Down, 0.5f, nullptr, &right);
 		ImGuiID bottom = ImGui::DockBuilderSplitNode(center, ImGuiDir_Down, 0.28f, nullptr, &center);
 		ImGui::DockBuilderDockWindow("Hierarchy", left);
-		ImGui::DockBuilderDockWindow("Inspector", right);
+		ImGui::DockBuilderDockWindow("Properties", right);
 		ImGui::DockBuilderDockWindow("Lighting", right);
 		ImGui::DockBuilderDockWindow("Stats", right);
 		ImGui::DockBuilderDockWindow("AI Assistant", right);
+		ImGui::DockBuilderDockWindow("Preview", rightBottom);
 		ImGui::DockBuilderDockWindow("Project", bottom);
 		ImGui::DockBuilderDockWindow("Console", bottom);
 		ImGui::DockBuilderDockWindow("Profiler", bottom);
@@ -243,16 +255,16 @@ namespace rd
 		mSelectDefaultTabs = true;
 	}
 
-	// 配置を作り直すと最後に入れたタブが前に出るので、タブができてから Inspector と Project を選び直す
+	// 配置を作り直すと最後に入れたタブが前に出るので、タブができてから Properties と Project を選び直す
 	void Editor::SelectDefaultTabs()
 	{
-		for (const char* name : { "Inspector", "Project" })
+		for (const char* name : { "Properties", "Project" })
 		{
 			ImGuiWindow* window = ImGui::FindWindowByName(name);
 			if (!window || !window->DockNode || !window->DockNode->TabBar) { return; }
 			if (!ImGui::TabBarFindTabByID(window->DockNode->TabBar, window->TabId)) { return; }
 		}
-		for (const char* name : { "Inspector", "Project" })
+		for (const char* name : { "Properties", "Project" })
 		{
 			ImGuiWindow* window = ImGui::FindWindowByName(name);
 			window->DockNode->TabBar->NextSelectedTabId = window->TabId;
