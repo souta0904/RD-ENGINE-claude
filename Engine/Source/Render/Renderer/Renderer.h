@@ -48,9 +48,10 @@ namespace rd
 		void BlitToBackBuffer();
 
 		// メインの画面とは別に、list の中身だけを targets へ描く（統計や描画リストはメインの分を残す）
-		//  描き終えた結果は targets.output にあり、そのままシェーダーから読める。list は空になる
+		//  描き終えた結果は targets.output にあり、そのままシェーダーから読める。list と debug は空になる
+		//  debug を渡すとその線も重ねる
 		void RenderOffscreen(RenderTargets& targets, RenderList& list, const RenderCamera& camera, const Environment& env,
-			uint32_t width, uint32_t height);
+			uint32_t width, uint32_t height, float time = 0.0f, DebugDraw* debug = nullptr);
 
 		// 次の Render の結果を PNG で保存する（FinishCapture で書き出す）
 		void RequestCapture(const std::string& path) { mCapturePath = path; }

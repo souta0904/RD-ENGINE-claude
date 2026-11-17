@@ -71,7 +71,7 @@ namespace rd
 		}
 		else if (kind != "Directional Light")
 		{
-			RenderCamera cam = mSceneView->GetSceneCamera(1.0f);
+			RenderCamera cam = mSceneView->GetViewCamera(1.0f);
 			actor->GetTransform().SetPosition(cam.position + cam.GetForward() * 6.0f);
 		}
 		Select(actor);
@@ -165,7 +165,7 @@ namespace rd
 		if (!actor) { return; }
 		auto mr = actor->GetComponent<MeshRenderer>();
 		mSceneView->GetCamera().Focus(mr ? mr->GetWorldBounds() : AABB::FromCenterExtents(actor->GetTransform().GetPosition(), Vector3(1, 1, 1)));
-		mSceneView->SetView(SceneViewPanel::View::Scene);
+		mFocusView = "Scene";
 	}
 
 	// 上書きしないよう、同じ名前があれば " 1", " 2" … を付ける

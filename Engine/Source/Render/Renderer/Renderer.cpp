@@ -108,22 +108,23 @@ namespace rd
 
 	// 描く先・描画リスト・デバッグ線・統計・スクリーンショットの予約をメインの分と入れ替えて描き、元に戻す
 	void Renderer::RenderOffscreen(RenderTargets& targets, RenderList& list, const RenderCamera& camera, const Environment& env,
-		uint32_t width, uint32_t height)
+		uint32_t width, uint32_t height, float time, DebugDraw* debug)
 	{
 		RD_GPU_SCOPE("Render Offscreen");
 		RenderStats stats = mStats;
 		std::string capture = std::move(mCapturePath);
 		mCapturePath.clear();
-		DebugDraw debug;
-		std::swap(mDebug, debug);
+		DebugDraw empty;
+		DebugDraw& lines = debug ? *debug : empty;
+		std::swap(mDebug, lines);
 		std::swap(mList, list);
 		mT = &targets;
 
-		Render(camera, env, width, height, 0.0f);
+		Render(camera, env, width, height, time);
 
 		mT = &mMain;
 		std::swap(mList, list);
-		std::swap(mDebug, debug);
+		std::swap(mDebug, lines);
 		mCapturePath = std::move(capture);
 		mStats = stats;
 	}

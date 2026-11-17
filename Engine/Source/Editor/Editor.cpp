@@ -3,7 +3,8 @@
 #include "Editor/Assistant/AIAssistant.h"
 #include "Editor/Commands/SceneSettingsCommand.h"
 #include "Editor/Commands/ActorStateCommand.h"
-#include "Editor/Panels/ConsolePanel.h"
+#include "Editor/Panels/GameViewPanel.h"
+#include "Editor/Panels/LogPanel.h"
 #include "Editor/Panels/HierarchyPanel.h"
 #include "Editor/Panels/PropertiesPanel.h"
 #include "Editor/Panels/LightingPanel.h"
@@ -26,23 +27,34 @@ namespace rd
 	namespace
 	{
 		constexpr const char* kLayoutFile = "Logs/editor_layout.ini";
+		// 既定の配置の版（パネルを足したり名前を変えたりしたら上げる。保存してある版と違えば配置を作り直す）
+		constexpr const char* kLayoutVersionFile = "Logs/editor_layout.version";
+		constexpr int kLayoutVersion = 2;
 
-		bool LayoutHasWindow(const char* name)
+		int ReadLayoutVersion()
 		{
-			std::ifstream file(kLayoutFile);
-			std::string text((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-			return text.find(std::string("[Window][") + name + "]") != std::string::npos;
+			std::ifstream file(kLayoutVersionFile);
+			int version = 0;
+			file >> version;
+			return version;
+		}
+
+		void WriteLayoutVersion()
+		{
+			std::ofstream file(kLayoutVersionFile);
+			file << kLayoutVersion;
 		}
 	}
 
 	Editor::Editor(Engine& engine) : mEngine(engine)
 	{
 		mSceneView = AddPanel(std::make_unique<SceneViewPanel>(*this));
+		mGameView = AddPanel(std::make_unique<GameViewPanel>(*this));
 		mHierarchy = AddPanel(std::make_unique<HierarchyPanel>(*this));
 		mProperties = AddPanel(std::make_unique<PropertiesPanel>(*this));
 		mProject = AddPanel(std::make_unique<ProjectPanel>(*this));
 		AddPanel(std::make_unique<PreviewPanel>(*this));
-		mConsole = AddPanel(std::make_unique<ConsolePanel>(*this));
+		mLog = AddPanel(std::make_unique<LogPanel>(*this));
 		AddPanel(std::make_unique<LightingPanel>(*this));
 		AddPanel(std::make_unique<StatsPanel>(*this));
 		mProfiler = AddPanel(std::make_unique<ProfilerPanel>(*this));
@@ -56,8 +68,8 @@ namespace rd
 		std::filesystem::create_directories("Logs");
 		mImGui.Initialize(mEngine.GetWindow().GetHandle());
 		ImGui::GetIO().IniFilename = kLayoutFile;
-		// 前回の配置が保存されていればそれを使う（後から足したパネルが入っていない古い配置なら作り直す）
-		mFirstLayout = !std::filesystem::exists(kLayoutFile) || !LayoutHasWindow("Preview");
+		// 前回の配置が保存されていればそれを使う（既定の配置の版が古ければ作り直す）
+		mFirstLayout = !std::filesystem::exists(kLayoutFile) || ReadLayoutVersion() != kLayoutVersion;
 	}
 
 	void Editor::Shutdown()
@@ -172,21 +184,57 @@ namespace rd
 		mEngine.SetWindowTitleSuffix(mHistory.IsDirty() ? " *" : "");
 	}
 
-	void Editor::GetViewportSize(uint32_t& width, uint32_t& height) const
+	ViewPanel& Editor::GetPrimaryView() const
 	{
-		mSceneView->GetRenderSize(width, height);
+		return mPrimaryGame ? static_cast<ViewPanel&>(*mGameView) : static_cast<ViewPanel&>(*mSceneView);
 	}
 
+	// 最後にフォーカスした方を primary にする。primary が隠れていて、もう片方が見えていればそちらへ移す
+	//  パネルを描く前に決める（描くときにどちらの結果を出すかが決まっているように）ので、見えているかは前のフレームで見る
+	void Editor::UpdatePrimaryView()
+	{
+		if (mSceneView->IsFocused() && mSceneView->WasVisible()) { mPrimaryGame = false; }
+		else if (mGameView->IsFocused() && mGameView->WasVisible()) { mPrimaryGame = true; }
+		if (mPrimaryGame && !mGameView->WasVisible() && mSceneView->WasVisible()) { mPrimaryGame = false; }
+		else if (!mPrimaryGame && !mSceneView->WasVisible() && mGameView->WasVisible()) { mPrimaryGame = true; }
+		mSceneView->SetPrimary(!mPrimaryGame);
+		mGameView->SetPrimary(mPrimaryGame);
+	}
+
+	void Editor::GetViewportSize(uint32_t& width, uint32_t& height) const
+	{
+		GetPrimaryView().GetRenderSize(width, height);
+	}
+
+	// ゲームビューはゲームと同じカメラ（メインカメラ）なので差し替えない
 	bool Editor::OverrideCamera(float aspect, RenderCamera& camera) const
 	{
-		if (!mSceneView->UsesEditorCamera()) { return false; }
-		camera = mSceneView->GetSceneCamera(aspect);
+		if (mPrimaryGame) { return false; }
+		camera = mSceneView->GetViewCamera(aspect);
 		return true;
 	}
 
 	void Editor::DrawGizmos(DebugDraw& draw)
 	{
-		if (!mSceneView->UsesEditorCamera()) { return; }
+		if (!mPrimaryGame) { DrawSceneGizmos(draw); }
+	}
+
+	// primary でない方も見えていれば、シーンを集め直して自分の描画先へ描く
+	void Editor::RenderExtraViews(Scene& scene, float time)
+	{
+		ViewPanel& view = mPrimaryGame ? static_cast<ViewPanel&>(*mSceneView) : static_cast<ViewPanel&>(*mGameView);
+		if (!view.IsVisible()) { return; }
+		uint32_t width, height;
+		view.GetRenderSize(width, height);
+		scene.CollectRender(mExtraList);
+		DebugDraw debug;
+		if (mPrimaryGame) { DrawSceneGizmos(debug); }
+		Renderer::Get().RenderOffscreen(view.GetOffscreenTargets(), mExtraList, view.GetViewCamera(view.GetAspect()), scene.GetEnvironment(),
+			width, height, time, &debug);
+	}
+
+	void Editor::DrawSceneGizmos(DebugDraw& draw)
+	{
 		Scene& scene = mEngine.GetScene();
 		if (mSceneView->showGrid) { draw.Grid(50.0f, 1.0f, Color(0.5f, 0.5f, 0.5f, 0.25f)); }
 		if (mSceneView->showGizmos) { scene.DrawGizmos(draw, GetSelected()); }
@@ -215,13 +263,26 @@ namespace rd
 			SetupDockLayout(dockId);
 		}
 
+		// Unity と同じく、プレイを始めたらゲームビュー、止めたらシーンビューを前に出す
+		bool playing = IsPlaying();
+		if (playing != mWasPlaying)
+		{
+			mWasPlaying = playing;
+			mFocusView = playing ? "Game" : "Scene";
+			mPrimaryGame = playing;
+			mSceneView->SetPrimary(!playing);
+			mGameView->SetPrimary(playing);
+		}
+		// 切り替えたフレームはまだ前のフォーカスが残っているので、フォーカスで決め直さない
+		else { UpdatePrimaryView(); }
+
 		for (auto& panel : mPanels) { panel->Draw(); }
 		if (mSelectDefaultTabs) { SelectDefaultTabs(); }
-		// 最後に開いたウィンドウ（Stats）がフォーカスを持つと、そのタブが選ばれ続けるので、起動時はビューにフォーカスを移す
-		if (mFocusViewport)
+		// 最後に開いたウィンドウ（Stats）がフォーカスを持つと、そのタブが選ばれ続けるので、起動時はシーンビューにフォーカスを移す
+		if (mFocusView)
 		{
-			ImGui::SetWindowFocus("Viewport");
-			mFocusViewport = false;
+			ImGui::SetWindowFocus(mFocusView);
+			mFocusView = nullptr;
 		}
 		for (auto& panel : mPanels) { panel->Update(dt); }
 		if (mShowDemo) { ImGui::ShowDemoWindow(&mShowDemo); }
@@ -248,11 +309,13 @@ namespace rd
 		ImGui::DockBuilderDockWindow("AI Assistant", right);
 		ImGui::DockBuilderDockWindow("Preview", rightBottom);
 		ImGui::DockBuilderDockWindow("Project", bottom);
-		ImGui::DockBuilderDockWindow("Console", bottom);
+		ImGui::DockBuilderDockWindow("Log", bottom);
 		ImGui::DockBuilderDockWindow("Profiler", bottom);
-		ImGui::DockBuilderDockWindow("Viewport", center);
+		ImGui::DockBuilderDockWindow("Scene", center);
+		ImGui::DockBuilderDockWindow("Game", center);
 		ImGui::DockBuilderFinish(dockId);
 		mSelectDefaultTabs = true;
+		WriteLayoutVersion();
 	}
 
 	// 配置を作り直すと最後に入れたタブが前に出るので、タブができてから Properties と Project を選び直す
@@ -270,7 +333,7 @@ namespace rd
 			window->DockNode->TabBar->NextSelectedTabId = window->TabId;
 			window->DockNode->SelectedTabId = window->TabId;
 		}
-		mFocusViewport = true;
+		mFocusView = "Scene";
 		ImGui::MarkIniSettingsDirty();
 		mSelectDefaultTabs = false;
 	}

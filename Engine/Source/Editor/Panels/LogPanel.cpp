@@ -1,5 +1,5 @@
 #include "RdPch.h"
-#include "Editor/Panels/ConsolePanel.h"
+#include "Editor/Panels/LogPanel.h"
 #include "Core/Util/StringUtil.h"
 #include "Editor/Editor.h"
 #include "Editor/Style/EditorGui.h"
@@ -9,7 +9,7 @@ namespace rd
 {
 	namespace
 	{
-		struct ConsoleLine
+		struct LogLine
 		{
 			const LogRecord* record;
 			int count;
@@ -31,16 +31,16 @@ namespace rd
 		}
 	}
 
-	ConsolePanel::ConsolePanel(Editor& editor) : EditorPanel(editor, "Console") {}
+	LogPanel::LogPanel(Editor& editor) : EditorPanel(editor, "Log") {}
 
-	void ConsolePanel::Update(float)
+	void LogPanel::Update(float)
 	{
 		bool playing = mEditor.IsPlaying();
 		if (playing && !mWasPlaying && mClearOnPlay) { Log::Clear(); }
 		mWasPlaying = playing;
 	}
 
-	bool ConsolePanel::LevelToggle(const char* id, Icon icon, int count, bool& show, const char* tooltip)
+	bool LogPanel::LevelToggle(const char* id, Icon icon, int count, bool& show, const char* tooltip)
 	{
 		std::string label = std::to_string(count);
 		ImGui::PushStyleColor(ImGuiCol_Button, show ? EditorStyle::kHeaderBg : ImVec4(0, 0, 0, 0));
@@ -50,7 +50,7 @@ namespace rd
 		return pressed;
 	}
 
-	void ConsolePanel::DrawToolbar(int infoCount, int warnCount, int errorCount)
+	void LogPanel::DrawToolbar(int infoCount, int warnCount, int errorCount)
 	{
 		EditorGui::BeginToolbar("toolbar");
 		if (ImGui::Button("Clear")) { Log::Clear(); }
@@ -74,10 +74,10 @@ namespace rd
 	}
 
 	// ログの履歴はコールバックの間ロックされるので、表示する行をまず集めてから描く
-	void ConsolePanel::OnGui()
+	void LogPanel::OnGui()
 	{
 		int infoCount = 0, warnCount = 0, errorCount = 0;
-		std::vector<ConsoleLine> lines;
+		std::vector<LogLine> lines;
 		std::vector<LogRecord> copies;
 		Log::ForEach([&](const LogRecord& r)
 			{

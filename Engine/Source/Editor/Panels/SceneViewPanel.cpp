@@ -1,19 +1,16 @@
 #include "RdPch.h"
 #include "Editor/Panels/SceneViewPanel.h"
 #include "Asset/AssetManager.h"
-#include "Components/Rendering/CameraComponent.h"
 #include "Components/Rendering/MeshRenderer.h"
 #include "Core/Util/StringUtil.h"
 #include "Editor/Commands/ActorLifetimeCommand.h"
 #include "Editor/Editor.h"
 #include "Editor/Style/EditorGui.h"
 #include "Editor/Style/EditorStyle.h"
-#include "Engine.h"
 #include "Physics/Collision/ShapeCollision.h"
 #include "Physics/Colliders/Collider.h"
 #include "Physics/World/PhysicsWorld.h"
 #include "Platform/Input/Input.h"
-#include "Render/Renderer/Renderer.h"
 #include "Scene/Scene.h"
 #include <ImGui/ImGuizmo.h>
 
@@ -21,95 +18,28 @@ namespace rd
 {
 	namespace
 	{
-		struct AspectOption
-		{
-			const char* label;
-			float ratio;
-		};
-		constexpr AspectOption kAspects[] = { { "Free Aspect", 0.0f }, { "16:9", 16.0f / 9.0f }, { "16:10", 16.0f / 10.0f }, { "4:3", 4.0f / 3.0f }, { "1:1", 1.0f } };
-
 		bool IsModelFile(const std::string& ext)
 		{
 			return ext == ".obj" || ext == ".gltf" || ext == ".glb" || ext == ".fbx" || ext == ".dae";
 		}
 	}
 
-	SceneViewPanel::SceneViewPanel(Editor& editor) : EditorPanel(editor, "Viewport") {}
+	SceneViewPanel::SceneViewPanel(Editor& editor) : ViewPanel(editor, "Scene") {}
 
-	// プレイを始めたらゲームビュー、止めたらシーンビューへ切り替える（Unity と同じ）
 	void SceneViewPanel::Update(float dt)
 	{
-		bool playing = mEditor.IsPlaying();
-		if (playing != mWasPlaying)
-		{
-			mView = playing ? View::Game : View::Scene;
-			mWasPlaying = playing;
-		}
-		if (UsesEditorCamera()) { mCamera.Update(dt, mHovered); }
-
-		bool gameHasFocus = playing && mView == View::Game && mFocused;
-		Input::SetBlocked(!gameHasFocus || ImGui::GetIO().WantTextInput, !gameHasFocus);
-	}
-
-	void SceneViewPanel::GetRenderSize(uint32_t& width, uint32_t& height) const
-	{
-		width = std::max(1u, mWidth);
-		height = std::max(1u, mHeight);
-	}
-
-	Vector2 SceneViewPanel::ToViewUv(ImVec2 m) const
-	{
-		return Vector2((m.x - mImagePos.x) / mImageSize.x, (m.y - mImagePos.y) / mImageSize.y);
+		mCamera.Update(dt, mHovered && WasVisible());
 	}
 
 	void SceneViewPanel::OnGui()
 	{
-		ImVec2 padding = ImGui::GetStyle().WindowPadding;
-		ImGui::SetCursorPos(ImVec2(padding.x, ImGui::GetCursorPosY() + padding.y));
-		EditorGui::BeginToolbar("viewToolbar");
-		DrawViewSwitch();
-		EditorGui::ToolbarSeparator();
-		if (mView == View::Scene) { DrawSceneToolbar(); }
-		else { DrawGameToolbar(); }
+		BeginViewToolbar();
+		DrawToolbar();
 		EditorGui::EndToolbar();
+		DrawView(0.0f);
 
-		// ゲームビューで縦横比を選んでいたら、その比率で中央に置く（余りは黒い帯）
-		ImVec2 avail = ImGui::GetContentRegionAvail();
-		ImVec2 origin = ImGui::GetCursorScreenPos();
-		ImVec2 size(std::max(1.0f, avail.x), std::max(1.0f, avail.y));
-		float ratio = mView == View::Game ? kAspects[mAspect].ratio : 0.0f;
-		if (ratio > 0.0f)
-		{
-			if (size.x / size.y > ratio) { size.x = size.y * ratio; }
-			else { size.y = size.x / ratio; }
-		}
-		ImVec2 pos(origin.x + (avail.x - size.x) * 0.5f, origin.y + (avail.y - size.y) * 0.5f);
-		ImGui::GetWindowDrawList()->AddRectFilled(origin, ImVec2(origin.x + avail.x, origin.y + avail.y), IM_COL32(0, 0, 0, 255));
-		mWidth = uint32_t(size.x);
-		mHeight = uint32_t(size.y);
-		mImagePos = pos;
-		mImageSize = size;
-
-		ImGui::SetCursorScreenPos(pos);
-		const auto& output = Renderer::Get().GetOutput();
-		if (output.GetResource()) { ImGui::Image(ImTextureID(output.GetGpuSrv().ptr), size); }
-		else { ImGui::Dummy(size); }
-		mHovered = ImGui::IsItemHovered();
-		mFocused = ImGui::IsWindowFocused();
-		// 右・中ボタンでカメラを動かし始めたらフォーカスを移す
-		if (mHovered && (ImGui::IsMouseClicked(ImGuiMouseButton_Right) || ImGui::IsMouseClicked(ImGuiMouseButton_Middle)))
-		{
-			ImGui::SetWindowFocus();
-		}
-
-		float aspect = size.x / std::max(size.y, 1.0f);
-		RenderCamera cam = mCamera.GetRenderCamera(aspect);
-		if (!UsesEditorCamera())
-		{
-			if (auto main = CameraComponent::FindMain(mEditor.GetScene())) { cam = main->GetRenderCamera(aspect); }
-		}
-
-		if (UsesEditorCamera() && ImGui::BeginDragDropTarget())
+		RenderCamera cam = mCamera.GetRenderCamera(GetAspect());
+		if (ImGui::BeginDragDropTarget())
 		{
 			if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("ASSET_PATH"))
 			{
@@ -120,43 +50,22 @@ namespace rd
 
 		bool usingGizmo = false;
 		Actor* selected = mEditor.GetSelected();
-		if (selected && UsesEditorCamera()) { DrawGizmo(selected, cam, usingGizmo); }
+		if (selected) { DrawGizmo(selected, cam, usingGizmo); }
 
-		if (mHovered && UsesEditorCamera() && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !ImGuizmo::IsOver() && !usingGizmo &&
-			!Input::GetKeyRaw(Key::Alt))
+		if (mHovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !ImGuizmo::IsOver() && !usingGizmo && !Input::GetKeyRaw(Key::Alt))
 		{
 			mEditor.Select(Pick(cam.ScreenPointToRay(ToViewUv(ImGui::GetMousePos()))));
 		}
 
-		ImDrawList* dl = ImGui::GetWindowDrawList();
 		uint32_t loading = AssetManager::Get().GetLoadingCount();
 		if (loading > 0)
 		{
 			std::string text = std::format("Loading {} assets...", loading);
-			dl->AddText(ImVec2(pos.x + 10.0f, pos.y + 8.0f), ImGui::ColorConvertFloat4ToU32(EditorStyle::kWarning), text.c_str());
-		}
-		if (mView == View::Game && !CameraComponent::FindMain(mEditor.GetScene()))
-		{
-			dl->AddText(ImVec2(pos.x + 10.0f, pos.y + 8.0f), ImGui::ColorConvertFloat4ToU32(EditorStyle::kTextDim), "No camera in the scene");
-		}
-		if (mEditor.IsPlaying())
-		{
-			ImVec4 border = mEditor.GetEngine().IsPaused() ? EditorStyle::kWarning : EditorStyle::kSuccess;
-			dl->AddRect(pos, ImVec2(pos.x + size.x, pos.y + size.y), ImGui::ColorConvertFloat4ToU32(border), 0.0f, 0, 2.0f);
+			ImGui::GetWindowDrawList()->AddText(ImVec2(mImagePos.x + 10.0f, mImagePos.y + 8.0f), ImGui::ColorConvertFloat4ToU32(EditorStyle::kWarning), text.c_str());
 		}
 	}
 
-	void SceneViewPanel::DrawViewSwitch()
-	{
-		const char* names[] = { "Scene", "Game" };
-		for (int i = 0; i < 2; ++i)
-		{
-			if (i > 0) { ImGui::SameLine(0.0f, 2.0f); }
-			if (EditorGui::ToggleButton(names[i], mView == View(i))) { mView = View(i); }
-		}
-	}
-
-	void SceneViewPanel::DrawSceneToolbar()
+	void SceneViewPanel::DrawToolbar()
 	{
 		ImGui::Checkbox("Grid", &showGrid);
 		ImGui::SameLine();
@@ -176,27 +85,6 @@ namespace rd
 		ImGui::SameLine();
 		ImGui::SetNextItemWidth(ImGui::GetFontSize() * 3.5f);
 		ImGui::DragFloat("##fov", &mCamera.fov, 0.2f, 10.0f, 120.0f, "%.0f");
-	}
-
-	void SceneViewPanel::DrawGameToolbar()
-	{
-		ImGui::SetNextItemWidth(ImGui::GetFontSize() * 9.0f);
-		if (ImGui::BeginCombo("##aspect", kAspects[mAspect].label))
-		{
-			for (int i = 0; i < int(std::size(kAspects)); ++i)
-			{
-				if (ImGui::Selectable(kAspects[i].label, i == mAspect)) { mAspect = i; }
-			}
-			ImGui::EndCombo();
-		}
-		ImGui::SameLine();
-		ImGui::AlignTextToFramePadding();
-		ImGui::TextDisabled("%u x %u", mWidth, mHeight);
-		if (mEditor.IsPlaying())
-		{
-			ImGui::SameLine();
-			ImGui::TextDisabled(mFocused ? "  Input: game" : "  Click to give input to the game");
-		}
 	}
 
 	// Ctrl を押している間は決まった間隔にスナップする。ギズモを離したときに Undo の履歴へ積む

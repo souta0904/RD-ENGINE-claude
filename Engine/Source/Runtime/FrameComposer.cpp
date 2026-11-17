@@ -44,6 +44,7 @@ namespace rd
 			if (mOverlay) { mOverlay->DrawGizmos(renderer.GetDebugDraw()); }
 		}
 		renderer.Render(camera, scene.GetEnvironment(), viewW, viewH, realTime);
+		if (mOverlay) { mOverlay->RenderExtraViews(scene, realTime); }
 
 		ComposeBackBuffer();
 	}

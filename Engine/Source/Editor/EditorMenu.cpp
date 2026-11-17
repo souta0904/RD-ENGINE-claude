@@ -171,7 +171,7 @@ namespace rd
 		if (pressed(ImGuiKey_Delete) && ImGui::IsWindowFocused(ImGuiFocusedFlags_AnyWindow)) { Defer([this] { DeleteSelected(); }); }
 
 		SceneViewPanel& view = *mSceneView;
-		if (!view.GetCamera().IsControlling() && !ctrl && (view.IsFocused() || view.IsHovered()) && view.UsesEditorCamera())
+		if (!view.GetCamera().IsControlling() && !ctrl && (view.IsFocused() || view.IsHovered()))
 		{
 			if (pressed(ImGuiKey_W)) { view.SetGizmoOp(SceneViewPanel::GizmoOp::Move); }
 			if (pressed(ImGuiKey_E)) { view.SetGizmoOp(SceneViewPanel::GizmoOp::Rotate); }

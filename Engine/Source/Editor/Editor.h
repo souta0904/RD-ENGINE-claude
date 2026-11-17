@@ -2,6 +2,7 @@
 #include "Core/Serialization/Json.h"
 #include "Editor/Commands/CommandHistory.h"
 #include "Editor/Core/ImGuiLayer.h"
+#include "Render/RenderList/RenderList.h"
 #include "Runtime/FrameOverlay.h"
 #include "Scene/Actor/Actor.h"
 #include <functional>
@@ -12,7 +13,7 @@
 namespace rd
 {
 	class AIAssistant;
-	class ConsolePanel;
+	class LogPanel;
 	class EditorPanel;
 	class Engine;
 	class HierarchyPanel;
@@ -21,10 +22,12 @@ namespace rd
 	class ProfilerPanel;
 	class ProjectPanel;
 	class SceneViewPanel;
+	class GameViewPanel;
+	class ViewPanel;
 	class Scene;
 	class StatsPanel;
 
-	// ImGui のエディタ（Unity 風: Hierarchy / Properties / Preview / Project / Console / Scene・Game ビュー）
+	// ImGui のエディタ（Unity 風: Hierarchy / Properties / Preview / Project / Log / Scene / Game）
 	//  パネルは EditorPanel の派生として別のクラスにし、ここは選択・Undo・シーンとアクターの操作・メニューを受け持つ。
 	//  エンジンは作るときに渡される（グローバルの Engine::Get() には頼らない）。
 	//  実装は Editor.cpp（全体）/ EditorActions.cpp（アクターとシーンの操作）/ EditorMenu.cpp（メニュー・ツールバー・ショートカット）
@@ -46,6 +49,7 @@ namespace rd
 		void GetViewportSize(uint32_t& width, uint32_t& height) const override;
 		bool OverrideCamera(float aspect, RenderCamera& camera) const override;
 		void DrawGizmos(DebugDraw& draw) override;
+		void RenderExtraViews(Scene& scene, float time) override;
 		void RenderUI() override;
 
 		Engine& GetEngine() const { return mEngine; }
@@ -112,6 +116,10 @@ namespace rd
 		// 保存していない変更があれば「保存しますか？」を出してから action を実行する
 		void RunAfterSaveCheck(std::function<void()> action);
 
+		ViewPanel& GetPrimaryView() const;
+		void UpdatePrimaryView();
+		// シーンビューに重ねる線（グリッド・ギズモ・コライダー）
+		void DrawSceneGizmos(DebugDraw& draw);
 		void SetupDockLayout(unsigned int dockId);
 		void SelectDefaultTabs();
 		void DrawMenuBar();
@@ -132,16 +140,23 @@ namespace rd
 
 		std::vector<std::unique_ptr<EditorPanel>> mPanels;
 		SceneViewPanel* mSceneView = nullptr;
+		GameViewPanel* mGameView = nullptr;
+		// primary でないビューに描くときの描画リスト（使い回す）
+		RenderList mExtraList;
 		HierarchyPanel* mHierarchy = nullptr;
 		PropertiesPanel* mProperties = nullptr;
 		ProjectPanel* mProject = nullptr;
-		ConsolePanel* mConsole = nullptr;
+		LogPanel* mLog = nullptr;
 		AIAssistant* mAssistant = nullptr;
 		ProfilerPanel* mProfiler = nullptr;
 
 		bool mFirstLayout = true;
 		bool mSelectDefaultTabs = false;
-		bool mFocusViewport = true;		bool mShowDemo = false;
+		bool mWasPlaying = false;
+		bool mPrimaryGame = false;
+		// 次に前に出すビューのウィンドウ名（なければ nullptr）
+		const char* mFocusView = "Scene";
+		bool mShowDemo = false;
 		bool mAllowClose = false;
 		std::function<void()> mPendingAfterSave;
 		bool mOpenSavePrompt = false;
