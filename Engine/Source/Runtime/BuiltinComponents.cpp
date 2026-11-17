@@ -7,6 +7,8 @@
 #include "Components/Lighting/DirectionalLight.h"
 #include "Components/Lighting/PointLight.h"
 #include "Components/Lighting/SpotLight.h"
+#include "Components/Navigation/NavMeshAgent.h"
+#include "Components/Navigation/NavMeshSurface.h"
 #include "Components/Rendering/CameraComponent.h"
 #include "Components/Rendering/MeshRenderer.h"
 #include "Components/Rendering/SpriteRenderer.h"
@@ -38,5 +40,8 @@ namespace rd
 		ComponentRegistry::Register<CapsuleCollider>("Physics");
 		ComponentRegistry::Register<MeshCollider>("Physics");
 		ComponentRegistry::Register<AudioSource>("Audio");
+		ComponentRegistry::Register<NavMeshSurface>("Navigation");
+		ComponentRegistry::Register<NavMeshLink>("Navigation");
+		ComponentRegistry::Register<NavMeshAgent>("Navigation");
 	}
 }

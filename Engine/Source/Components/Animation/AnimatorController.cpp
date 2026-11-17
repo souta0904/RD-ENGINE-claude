@@ -49,10 +49,12 @@ namespace rd
 			std::string name = p.value("Name", std::string());
 			std::string type = p.value("Type", std::string());
 			mIsTrigger[name] = type == "Trigger";
-			if (type == "Bool") { mValues[name] = p.value("Bool", false) ? 1.0f : 0.0f; }
-			else if (type == "Float") { mValues[name] = p.value("Float", 0.0f); }
-			else if (type == "Int") { mValues[name] = float(p.value("Int", 0)); }
-			else { mValues[name] = 0.0f; }
+			// 読み込む前（最初の Update より先）にゲームが設定した値は残す
+			float initial = 0.0f;
+			if (type == "Bool") { initial = p.value("Bool", false) ? 1.0f : 0.0f; }
+			else if (type == "Float") { initial = p.value("Float", 0.0f); }
+			else if (type == "Int") { initial = float(p.value("Int", 0)); }
+			mValues.try_emplace(name, initial);
 		}
 
 		const Json& layers = json.value("Layers", Json::array());
