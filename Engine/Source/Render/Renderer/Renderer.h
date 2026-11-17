@@ -80,6 +80,8 @@ namespace rd
 		void SetupShadowCascades(const RenderCamera& camera, const Vector3& lightDir, GpuFrameData& f);
 		void ShadowPass(ID3D12GraphicsCommandList* cmd, const CasterLists& casters);
 		void DrawMeshes(ID3D12GraphicsCommandList* cmd, const std::vector<const MeshDrawItem*>& items, bool shadow);
+		// Lights Per Object が 0 より大きいとき、物に効く追加のライトを選ぶ
+		void SelectObjectLights(const AABB& bounds, GpuObjectData& obj) const;
 		void DrawParticles(ID3D12GraphicsCommandList* cmd);
 		void DrawTranslucentTriangles(ID3D12GraphicsCommandList* cmd);
 		void BloomPass(ID3D12GraphicsCommandList* cmd);

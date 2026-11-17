@@ -20,6 +20,7 @@ struct VSOutput
     float3 normal : NORMAL;
     float4 tangent : TANGENT;
     float2 uv : TEXCOORD0;
+    float3 vertexLight : TEXCOORD1;// 頂点ごとに計算した追加のライト（拡散）
 };
 
 #ifdef SKINNED
@@ -48,6 +49,7 @@ VSOutput VSMain(VSInput input)
     o.normal = normalize(mul(float4(nrm, 0.0f), gObject.worldInvTranspose).xyz);
     o.tangent = float4(normalize(mul(float4(tan, 0.0f), gObject.world).xyz), input.tangent.w);
     o.uv = input.uv;
+    o.vertexLight = gFrame.additionalLightsPerVertex != 0 ? VertexLighting(o.worldPos, o.normal) : 0.0f;
     return o;
 }
 
@@ -132,31 +134,22 @@ float4 PSMain(VSOutput input, bool frontFace : SV_IsFrontFace) : SV_TARGET
         }
         color += ShadeLight(N, V, L, light.color * light.intensity * shadow, base.rgb, metallic, roughness);
     }
-    // 点光源
-    for (uint p = 0; p < gFrame.pointLightCount; ++p)
+    // 追加のライト（点光源・スポットライト）。頂点ごとなら頂点で求めた拡散にアルベドを掛けるだけ
+    if (gFrame.additionalLightsPerVertex != 0)
     {
-        PointLight light = gLights.pointLights[p];
-        float3 toLight = light.position - input.worldPos;
-        float dist = length(toLight);
-        if (dist >= light.range) { continue; }
-        float3 L = toLight / dist;
-        // 窓関数付きの逆二乗減衰
-        float falloff = saturate(1.0f - pow(dist / light.range, 4.0f));
-        float att = falloff * falloff / (dist * dist + 1.0f);
-        color += ShadeLight(N, V, L, light.color * light.intensity * att, base.rgb, metallic, roughness);
+        color += input.vertexLight * base.rgb * (1.0f - metallic);
     }
-    // スポットライト
-    for (uint s = 0; s < gFrame.spotLightCount; ++s)
+    else
     {
-        SpotLight light = gLights.spotLights[s];
-        float3 toLight = light.position - input.worldPos;
-        float dist = length(toLight);
-        if (dist >= light.range) { continue; }
-        float3 L = toLight / dist;
-        float falloff = saturate(1.0f - pow(dist / light.range, 4.0f));
-        float att = falloff * falloff / (dist * dist + 1.0f);
-        float cone = saturate((dot(-L, light.direction) - light.cosOuter) / max(light.cosInner - light.cosOuter, 1e-4f));
-        color += ShadeLight(N, V, L, light.color * light.intensity * att * cone * cone, base.rgb, metallic, roughness);
+        uint count = AdditionalLightCount();
+        for (uint k = 0; k < count; ++k)
+        {
+            float3 L, radiance;
+            if (AdditionalLight(k, input.worldPos, L, radiance))
+            {
+                color += ShadeLight(N, V, L, radiance, base.rgb, metallic, roughness);
+            }
+        }
     }
 
     color += emissive;

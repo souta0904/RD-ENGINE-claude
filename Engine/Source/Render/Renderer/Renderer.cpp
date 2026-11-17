@@ -146,6 +146,8 @@ namespace rd
 		f.ambientGround = ToVector3(env.ambientGround) * env.ambientIntensity;
 		Vector3 equator = ToVector3(env.ambientEquator) * env.ambientIntensity;
 		f.ambientEquator = Vector4(equator.x, equator.y, equator.z, env.ambientTrilight ? 1.0f : 0.0f);
+		f.additionalLightsPerVertex = env.additionalLightsPerVertex ? 1u : 0u;
+		f.lightsPerObject = std::min(env.lightsPerObject, kMaxObjectLights);
 		f.skyZenith = ToVector3(env.skyZenith);
 		f.skyHorizon = ToVector3(env.skyHorizon);
 		f.fogColor = ToVector3(env.fogColor);
@@ -295,6 +297,7 @@ namespace rd
 			obj.world = item->world;
 			obj.worldInvTranspose = Transpose(Inverse(item->world));
 			obj.tint = item->tint;
+			if (!shadow && mFrameData.lightsPerObject > 0) { SelectObjectLights(item->worldBounds, obj); }
 			cmd->SetGraphicsRootConstantBufferView(kRootObject, device.UploadConstants(obj));
 
 			if (!shadow)
@@ -318,6 +321,47 @@ namespace rd
 			++mStats.drawCalls;
 			mStats.triangles += sub.indexCount / 3;
 		}
+	}
+
+	// 物の境界の箱にいちばん近い所で、明るさ x 減衰が大きい順に Lights Per Object 個まで選ぶ（スポットライトは向きを見ない）
+	void Renderer::SelectObjectLights(const AABB& bounds, GpuObjectData& obj) const
+	{
+		struct Candidate
+		{
+			float score;
+			uint32_t id;
+		};
+		const uint32_t limit = mFrameData.lightsPerObject;
+		Candidate best[kMaxObjectLights];
+		uint32_t count = 0;
+		auto consider = [&](const Vector3& position, float range, const Vector3& color, float intensity, uint32_t id)
+		{
+			float dist = Length(Min(Max(position, bounds.min), bounds.max) - position);
+			if (dist >= range) { return; }
+			float falloff = std::clamp(1.0f - std::pow(dist / range, 4.0f), 0.0f, 1.0f);
+			float luminance = color.x * 0.2126f + color.y * 0.7152f + color.z * 0.0722f;
+			float score = luminance * intensity * falloff * falloff / (dist * dist + 1.0f);
+			if (score <= 0.0f) { return; }
+			// 大きい順に並べたまま差し込む（あふれたら一番小さいものを捨てる）
+			uint32_t at = count;
+			while (at > 0 && best[at - 1].score < score) { --at; }
+			if (at >= limit) { return; }
+			for (uint32_t i = std::min(count, limit - 1); i > at; --i) { best[i] = best[i - 1]; }
+			best[at] = { score, id };
+			count = std::min(count + 1, limit);
+		};
+		for (uint32_t i = 0; i < mFrameData.pointLightCount; ++i)
+		{
+			const GpuPointLight& l = mList.pointLights[i];
+			consider(l.position, l.range, l.color, l.intensity, i);
+		}
+		for (uint32_t i = 0; i < mFrameData.spotLightCount; ++i)
+		{
+			const GpuSpotLight& l = mList.spotLights[i];
+			consider(l.position, l.range, l.color, l.intensity, i | kObjectLightSpot);
+		}
+		for (uint32_t i = 0; i < count; ++i) { obj.lights[i] = best[i].id; }
+		obj.lightCount = count;
 	}
 
 	void Renderer::DrawParticles(ID3D12GraphicsCommandList* cmd)

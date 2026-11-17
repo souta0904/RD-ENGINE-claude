@@ -9,6 +9,8 @@ static const uint kMaxDirLights = 4;
 static const uint kMaxPointLights = 32;
 static const uint kMaxSpotLights = 16;
 static const uint kMaxShadowCascades = 4;
+static const uint kMaxObjectLights = 8;
+static const uint kObjectLightSpot = 0x8000u;
 
 // マテリアルのフラグ
 static const uint kMatHasAlbedo = 1u << 0;
@@ -25,6 +27,9 @@ struct ObjectData
     float4x4 world;
     float4x4 worldInvTranspose;
     float4 tint;// エディタの選択表示などで乗算する色
+    uint4 objectLights[2];// この物に効く追加のライトの番号（kObjectLightSpot が立っていればスポットライト）
+    uint objectLightCount;
+    uint3 objectPad;
 };
 
 struct FrameData
@@ -60,6 +65,9 @@ struct FrameData
     float shadowFadeStart;// ここから先は影を薄くする
     float framePad;
     float4 ambientEquator;// w が 1 なら空・地平線・地面の 3 色の環境光
+    uint additionalLightsPerVertex;// 1 なら点光源・スポットライトを頂点ごとに計算する
+    uint lightsPerObject;// 0 より大きければ、物ごとに選んだライト（objectLights）だけを使う
+    uint2 framePad2;
 };
 
 struct MaterialData
@@ -192,6 +200,73 @@ float3 ShadeAmbient(float3 N, float3 V, float3 albedo, float metallic, float rou
     float3 R = reflect(-V, N);
     float3 spec = Hemisphere(R) * EnvBRDFApprox(f0, roughness, NoV);
     return diffuse + spec;
+}
+
+// ==================================================
+// 追加のライト（点光源・スポットライト）
+//  物ごとに選んだライトだけを使うときは objectLights の番号、全部使うときは点光源 → スポットライトの通し番号
+// ==================================================
+uint AdditionalLightCount()
+{
+    return gFrame.lightsPerObject > 0 ? gObject.objectLightCount : gFrame.pointLightCount + gFrame.spotLightCount;
+}
+
+// k 番目の追加のライトの向き L と、届く光（色 x 強度 x 減衰）。届かなければ false
+bool AdditionalLight(uint k, float3 worldPos, out float3 L, out float3 radiance)
+{
+    L = 0.0f;
+    radiance = 0.0f;
+    bool spot;
+    uint id;
+    if (gFrame.lightsPerObject > 0)
+    {
+        uint raw = gObject.objectLights[k / 4][k % 4];
+        spot = (raw & kObjectLightSpot) != 0;
+        id = raw & ~kObjectLightSpot;
+    }
+    else
+    {
+        spot = k >= gFrame.pointLightCount;
+        id = spot ? k - gFrame.pointLightCount : k;
+    }
+    // 窓関数付きの逆二乗減衰
+    if (spot)
+    {
+        SpotLight light = gLights.spotLights[id];
+        float3 toLight = light.position - worldPos;
+        float dist = length(toLight);
+        if (dist >= light.range) { return false; }
+        L = toLight / dist;
+        float falloff = saturate(1.0f - pow(dist / light.range, 4.0f));
+        float att = falloff * falloff / (dist * dist + 1.0f);
+        float cone = saturate((dot(-L, light.direction) - light.cosOuter) / max(light.cosInner - light.cosOuter, 1e-4f));
+        radiance = light.color * light.intensity * att * cone * cone;
+    }
+    else
+    {
+        PointLight light = gLights.pointLights[id];
+        float3 toLight = light.position - worldPos;
+        float dist = length(toLight);
+        if (dist >= light.range) { return false; }
+        L = toLight / dist;
+        float falloff = saturate(1.0f - pow(dist / light.range, 4.0f));
+        float att = falloff * falloff / (dist * dist + 1.0f);
+        radiance = light.color * light.intensity * att;
+    }
+    return true;
+}
+
+// 頂点ごとに計算するときの追加のライト（拡散だけ。あとでアルベドを掛ける）
+float3 VertexLighting(float3 worldPos, float3 N)
+{
+    float3 sum = 0.0f;
+    uint count = AdditionalLightCount();
+    for (uint k = 0; k < count; ++k)
+    {
+        float3 L, radiance;
+        if (AdditionalLight(k, worldPos, L, radiance)) { sum += radiance * saturate(dot(N, L)) / PI; }
+    }
+    return sum;
 }
 
 // ==================================================

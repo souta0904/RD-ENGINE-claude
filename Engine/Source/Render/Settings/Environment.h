@@ -23,6 +23,10 @@ namespace rd
 		Color fogColor = { 0.6f, 0.7f, 0.85f, 1.0f };
 		float fogDensity = 0.0f;
 		float fogStart = 10.0f;
+		// 追加のライト（点光源・スポットライト）を頂点ごとに計算する（Unity の Per Vertex。大きな面ではぼんやり当たる）
+		bool additionalLightsPerVertex = false;
+		// 1 つの物に効く追加のライトの数（強く当たる順に選ぶ。0 なら全部、上限は kMaxObjectLights）
+		uint32_t lightsPerObject = 0;
 		Tonemapper tonemapper = Tonemapper::ACES;
 		float postExposure = 0.0f;
 		float contrast = 0.0f;

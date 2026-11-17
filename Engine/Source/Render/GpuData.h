@@ -11,6 +11,9 @@ namespace rd
 	inline constexpr uint32_t kMaxSpotLights = 16;
 	// シャドウマップは 2x2 のタイルに分けて 1 枚にまとめる
 	inline constexpr uint32_t kMaxShadowCascades = 4;
+	// 1 つの物に効かせられる追加のライトの数の上限と、スポットライトの番号に付ける印
+	inline constexpr uint32_t kMaxObjectLights = 8;
+	inline constexpr uint32_t kObjectLightSpot = 0x8000u;
 
 	enum MaterialFlags : uint32_t
 	{
@@ -29,8 +32,13 @@ namespace rd
 		Matrix4 world;
 		Matrix4 worldInvTranspose;
 		Color tint = Color::kWhite;
+		// この物に効く追加のライト（Lights Per Object が 0 より大きいときだけ使う）
+		//  番号の上の位（kObjectLightSpot）が立っていればスポットライト、なければ点光源
+		uint32_t lights[kMaxObjectLights] = {};
+		uint32_t lightCount = 0;
+		uint32_t objectPad[3] = {};
 	};
-	static_assert(sizeof(GpuObjectData) == 144);
+	static_assert(sizeof(GpuObjectData) == 192);
 
 	// shadowViewProj: カスケードごと（タイルへの配置込み）、cascadeSplits: 各カスケードの奥の境界（ビュー空間の深さ）
 	// cascadeTexelSizes: 1 テクセルのワールドでの大きさ、shadowCascade: シャドウパスで描いているカスケード
@@ -59,8 +67,12 @@ namespace rd
 		float pad = 0.0f;
 		// 地平線の環境光（w が 1 なら空・地平線・地面の 3 色、0 なら空と地面の 2 色）
 		Vector4 ambientEquator;
+		// 追加のライト（点光源・スポットライト）を頂点ごとに計算するか（1 なら頂点）と、1 つの物に効く数（0 なら全部）
+		uint32_t additionalLightsPerVertex = 0;
+		uint32_t lightsPerObject = 0;
+		uint32_t framePad2[2] = {};
 	};
-	static_assert(sizeof(GpuFrameData) == 720);
+	static_assert(sizeof(GpuFrameData) == 736);
 
 	struct GpuMaterialData
 	{
