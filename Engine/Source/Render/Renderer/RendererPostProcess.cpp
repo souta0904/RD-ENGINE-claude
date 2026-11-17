@@ -41,20 +41,20 @@ namespace rd
 		cmd->SetGraphicsRootSignature(mSimpleRS.Get());
 		if (!mSettings.bloom) { return; }
 
-		RenderToBloom(cmd, mBloom[0]);
-		DrawFullscreen(cmd, mBloomPrefilterPSO.Get(), Vector4(mSettings.bloomThreshold, mSettings.bloomKnee, 0, 0), mHdr.GetGpuSrv());
-		mBloom[0].Transition(cmd, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-		for (uint32_t i = 1; i < kBloomLevels; ++i)
+		RenderToBloom(cmd, mT->bloom[0]);
+		DrawFullscreen(cmd, mBloomPrefilterPSO.Get(), Vector4(mSettings.bloomThreshold, mSettings.bloomKnee, 0, 0), mT->hdr.GetGpuSrv());
+		mT->bloom[0].Transition(cmd, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+		for (uint32_t i = 1; i < RenderTargets::kBloomLevels; ++i)
 		{
-			RenderToBloom(cmd, mBloom[i]);
-			DrawFullscreen(cmd, mBloomDownPSO.Get(), Vector4(), mBloom[i - 1].GetGpuSrv());
-			mBloom[i].Transition(cmd, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+			RenderToBloom(cmd, mT->bloom[i]);
+			DrawFullscreen(cmd, mBloomDownPSO.Get(), Vector4(), mT->bloom[i - 1].GetGpuSrv());
+			mT->bloom[i].Transition(cmd, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 		}
-		for (uint32_t i = kBloomLevels - 1; i > 0; --i)
+		for (uint32_t i = RenderTargets::kBloomLevels - 1; i > 0; --i)
 		{
-			RenderToBloom(cmd, mBloom[i - 1]);
-			DrawFullscreen(cmd, mBloomUpPSO.Get(), Vector4(1.0f, 0, 0, 0), mBloom[i].GetGpuSrv());
-			mBloom[i - 1].Transition(cmd, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+			RenderToBloom(cmd, mT->bloom[i - 1]);
+			DrawFullscreen(cmd, mBloomUpPSO.Get(), Vector4(1.0f, 0, 0, 0), mT->bloom[i].GetGpuSrv());
+			mT->bloom[i - 1].Transition(cmd, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 		}
 	}
 
@@ -62,22 +62,22 @@ namespace rd
 	{
 		RD_GPU_SCOPE("Tonemap");
 		cmd->SetGraphicsRootSignature(mSimpleRS.Get());
-		mOutput.Transition(cmd, D3D12_RESOURCE_STATE_RENDER_TARGET);
-		auto rtv = mOutput.GetRtv();
+		mT->output.Transition(cmd, D3D12_RESOURCE_STATE_RENDER_TARGET);
+		auto rtv = mT->output.GetRtv();
 		cmd->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
-		SetViewport(cmd, mOutput.GetWidth(), mOutput.GetHeight());
+		SetViewport(cmd, mT->output.GetWidth(), mT->output.GetHeight());
 		Vector4 params(mSettings.exposure, mSettings.bloom ? mSettings.bloomIntensity : 0.0f, mSettings.vignette, mSettings.tonemap ? 1.0f : 0.0f);
 		// ブルームがないときはブルームの代わりに HDR を渡し、強さ 0 で使わない
-		DrawFullscreen(cmd, mTonemapPSO.Get(), params, mHdr.GetGpuSrv(), mSettings.bloom ? mBloom[0].GetGpuSrv() : mHdr.GetGpuSrv());
+		DrawFullscreen(cmd, mTonemapPSO.Get(), params, mT->hdr.GetGpuSrv(), mSettings.bloom ? mT->bloom[0].GetGpuSrv() : mT->hdr.GetGpuSrv());
 	}
 
 	void Renderer::OverlayPass(ID3D12GraphicsCommandList* cmd, const Matrix4& viewProj)
 	{
 		RD_GPU_SCOPE("Overlay");
-		auto rtv = mOutput.GetRtv();
-		auto dsv = mDepth.GetDsv();
+		auto rtv = mT->output.GetRtv();
+		auto dsv = mT->depth.GetDsv();
 		cmd->OMSetRenderTargets(1, &rtv, FALSE, &dsv);
-		SetViewport(cmd, mOutput.GetWidth(), mOutput.GetHeight());
+		SetViewport(cmd, mT->output.GetWidth(), mT->output.GetHeight());
 		cmd->SetGraphicsRootSignature(mSimpleRS.Get());
 		DrawLines(cmd, mDebug.GetDepthTested(), mLineDepthPSO.Get(), viewProj);
 		DrawLines(cmd, mDebug.GetOverlay(), mLineOverlayPSO.Get(), viewProj);
@@ -124,7 +124,7 @@ namespace rd
 		D3D12_VERTEX_BUFFER_VIEW vbv = { device.UploadData(vertices.data(), size), UINT(size), sizeof(SpriteVertex) };
 
 		SimpleConstants c;
-		c.matrix = Matrix4::CreateOrthographic(0.0f, 0.0f, float(mOutput.GetWidth()), float(mOutput.GetHeight()), 0.0f, 1.0f);
+		c.matrix = Matrix4::CreateOrthographic(0.0f, 0.0f, float(mT->output.GetWidth()), float(mT->output.GetHeight()), 0.0f, 1.0f);
 		cmd->SetPipelineState(mSpritePSO.Get());
 		cmd->SetGraphicsRoot32BitConstants(kSimpleConstants, sizeof(c) / 4, &c, 0);
 		cmd->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -154,7 +154,7 @@ namespace rd
 		cmd->ClearRenderTargetView(rtv, black, 0, nullptr);
 		SetViewport(cmd, device.GetWidth(), device.GetHeight());
 		cmd->SetGraphicsRootSignature(mSimpleRS.Get());
-		if (mOutput.GetResource()) { DrawFullscreen(cmd, mBlitPSO.Get(), Vector4(), mOutput.GetGpuSrv()); }
+		if (mT->output.GetResource()) { DrawFullscreen(cmd, mBlitPSO.Get(), Vector4(), mT->output.GetGpuSrv()); }
 	}
 
 	// スクリーンショット用に読み戻しのバッファへ写す
@@ -162,7 +162,7 @@ namespace rd
 	void Renderer::CopyOutputForCapture(ID3D12GraphicsCommandList* cmd)
 	{
 		auto& device = GraphicsDevice::Get();
-		auto desc = mOutput.GetResource()->GetDesc();
+		auto desc = mT->output.GetResource()->GetDesc();
 		UINT64 total = 0;
 		device.GetDevice()->GetCopyableFootprints(&desc, 0, 1, 0, &mCaptureFootprint, nullptr, nullptr, &total);
 		CD3DX12_HEAP_PROPERTIES heap(D3D12_HEAP_TYPE_READBACK);
@@ -171,9 +171,9 @@ namespace rd
 		mCaptureBuffer.Reset();
 		RD_CHECK_HR(device.GetDevice()->CreateCommittedResource(&heap, D3D12_HEAP_FLAG_NONE, &bufDesc,
 			D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&mCaptureBuffer)));
-		mOutput.Transition(cmd, D3D12_RESOURCE_STATE_COPY_SOURCE);
+		mT->output.Transition(cmd, D3D12_RESOURCE_STATE_COPY_SOURCE);
 		CD3DX12_TEXTURE_COPY_LOCATION dst(mCaptureBuffer.Get(), mCaptureFootprint);
-		CD3DX12_TEXTURE_COPY_LOCATION src(mOutput.GetResource(), 0);
+		CD3DX12_TEXTURE_COPY_LOCATION src(mT->output.GetResource(), 0);
 		cmd->CopyTextureRegion(&dst, 0, 0, 0, &src, nullptr);
 		mPendingCapturePath = std::move(mCapturePath);
 		mCapturePath.clear();

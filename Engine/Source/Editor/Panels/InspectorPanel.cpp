@@ -285,17 +285,17 @@ namespace rd
 			if (tex->IsReady())
 			{
 				ImGui::Text("%u x %u", tex->GetWidth(), tex->GetHeight());
-				float w = ImGui::GetContentRegionAvail().x;
-				float h = w * float(tex->GetHeight()) / float(std::max(1u, tex->GetWidth()));
-				ImGui::Image(ImTextureID(tex->GetSrv().ptr), ImVec2(w, h));
+				DrawTexturePreview(*tex, std::max(ImGui::GetContentRegionAvail().y - ImGui::GetStyle().ItemSpacing.y, 64.0f));
 			}
-			else { ImGui::TextDisabled("Loading..."); }
+			else { ImGui::TextDisabled(tex->IsFailed() ? "Failed to load" : "Loading..."); }
 		}
 		else if (icon == Icon::Model)
 		{
 			auto model = AssetManager::Get().LoadModel(path);
 			if (model->IsReady())
 			{
+				mModelPreview.Draw(path);
+				ImGui::Spacing();
 				ImGui::Text("Meshes: %zu", model->GetSubMeshes().size());
 				ImGui::Text("Materials: %zu", model->GetMaterials().size());
 				ImGui::Text("Animations: %zu", model->GetClips().size());

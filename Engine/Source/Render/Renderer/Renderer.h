@@ -14,6 +14,17 @@
 
 namespace rd
 {
+	// 1 つの画面を描く先（HDR・深度・結果・ブルーム）。大きさは描くときに合わせる
+	//  メインの画面のほか、エディタのプレビューなどが自分の分を持って RenderOffscreen に渡す
+	struct RenderTargets
+	{
+		static constexpr uint32_t kBloomLevels = 5;
+		RenderTexture hdr;
+		DepthTexture depth;
+		RenderTexture output;
+		RenderTexture bloom[kBloomLevels];
+	};
+
 	// フォワードレンダラー
 	//  シャドウ → 不透明 → 空 → 半透明 / パーティクル → ブルーム → トーンマップ → デバッグ線 / スプライト
 	//  結果は GetOutput()（sRGB にした LDR）に入る。エディタは ImGui でこれを表示し、
@@ -36,13 +47,18 @@ namespace rd
 		void Render(const RenderCamera& camera, const Environment& env, uint32_t width, uint32_t height, float time);
 		void BlitToBackBuffer();
 
+		// メインの画面とは別に、list の中身だけを targets へ描く（統計や描画リストはメインの分を残す）
+		//  描き終えた結果は targets.output にあり、そのままシェーダーから読める。list は空になる
+		void RenderOffscreen(RenderTargets& targets, RenderList& list, const RenderCamera& camera, const Environment& env,
+			uint32_t width, uint32_t height);
+
 		// 次の Render の結果を PNG で保存する（FinishCapture で書き出す）
 		void RequestCapture(const std::string& path) { mCapturePath = path; }
 		void FinishCapture();
 
-		const GpuTexture& GetOutput() const { return mOutput; }
-		uint32_t GetOutputWidth() const { return mOutput.GetWidth(); }
-		uint32_t GetOutputHeight() const { return mOutput.GetHeight(); }
+		const GpuTexture& GetOutput() const { return mMain.output; }
+		uint32_t GetOutputWidth() const { return mMain.output.GetWidth(); }
+		uint32_t GetOutputHeight() const { return mMain.output.GetHeight(); }
 
 	private:
 		using CasterLists = std::array<std::vector<const MeshDrawItem*>, kMaxShadowCascades>;
@@ -99,12 +115,10 @@ namespace rd
 		ComPtr<ID3D12PipelineState> mTonemapPSO;
 		ComPtr<ID3D12PipelineState> mBlitPSO;
 
-		RenderTexture mHdr;
-		DepthTexture mDepth;
-		RenderTexture mOutput;
+		// mT は今描いている先（ふだんは mMain、RenderOffscreen の間だけ差し替わる）
+		RenderTargets mMain;
+		RenderTargets* mT = &mMain;
 		DepthTexture mShadowMap;
-		static constexpr uint32_t kBloomLevels = 5;
-		RenderTexture mBloom[kBloomLevels];
 
 		D3D12_GPU_VIRTUAL_ADDRESS mFrameCB = 0;
 		D3D12_GPU_VIRTUAL_ADDRESS mLightCB = 0;

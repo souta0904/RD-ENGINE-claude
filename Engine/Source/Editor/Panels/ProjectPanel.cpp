@@ -202,6 +202,14 @@ namespace rd
 				drewThumb = true;
 			}
 		}
+		else if (icon == Icon::Model)
+		{
+			if (const GpuTexture* thumb = mThumbnails.Get(e.path))
+			{
+				dl->AddImage(ImTextureID(thumb->GetGpuSrv().ptr), ImVec2(p.x + pad, p.y + pad), ImVec2(p.x + pad + iconSize, p.y + pad + iconSize));
+				drewThumb = true;
+			}
+		}
 		if (!drewThumb) { EditorIcons::Draw(dl, ImVec2(p.x + pad, p.y + pad), iconSize, icon); }
 
 		ImVec4 clip(p.x + 2.0f, p.y + cell, p.x + cell - 2.0f, p.y + cell + textH);

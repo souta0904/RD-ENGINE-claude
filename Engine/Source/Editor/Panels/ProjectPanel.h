@@ -1,4 +1,5 @@
 #pragma once
+#include "Editor/Core/AssetPreview.h"
 #include "Editor/Panels/EditorPanel.h"
 #include "Scene/Actor/Actor.h"
 #include <filesystem>
@@ -7,7 +8,7 @@
 
 namespace rd
 {
-	// プロジェクトパネル（Assets/ の中を見る。左にフォルダの木、右に今のフォルダの中身）
+	// プロジェクトパネル（Assets/ の中を見る。左にフォルダの木、右に今のフォルダの中身。画像とモデルは縮小した絵で出す）
 	//  ダブルクリックでフォルダへ入る / シーンを開く。ファイルはドラッグしてビューやインスペクタへ入れられる
 	//  アクターをドロップするとプレハブを作る。右クリックでフォルダの作成・名前の変更・削除（ごみ箱へ）・エクスプローラーで表示
 	class ProjectPanel final : public EditorPanel
@@ -49,6 +50,7 @@ namespace rd
 		std::string mFilter;
 		float mIconScale = 1.0f;
 		std::vector<Entry> mEntries;
+		ModelThumbnails mThumbnails;
 		ActorId mPrefabActor = 0;
 		std::string mPrefabFolder;
 		std::string mRenamePath;

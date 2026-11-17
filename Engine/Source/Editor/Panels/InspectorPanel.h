@@ -1,5 +1,6 @@
 #pragma once
 #include "Core/Serialization/Json.h"
+#include "Editor/Core/AssetPreview.h"
 #include "Editor/Panels/EditorPanel.h"
 #include <string>
 
@@ -46,6 +47,7 @@ namespace rd
 		std::string mAddFilter;
 		Json mComponentClipboard;
 		PendingOps mOps;
+		ModelPreviewWidget mModelPreview;
 		bool mDropLine = false;
 		float mDropLineY = 0.0f;
 		float mDropLineX0 = 0.0f;

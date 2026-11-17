@@ -52,17 +52,17 @@ namespace rd
 	{
 		width = std::max(1u, width);
 		height = std::max(1u, height);
-		if (mHdr.GetResource() && mHdr.GetWidth() == width && mHdr.GetHeight() == height) { return; }
+		if (mT->hdr.GetResource() && mT->hdr.GetWidth() == width && mT->hdr.GetHeight() == height) { return; }
 
-		mHdr.Create({ width, height, kHdrFormat, DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN, Color(0, 0, 0, 1), L"HDR" });
-		mDepth.Resize(width, height);
-		mOutput.Create({ width, height, DXGI_FORMAT_R8G8B8A8_TYPELESS, kOutputRtvFormat, DXGI_FORMAT_R8G8B8A8_UNORM, Color(0, 0, 0, 1), L"Output" });
+		mT->hdr.Create({ width, height, kHdrFormat, DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN, Color(0, 0, 0, 1), L"HDR" });
+		mT->depth.Resize(width, height);
+		mT->output.Create({ width, height, DXGI_FORMAT_R8G8B8A8_TYPELESS, kOutputRtvFormat, DXGI_FORMAT_R8G8B8A8_UNORM, Color(0, 0, 0, 1), L"Output" });
 		uint32_t w = width, h = height;
-		for (uint32_t i = 0; i < kBloomLevels; ++i)
+		for (uint32_t i = 0; i < RenderTargets::kBloomLevels; ++i)
 		{
 			w = std::max(1u, w / 2);
 			h = std::max(1u, h / 2);
-			mBloom[i].Create({ w, h, kBloomFormat, DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN, Color(0, 0, 0, 1), L"Bloom" });
+			mT->bloom[i].Create({ w, h, kBloomFormat, DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN, Color(0, 0, 0, 1), L"Bloom" });
 		}
 	}
 
@@ -94,16 +94,38 @@ namespace rd
 		if (mShadowActive) { ShadowPass(cmd, casters); }
 		MainPass(cmd, env, width, height, opaque, transparent);
 
-		mHdr.Transition(cmd, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+		mT->hdr.Transition(cmd, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 		BloomPass(cmd);
 		TonemapPass(cmd);
 		OverlayPass(cmd, mFrameData.viewProj);
 
 		if (!mCapturePath.empty()) { CopyOutputForCapture(cmd); }
-		mOutput.Transition(cmd, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+		mT->output.Transition(cmd, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
 		mList.Clear();
 		mDebug.Clear();
+	}
+
+	// 描く先・描画リスト・デバッグ線・統計・スクリーンショットの予約をメインの分と入れ替えて描き、元に戻す
+	void Renderer::RenderOffscreen(RenderTargets& targets, RenderList& list, const RenderCamera& camera, const Environment& env,
+		uint32_t width, uint32_t height)
+	{
+		RD_GPU_SCOPE("Render Offscreen");
+		RenderStats stats = mStats;
+		std::string capture = std::move(mCapturePath);
+		mCapturePath.clear();
+		DebugDraw debug;
+		std::swap(mDebug, debug);
+		std::swap(mList, list);
+		mT = &targets;
+
+		Render(camera, env, width, height, 0.0f);
+
+		mT = &mMain;
+		std::swap(mList, list);
+		std::swap(mDebug, debug);
+		mCapturePath = std::move(capture);
+		mStats = stats;
 	}
 
 	void Renderer::SetupFrameData(const RenderCamera& camera, const Environment& env, uint32_t width, uint32_t height, float time)
@@ -187,15 +209,15 @@ namespace rd
 		const std::vector<const MeshDrawItem*>& opaque, const std::vector<const MeshDrawItem*>& transparent)
 	{
 		RD_GPU_SCOPE("Main Pass");
-		mHdr.Transition(cmd, D3D12_RESOURCE_STATE_RENDER_TARGET);
-		mDepth.Transition(cmd, D3D12_RESOURCE_STATE_DEPTH_WRITE);
+		mT->hdr.Transition(cmd, D3D12_RESOURCE_STATE_RENDER_TARGET);
+		mT->depth.Transition(cmd, D3D12_RESOURCE_STATE_DEPTH_WRITE);
 		mShadowMap.Transition(cmd, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-		auto rtv = mHdr.GetRtv();
-		auto dsv = mDepth.GetDsv();
+		auto rtv = mT->hdr.GetRtv();
+		auto dsv = mT->depth.GetDsv();
 		cmd->OMSetRenderTargets(1, &rtv, FALSE, &dsv);
 		Color clear(mFrameData.skyHorizon.x, mFrameData.skyHorizon.y, mFrameData.skyHorizon.z, 1.0f);
 		cmd->ClearRenderTargetView(rtv, clear.Data(), 0, nullptr);
-		mDepth.Clear(cmd);
+		mT->depth.Clear(cmd);
 		SetViewport(cmd, width, height);
 
 		cmd->SetGraphicsRootSignature(mMeshRS.Get());
