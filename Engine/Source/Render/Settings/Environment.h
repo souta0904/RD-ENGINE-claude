@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "Core/Reflection/PropertyVisitor.h"
 
 namespace rd
@@ -6,7 +6,7 @@ namespace rd
 	// トーンマップの方式（None はトーンマップせずに切り詰めるだけ）
 	enum class Tonemapper { ACES, Neutral, None };
 
-	// シーンごとの環境（環境光・空・霧・色の調整・レトロ表示）
+	// シーンごとの環境（環境光・空・霧・色の調整・レトロ表示・ビネット）
 	//  色の調整は Unity の Color Adjustments と同じ意味（露出は段数、コントラストと彩度は -100～100）
 	//  レトロ表示は縦 retroHeight ピクセルに落として、色を retroColorLevels 段階にディザで減らす（0 なら使わない）
 	struct Environment
@@ -33,6 +33,13 @@ namespace rd
 		float saturation = 0.0f;
 		uint32_t retroHeight = 0;
 		uint32_t retroColorLevels = 32;
+		// Unity（URP）の Vignette と同じ。強さ 0 なら使わない。トーンマップの前に HDR の色へ掛ける
+		//  ゲームから強さを動かして、ダメージを受けたときに画面の縁を赤くするなどに使う
+		Color vignetteColor = Color::kBlack;
+		Vector2 vignetteCenter = { 0.5f, 0.5f };
+		float vignetteIntensity = 0.0f;
+		float vignetteSmoothness = 0.2f;
+		bool vignetteRounded = false;
 
 		void Reflect(PropertyVisitor& v);
 	};

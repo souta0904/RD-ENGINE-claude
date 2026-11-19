@@ -127,6 +127,33 @@ namespace rd
 			.SetRenderTargets({ kHdrFormat }, DepthTexture::kDsvFormat)
 			.Build(device, L"TranslucentTrianglePSO");
 
+		// 縁取り: 形を印に塗る → 広げた形を HDR に描く（どちらも深度は見ない）
+		for (int skinned = 0; skinned < 2; ++skinned)
+		{
+			std::vector<std::string> defines;
+			if (skinned) { defines.push_back("SKINNED=1"); }
+			auto layout = skinned ? std::span<const D3D12_INPUT_ELEMENT_DESC>(kSkinnedLayout) : std::span<const D3D12_INPUT_ELEMENT_DESC>(kStaticLayout);
+			mOutlineMaskPSO[skinned] = PipelineBuilder()
+				.SetRootSignature(mMeshRS.Get())
+				.SetVS(CompileShader("Outline.hlsl", "MaskVS", ShaderStage::Vertex, defines))
+				.SetPS(CompileShader("Outline.hlsl", "MaskPS", ShaderStage::Pixel, defines))
+				.SetInputLayout(layout)
+				.SetCull(CullMode::None)
+				.SetDepth(DepthMode::Disabled)
+				.SetRenderTargets({ kOutlineMaskFormat }, DXGI_FORMAT_UNKNOWN)
+				.Build(device, L"OutlineMaskPSO");
+			mOutlinePSO[skinned] = PipelineBuilder()
+				.SetRootSignature(mMeshRS.Get())
+				.SetVS(CompileShader("Outline.hlsl", "OutlineVS", ShaderStage::Vertex, defines))
+				.SetPS(CompileShader("Outline.hlsl", "OutlinePS", ShaderStage::Pixel, defines))
+				.SetInputLayout(layout)
+				.SetBlend(BlendMode::Alpha)
+				.SetCull(CullMode::None)
+				.SetDepth(DepthMode::Disabled)
+				.SetRenderTargets({ kHdrFormat }, DXGI_FORMAT_UNKNOWN)
+				.Build(device, L"OutlinePSO");
+		}
+
 		mSpritePSO = PipelineBuilder()
 			.SetRootSignature(mSimpleRS.Get())
 			.SetVS(CompileShader("Simple.hlsl", "SpriteVS", ShaderStage::Vertex))

@@ -39,9 +39,9 @@ namespace rd
 	{
 		Icon icon = Icon::File;
 		std::string path = GetTargetPath(icon);
-		if (icon != Icon::Image && icon != Icon::Model)
+		if (icon != Icon::Image && icon != Icon::Model && icon != Icon::Prefab)
 		{
-			EditorGui::EmptyHint("Select a texture or a model in the Project panel.");
+			EditorGui::EmptyHint("Select a texture, a model or a prefab in the Project panel.");
 			return;
 		}
 
@@ -61,6 +61,11 @@ namespace rd
 			ImGui::SameLine();
 			ImGui::TextDisabled("%u x %u", tex->GetWidth(), tex->GetHeight());
 			DrawTexturePreview(*tex, std::max(ImGui::GetContentRegionAvail().y, 64.0f));
+			return;
+		}
+		if (icon == Icon::Prefab)
+		{
+			mPrefabPreview.Draw(path);
 			return;
 		}
 

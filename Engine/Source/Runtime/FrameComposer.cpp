@@ -40,6 +40,8 @@ namespace rd
 		auto& renderer = *mRenderer;
 		{
 			RD_PROFILE_SCOPE("Collect Render");
+			// カメラを差し替えているとき（エディタのシーンビュー）は画面の UI を出さない
+			renderer.GetRenderList().uiScreenSize = overridden ? Vector2() : Vector2(float(viewW), float(viewH));
 			scene.CollectRender(renderer.GetRenderList());
 			if (mOverlay) { mOverlay->DrawGizmos(renderer.GetDebugDraw()); }
 		}

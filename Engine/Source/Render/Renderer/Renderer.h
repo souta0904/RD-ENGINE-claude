@@ -23,6 +23,8 @@ namespace rd
 		DepthTexture depth;
 		RenderTexture output;
 		RenderTexture bloom[kBloomLevels];
+		// 縁取りで「物そのものの形」を覚える印（ステンシルの代わり）
+		RenderTexture outlineMask;
 	};
 
 	// フォワードレンダラー
@@ -84,6 +86,7 @@ namespace rd
 		void SelectObjectLights(const AABB& bounds, GpuObjectData& obj) const;
 		void DrawParticles(ID3D12GraphicsCommandList* cmd);
 		void DrawTranslucentTriangles(ID3D12GraphicsCommandList* cmd);
+		void OutlinePass(ID3D12GraphicsCommandList* cmd, uint32_t width, uint32_t height);
 		void BloomPass(ID3D12GraphicsCommandList* cmd);
 		void TonemapPass(ID3D12GraphicsCommandList* cmd);
 		void OverlayPass(ID3D12GraphicsCommandList* cmd, const Matrix4& viewProj);
@@ -109,6 +112,9 @@ namespace rd
 		ComPtr<ID3D12PipelineState> mParticleAlphaPSO;
 		ComPtr<ID3D12PipelineState> mParticleAddPSO;
 		ComPtr<ID3D12PipelineState> mTranslucentTrianglePSO;
+		// 縁取り（[0] は静的、[1] はスキン）
+		ComPtr<ID3D12PipelineState> mOutlineMaskPSO[2];
+		ComPtr<ID3D12PipelineState> mOutlinePSO[2];
 		ComPtr<ID3D12PipelineState> mLineDepthPSO;
 		ComPtr<ID3D12PipelineState> mLineOverlayPSO;
 		ComPtr<ID3D12PipelineState> mSpritePSO;

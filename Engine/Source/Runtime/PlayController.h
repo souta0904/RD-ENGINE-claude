@@ -29,7 +29,7 @@ namespace rd
 		// もうプレイ中なら false
 		bool Begin(const Scene& scene);
 		// 保存しておいたシーンを作り直して返す（プレイ中でなければ nullptr）
-		std::unique_ptr<Scene> End(const Scene& current);
+		std::unique_ptr<Scene> End();
 #endif
 
 		FrameTime AdvanceTime(float dt);
@@ -40,6 +40,7 @@ namespace rd
 		bool mStepRequested = false;
 #if RD_EDITOR
 		std::string mSnapshot;
+		std::string mSnapshotPath;
 #endif
 	};
 }

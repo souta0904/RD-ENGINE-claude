@@ -6,7 +6,7 @@
 
 namespace rd
 {
-	// プレビュー（プロジェクトパネルで選んだテクスチャ・モデルの絵を出す）
+	// プレビュー（プロジェクトパネルで選んだテクスチャ・モデル・プレハブの絵を出す）
 	//  アクターを選んでいるときは、そのアクターの MeshRenderer のモデルを出す
 	class PreviewPanel final : public EditorPanel
 	{
@@ -21,5 +21,6 @@ namespace rd
 		std::string GetTargetPath(Icon& icon) const;
 
 		ModelPreviewWidget mModelPreview;
+		PrefabPreviewWidget mPrefabPreview;
 	};
 }

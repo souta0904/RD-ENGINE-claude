@@ -3,10 +3,14 @@
 #include "Asset/AssetManager.h"
 #include "Asset/Model/Model.h"
 #include "Asset/Texture/Texture.h"
+#include "Components/Rendering/MeshRenderer.h"
+#include "Core/Util/StringUtil.h"
 #include "Editor/Style/EditorStyle.h"
 #include "RHI/Device/GraphicsDevice.h"
+#include "Scene/Scene.h"
 #include <ImGui/imgui.h>
 #include <ImGui/imgui_internal.h>
+#include <fstream>
 
 namespace rd
 {
@@ -49,6 +53,96 @@ namespace rd
 			env.fogDensity = 0.0f;
 			return env;
 		}
+
+		// Unity のプレハブは "%YAML" で始まるテキスト。エンジンのプレハブは JSON なので読めない
+		bool IsUnityYaml(const std::string& path)
+		{
+			std::ifstream file(ToWide(path), std::ios::binary);
+			char head[5] = {};
+			file.read(head, sizeof(head));
+			return file.gcount() == sizeof(head) && std::string_view(head, sizeof(head)) == "%YAML";
+		}
+
+		// 左ドラッグで回す・ホイールで寄る・ダブルクリックで元の向き。残りの広さいっぱいに描く
+		void DrawOrbitView(PreviewView& view)
+		{
+			ImVec2 avail = ImGui::GetContentRegionAvail();
+			ImVec2 size(std::max(1.0f, std::floor(avail.x)), std::max(64.0f, std::floor(avail.y)));
+			ImVec2 pos = ImGui::GetCursorScreenPos();
+			ImGui::InvisibleButton("##orbitPreview", size);
+			bool hovered = ImGui::IsItemHovered();
+			ImGuiIO& io = ImGui::GetIO();
+			if (ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left, 0.0f))
+			{
+				view.yaw += io.MouseDelta.x * 0.4f;
+				view.pitch = std::clamp(view.pitch + io.MouseDelta.y * 0.4f, -89.0f, 89.0f);
+			}
+			if (hovered && io.MouseWheel != 0.0f) { view.zoom = std::clamp(view.zoom * std::pow(0.88f, io.MouseWheel), 0.2f, 5.0f); }
+			if (hovered && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+			{
+				view.yaw = kDefaultYaw;
+				view.pitch = kDefaultPitch;
+				view.zoom = 1.0f;
+			}
+			if (hovered)
+			{
+				// ホイールでパネルが流れないようにする
+				ImGui::SetItemKeyOwner(ImGuiKey_MouseWheelY);
+			}
+
+			ImDrawList* dl = ImGui::GetWindowDrawList();
+			ImVec2 end(pos.x + size.x, pos.y + size.y);
+			if (view.Render(uint32_t(size.x), uint32_t(size.y)))
+			{
+				dl->AddImage(ImTextureID(view.GetOutput().GetGpuSrv().ptr), pos, end);
+			}
+			dl->AddRect(pos, end, ImGui::GetColorU32(ImGuiCol_Border));
+			if (hovered)
+			{
+				// 狭いときは短い説明にし、それでも収まらなければ切る
+				const char* hint = "Drag: rotate   Wheel: zoom   Double-click: reset";
+				if (ImGui::CalcTextSize(hint).x + 20.0f > size.x) { hint = "Drag / Wheel / Double-click"; }
+				ImVec2 textSize = ImGui::CalcTextSize(hint);
+				ImVec2 textPos(pos.x + 6.0f, end.y - textSize.y - 6.0f);
+				dl->PushClipRect(pos, end, true);
+				dl->AddRectFilled(ImVec2(textPos.x - 4.0f, textPos.y - 2.0f), ImVec2(textPos.x + textSize.x + 4.0f, textPos.y + textSize.y + 2.0f), IM_COL32(0, 0, 0, 140), 3.0f);
+				dl->AddText(textPos, IM_COL32(230, 230, 230, 255), hint);
+				dl->PopClipRect();
+			}
+		}
+	}
+
+	// ---------------------------------------------------------------- PreviewView
+
+	// 包む球が画面に収まる距離から見て、カメラの左上から当てる光と、後ろからの弱い光で照らす
+	void PreviewView::DrawList(const AABB& bounds, uint32_t width, uint32_t height)
+	{
+		Vector3 center = bounds.GetCenter();
+		float radius = std::max(Length(bounds.GetExtents()), 1.0e-3f);
+		float fov = math::ToRadians(kFovDegrees);
+		float aspect = float(width) / float(height);
+		// 横長でも縦長でも、狭い方の画角に球が収まるようにする
+		float halfFov = aspect < 1.0f ? std::atan(std::tan(fov * 0.5f) * aspect) : fov * 0.5f;
+		float distance = radius / std::sin(halfFov) * zoom;
+		Quaternion rotation = Quaternion::FromEuler({ math::ToRadians(pitch), math::ToRadians(yaw), 0.0f });
+		Vector3 forward = Vector3::kUnitZ * rotation;
+		Vector3 right = Vector3::kUnitX * rotation;
+		Vector3 up = Vector3::kUnitY * rotation;
+		float nearZ = std::max(distance - radius * 1.5f, distance * 0.01f);
+		RenderCamera camera = RenderCamera::Make(center - forward * distance, rotation, fov, aspect, nearZ, distance + radius * 2.0f);
+
+		GpuDirLight key;
+		key.direction = Normalize(forward - up * 0.9f + right * 0.6f);
+		key.color = Vector3(1.0f, 0.97f, 0.92f);
+		key.intensity = 1.6f;
+		GpuDirLight rim;
+		rim.direction = Normalize(-forward - up * 0.3f - right * 0.4f);
+		rim.color = Vector3(0.75f, 0.85f, 1.0f);
+		rim.intensity = 0.6f;
+		mList.dirLights.push_back(key);
+		mList.dirLights.push_back(rim);
+
+		Renderer::Get().RenderOffscreen(mTargets, mList, camera, PreviewEnvironment(), width, height);
 	}
 
 	// ---------------------------------------------------------------- ModelView
@@ -115,38 +209,14 @@ namespace rd
 		return GraphicsDevice::Get().UploadData(mPalette.data(), sizeof(Matrix4) * mPalette.size());
 	}
 
-	// 境界の球が画面に収まる距離から見て、カメラの左上から当てる光と、後ろからの弱い光で照らす
 	bool ModelView::Render(uint32_t width, uint32_t height)
 	{
 		if (!IsReady() || width == 0 || height == 0) { return false; }
 		SyncMaterials();
 		const Model& model = *mModel;
-
 		const AABB& bounds = model.GetBounds();
 		Vector3 center = bounds.GetCenter();
 		float radius = std::max(Length(bounds.GetExtents()), 1.0e-3f);
-		float fov = math::ToRadians(kFovDegrees);
-		float aspect = float(width) / float(height);
-		// 横長でも縦長でも、狭い方の画角に球が収まるようにする
-		float halfFov = aspect < 1.0f ? std::atan(std::tan(fov * 0.5f) * aspect) : fov * 0.5f;
-		float distance = radius / std::sin(halfFov) * zoom;
-		Quaternion rotation = Quaternion::FromEuler({ math::ToRadians(pitch), math::ToRadians(yaw), 0.0f });
-		Vector3 forward = Vector3::kUnitZ * rotation;
-		Vector3 right = Vector3::kUnitX * rotation;
-		Vector3 up = Vector3::kUnitY * rotation;
-		float nearZ = std::max(distance - radius * 1.5f, distance * 0.01f);
-		RenderCamera camera = RenderCamera::Make(center - forward * distance, rotation, fov, aspect, nearZ, distance + radius * 2.0f);
-
-		GpuDirLight key;
-		key.direction = Normalize(forward - up * 0.9f + right * 0.6f);
-		key.color = Vector3(1.0f, 0.97f, 0.92f);
-		key.intensity = 1.6f;
-		GpuDirLight rim;
-		rim.direction = Normalize(-forward - up * 0.3f - right * 0.4f);
-		rim.color = Vector3(0.75f, 0.85f, 1.0f);
-		rim.intensity = 0.6f;
-		mList.dirLights.push_back(key);
-		mList.dirLights.push_back(rim);
 
 		D3D12_GPU_VIRTUAL_ADDRESS palette = model.HasSkinning() ? BuildPalette() : 0;
 		const auto& subs = model.GetSubMeshes();
@@ -161,7 +231,83 @@ namespace rd
 			item.worldBounds = AABB::FromCenterExtents(center, Vector3(radius, radius, radius) * 4.0f);
 			mList.meshes.push_back(item);
 		}
-		Renderer::Get().RenderOffscreen(mTargets, mList, camera, PreviewEnvironment(), width, height);
+		DrawList(bounds, width, height);
+		return true;
+	}
+
+	// ---------------------------------------------------------------- PrefabView
+
+	PrefabView::PrefabView() = default;
+	PrefabView::~PrefabView() = default;
+
+	// 選び直すたびにシーンごと作り直す（前のプレハブのアクターは残さない）
+	void PrefabView::SetPrefab(const std::string& path)
+	{
+		if (path == mPath) { return; }
+		mPath = path;
+		mError.clear();
+		mScene.reset();
+		if (path.empty()) { return; }
+		if (IsUnityYaml(path))
+		{
+			mError = "Unity prefab (YAML) cannot be previewed. Use the exported one.";
+			return;
+		}
+		mScene = std::make_unique<Scene>();
+		mScene->SetName("Prefab Preview");
+		if (!mScene->Instantiate(path))
+		{
+			mScene.reset();
+			mError = "Failed to load prefab";
+		}
+	}
+
+	size_t PrefabView::GetActorCount() const
+	{
+		return mScene ? mScene->GetActorCount() : 0;
+	}
+
+	bool PrefabView::IsReady() const
+	{
+		return mScene != nullptr;
+	}
+
+	// どのモデルもテクスチャも読み終わったか（マテリアルは一度描くとそろうので、まだなら未完了）
+	bool PrefabView::IsFullyLoaded()
+	{
+		if (!mScene) { return true; }
+		for (MeshRenderer* mr : mScene->FindComponents<MeshRenderer>())
+		{
+			const auto& model = mr->GetModel();
+			if (!model || model->IsFailed()) { continue; }
+			if (!model->IsReady() || mr->GetMaterials().empty()) { return false; }
+			for (const auto& m : mr->GetMaterials())
+			{
+				if (!IsSettled(m.albedo) || !IsSettled(m.normal) || !IsSettled(m.emissiveMap)) { return false; }
+			}
+		}
+		return true;
+	}
+
+	// MeshRenderer の箱をまとめる。何もなければアクターの位置のまわり
+	AABB PrefabView::ComputeBounds() const
+	{
+		AABB bounds;
+		for (MeshRenderer* mr : mScene->FindComponents<MeshRenderer>()) { bounds.Expand(mr->GetWorldBounds()); }
+		if (!bounds.IsValid())
+		{
+			mScene->ForEachActor([&](Actor* a) { bounds.Expand(a->GetTransform().GetPosition()); });
+			bounds = AABB::FromCenterExtents(bounds.IsValid() ? bounds.GetCenter() : Vector3::kZero, Vector3(0.5f, 0.5f, 0.5f));
+		}
+		return bounds;
+	}
+
+	// プレイ中ではないので、描くのはエディタで置いたときと同じ姿（アニメーションはバインドポーズ）
+	bool PrefabView::Render(uint32_t width, uint32_t height)
+	{
+		if (!mScene || width == 0 || height == 0) { return false; }
+		mScene->CollectRender(mList);
+		DrawList(ComputeBounds(), width, height);
 		return true;
 	}
 
@@ -211,56 +357,27 @@ namespace rd
 			}
 		}
 		if (mPlaying && mView.clip >= 0) { mView.time += ImGui::GetIO().DeltaTime; }
+		DrawOrbitView(mView);
+	}
 
-		// 残りの広さいっぱいに描く
-		ImVec2 avail = ImGui::GetContentRegionAvail();
-		ImVec2 size(std::max(1.0f, std::floor(avail.x)), std::max(64.0f, std::floor(avail.y)));
-		ImVec2 pos = ImGui::GetCursorScreenPos();
-		ImGui::InvisibleButton("##modelPreview", size);
-		bool hovered = ImGui::IsItemHovered();
-		ImGuiIO& io = ImGui::GetIO();
-		if (ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left, 0.0f))
-		{
-			mView.yaw += io.MouseDelta.x * 0.4f;
-			mView.pitch = std::clamp(mView.pitch + io.MouseDelta.y * 0.4f, -89.0f, 89.0f);
-		}
-		if (hovered && io.MouseWheel != 0.0f) { mView.zoom = std::clamp(mView.zoom * std::pow(0.88f, io.MouseWheel), 0.2f, 5.0f); }
-		if (hovered && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
-		{
-			mView.yaw = kDefaultYaw;
-			mView.pitch = kDefaultPitch;
-			mView.zoom = 1.0f;
-		}
-		if (hovered)
-		{
-			// ホイールでパネルが流れないようにする
-			ImGui::SetItemKeyOwner(ImGuiKey_MouseWheelY);
-		}
+	// ---------------------------------------------------------------- プレビューパネルのプレハブ
 
-		ImDrawList* dl = ImGui::GetWindowDrawList();
-		ImVec2 end(pos.x + size.x, pos.y + size.y);
-		if (mView.Render(uint32_t(size.x), uint32_t(size.y)))
+	void PrefabPreviewWidget::Draw(const std::string& path)
+	{
+		mView.SetPrefab(path);
+		if (!mView.IsReady())
 		{
-			dl->AddImage(ImTextureID(mView.GetOutput().GetGpuSrv().ptr), pos, end);
+			ImGui::TextDisabled("%s", mView.GetError().c_str());
+			return;
 		}
-		dl->AddRect(pos, end, ImGui::GetColorU32(ImGuiCol_Border));
-		if (hovered)
-		{
-			// 狭いときは短い説明にし、それでも収まらなければ切る
-			const char* hint = "Drag: rotate   Wheel: zoom   Double-click: reset";
-			if (ImGui::CalcTextSize(hint).x + 20.0f > size.x) { hint = "Drag / Wheel / Double-click"; }
-			ImVec2 textSize = ImGui::CalcTextSize(hint);
-			ImVec2 textPos(pos.x + 6.0f, end.y - textSize.y - 6.0f);
-			dl->PushClipRect(pos, end, true);
-			dl->AddRectFilled(ImVec2(textPos.x - 4.0f, textPos.y - 2.0f), ImVec2(textPos.x + textSize.x + 4.0f, textPos.y + textSize.y + 2.0f), IM_COL32(0, 0, 0, 140), 3.0f);
-			dl->AddText(textPos, IM_COL32(230, 230, 230, 255), hint);
-			dl->PopClipRect();
-		}
+		ImGui::SameLine();
+		ImGui::TextDisabled("%zu actors", mView.GetActorCount());
+		DrawOrbitView(mView);
 	}
 
 	// ---------------------------------------------------------------- サムネイル
 
-	const GpuTexture* ModelThumbnails::Get(const std::string& path)
+	const GpuTexture* AssetThumbnails::Get(const std::string& path)
 	{
 		int frame = ImGui::GetFrameCount();
 		if (frame != mFrame)
@@ -273,8 +390,18 @@ namespace rd
 		e.lastUsed = frame;
 		if (!e.view)
 		{
-			e.view = std::make_unique<ModelView>();
-			e.view->SetModel(path);
+			if (GetExtension(path) == ".prefab")
+			{
+				auto view = std::make_unique<PrefabView>();
+				view->SetPrefab(path);
+				e.view = std::move(view);
+			}
+			else
+			{
+				auto view = std::make_unique<ModelView>();
+				view->SetModel(path);
+				e.view = std::move(view);
+			}
 		}
 		// テクスチャが読み終わるまでは描き直す
 		if (!e.done && mRenderedThisFrame < kThumbnailsPerFrame && e.view->IsReady())
@@ -290,7 +417,7 @@ namespace rd
 		return e.rendered ? &e.view->GetOutput() : nullptr;
 	}
 
-	void ModelThumbnails::Evict()
+	void AssetThumbnails::Evict()
 	{
 		std::erase_if(mEntries, [&](const auto& kv) { return kv.second.lastUsed < mFrame - kThumbnailKeepFrames; });
 	}

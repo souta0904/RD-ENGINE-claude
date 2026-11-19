@@ -81,6 +81,16 @@ namespace rd
 		extra[5] = float(std::max(2u, mEnv.retroColorLevels));
 		extra[6] = 0.0f;
 		extra[7] = 0.0f;
+		// Unity の Vignette（gExtra[2] = 色と縦横比、gExtra[3] = 中心・強さ×3・なめらかさ×5。URP と同じ値の渡し方）
+		float aspect = float(mT->output.GetWidth()) / float(std::max(mT->output.GetHeight(), 1u));
+		extra[8] = mEnv.vignetteColor.r;
+		extra[9] = mEnv.vignetteColor.g;
+		extra[10] = mEnv.vignetteColor.b;
+		extra[11] = mEnv.vignetteRounded ? aspect : 1.0f;
+		extra[12] = mEnv.vignetteCenter.x;
+		extra[13] = mEnv.vignetteCenter.y;
+		extra[14] = mEnv.vignetteIntensity * 3.0f;
+		extra[15] = mEnv.vignetteSmoothness * 5.0f;
 		cmd->SetPipelineState(mTonemapPSO.Get());
 		cmd->SetGraphicsRoot32BitConstants(kSimpleConstants, sizeof(c) / 4, &c, 0);
 		cmd->SetGraphicsRootDescriptorTable(kSimpleTex0, mT->hdr.GetGpuSrv());

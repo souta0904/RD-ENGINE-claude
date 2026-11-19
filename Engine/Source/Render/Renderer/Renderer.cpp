@@ -1,4 +1,4 @@
-#include "RdPch.h"
+﻿#include "RdPch.h"
 #include "Render/Renderer/Renderer.h"
 #include "Asset/AssetManager.h"
 #include "Asset/Model/Model.h"
@@ -57,6 +57,7 @@ namespace rd
 		mT->hdr.Create({ width, height, kHdrFormat, DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN, Color(0, 0, 0, 1), L"HDR" });
 		mT->depth.Resize(width, height);
 		mT->output.Create({ width, height, DXGI_FORMAT_R8G8B8A8_TYPELESS, kOutputRtvFormat, DXGI_FORMAT_R8G8B8A8_UNORM, Color(0, 0, 0, 1), L"Output" });
+		mT->outlineMask.Create({ width, height, kOutlineMaskFormat, DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN, Color(0, 0, 0, 0), L"OutlineMask" });
 		uint32_t w = width, h = height;
 		for (uint32_t i = 0; i < RenderTargets::kBloomLevels; ++i)
 		{
@@ -94,6 +95,7 @@ namespace rd
 
 		if (mShadowActive) { ShadowPass(cmd, casters); }
 		MainPass(cmd, env, width, height, opaque, transparent);
+		OutlinePass(cmd, width, height);
 
 		mT->hdr.Transition(cmd, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 		BloomPass(cmd);
@@ -265,6 +267,73 @@ namespace rd
 		cmd->DrawInstanced(count, 1, 0, 0);
 		++mStats.drawCalls;
 		mStats.triangles += count / 3;
+	}
+
+	// 縁取り。印のテクスチャに形を塗ってから、広げた形を印のない所だけ HDR に描く（Unity のステンシルの代わり）
+	void Renderer::OutlinePass(ID3D12GraphicsCommandList* cmd, uint32_t width, uint32_t height)
+	{
+		auto& items = mList.outlines;
+		if (items.empty() || !mOutlineMaskPSO[0] || !mOutlinePSO[0]) { return; }
+		RD_GPU_SCOPE("Outline");
+		auto& device = GraphicsDevice::Get();
+
+		cmd->SetGraphicsRootSignature(mMeshRS.Get());
+		cmd->SetGraphicsRootConstantBufferView(kRootFrame, mFrameCB);
+		cmd->SetGraphicsRootConstantBufferView(kRootLights, mLightCB);
+		cmd->SetGraphicsRootDescriptorTable(kRootShadow, mShadowMap.GetGpuSrv());
+		cmd->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+		SetViewport(cmd, width, height);
+
+		// 1 物ごとの定数（縁の色・幅・点滅）を先に作っておく
+		std::vector<D3D12_GPU_VIRTUAL_ADDRESS> objectCBs, materialCBs;
+		for (const OutlineDrawItem& item : items)
+		{
+			GpuObjectData obj;
+			obj.world = item.world;
+			obj.worldInvTranspose = Transpose(Inverse(item.world));
+			obj.tint = item.color;
+			GpuMaterialData mat;
+			mat.metallic = item.width;
+			mat.roughness = item.blinkSec;
+			objectCBs.push_back(device.UploadConstants(obj));
+			materialCBs.push_back(device.UploadConstants(mat));
+		}
+
+		auto drawAll = [&](ComPtr<ID3D12PipelineState> (&psos)[2])
+		{
+			for (size_t i = 0; i < items.size(); ++i)
+			{
+				const OutlineDrawItem& item = items[i];
+				if (!item.model || !item.model->IsReady()) { continue; }
+				const auto& subs = item.model->GetSubMeshes();
+				if (item.subMesh >= subs.size()) { continue; }
+				const SubMesh& sub = subs[item.subMesh];
+				bool skinned = sub.skinned && item.palette != 0;
+				cmd->SetPipelineState(psos[skinned ? 1 : 0].Get());
+				cmd->SetGraphicsRootConstantBufferView(kRootObject, objectCBs[i]);
+				cmd->SetGraphicsRootConstantBufferView(kRootMaterial, materialCBs[i]);
+				if (skinned) { cmd->SetGraphicsRootShaderResourceView(kRootPalette, item.palette); }
+				D3D12_VERTEX_BUFFER_VIEW vbs[2] = { item.model->GetVertexView(), item.model->GetSkinView() };
+				cmd->IASetVertexBuffers(0, skinned ? 2 : 1, vbs);
+				cmd->IASetIndexBuffer(&item.model->GetIndexView());
+				cmd->DrawIndexedInstanced(sub.indexCount, 1, sub.indexStart, 0, 0);
+				++mStats.drawCalls;
+			}
+		};
+
+		// 物そのものの形を印に塗る
+		mT->outlineMask.Transition(cmd, D3D12_RESOURCE_STATE_RENDER_TARGET);
+		auto maskRtv = mT->outlineMask.GetRtv();
+		cmd->OMSetRenderTargets(1, &maskRtv, FALSE, nullptr);
+		mT->outlineMask.Clear(cmd);
+		drawAll(mOutlineMaskPSO);
+
+		// 広げた形を、印のない所だけ描く
+		mT->outlineMask.Transition(cmd, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+		auto hdrRtv = mT->hdr.GetRtv();
+		cmd->OMSetRenderTargets(1, &hdrRtv, FALSE, nullptr);
+		cmd->SetGraphicsRootDescriptorTable(kRootAlbedo, mT->outlineMask.GetGpuSrv());
+		drawAll(mOutlinePSO);
 	}
 
 	// 描画したものを切り替えながら描く（パイプラインと頂点バッファは変わったときだけ設定する）

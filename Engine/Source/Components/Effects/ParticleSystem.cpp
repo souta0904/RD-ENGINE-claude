@@ -2,6 +2,7 @@
 #include "Components/Effects/ParticleSystem.h"
 #include "Asset/AssetManager.h"
 #include "Asset/Texture/Texture.h"
+#include "Core/Time/Time.h"
 #include "Render/Debug/DebugDraw.h"
 #include "Render/RenderList/RenderList.h"
 #include "Render/Material/Material.h"
@@ -144,7 +145,7 @@ namespace rd
 
 	void ParticleSystem::Update(float dt)
 	{
-		Simulate(dt);
+		Simulate(unscaledTime ? Time::UnscaledDeltaTime() : dt);
 	}
 
 	void ParticleSystem::OnEditorUpdate(float dt)

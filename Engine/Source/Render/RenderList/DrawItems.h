@@ -34,6 +34,19 @@ namespace rd
 		Vector3 center;
 	};
 
+	// 縁取り（メッシュの形を画面で width ピクセル外へ広げた縁。深度を見ないので物の陰からも見える）
+	//  blinkSec 秒の周期で点滅する（0 なら点滅しない）
+	struct OutlineDrawItem
+	{
+		const Model* model = nullptr;
+		uint32_t subMesh = 0;
+		Matrix4 world;
+		D3D12_GPU_VIRTUAL_ADDRESS palette = 0;
+		Color color = Color(1.0f, 0.9f, 0.2f, 1.0f);
+		float width = 8.0f;
+		float blinkSec = 0.0f;
+	};
+
 	// 色付きの三角形の頂点（ワールド座標。ライティングなしの半透明で描く）
 	struct ColorVertex
 	{

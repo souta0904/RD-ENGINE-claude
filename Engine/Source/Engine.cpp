@@ -242,7 +242,8 @@ namespace rd
 	{
 		if (!mPlay.IsPlaying() || !mEditor) { return; }
 		mAudio->StopAll();
-		mScenes.SetScene(mPlay.End(mScenes.GetScene()));
+		mScenes.SetScene(mPlay.End());
+		SetWindowTitleSuffix("");
 		mEditor->OnSceneChanged(true);
 		Log::Info(LogCat::Core, "Stop");
 	}
@@ -252,11 +253,9 @@ namespace rd
 	{
 		if (!mScenes.ApplyPending()) { return; }
 #if RD_EDITOR
-		if (mEditor)
-		{
-			mPlay.SetPlaying(false);
-			mEditor->OnSceneChanged();
-		}
+		// プレイ中にゲームが切り替えた場面はそのままプレイを続ける（Stop でプレイを始めた場面に戻る）。
+		//  エディタで開く・新しく作るときは、先に EndPlay で止めてから切り替える
+		if (mEditor) { mEditor->OnSceneChanged(); }
 		SetWindowTitleSuffix("");
 #endif
 	}

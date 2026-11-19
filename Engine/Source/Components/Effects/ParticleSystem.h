@@ -50,6 +50,8 @@ namespace rd
 		BlendMode blend = BlendMode::Additive;
 		float emissive = 1.0f;
 		bool previewInEditor = true;
+		// 時間の倍率を掛けない時間で動かす（時間を止める演出の間も動く）。保存はしない
+		bool unscaledTime = false;
 
 		void Reflect(PropertyVisitor& v) override;
 		void Start() override;

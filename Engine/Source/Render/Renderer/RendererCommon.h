@@ -10,6 +10,7 @@ namespace rd::render
 	inline constexpr DXGI_FORMAT kHdrFormat = DXGI_FORMAT_R16G16B16A16_FLOAT;
 	inline constexpr DXGI_FORMAT kBloomFormat = DXGI_FORMAT_R11G11B10_FLOAT;
 	inline constexpr DXGI_FORMAT kOutputRtvFormat = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+	inline constexpr DXGI_FORMAT kOutlineMaskFormat = DXGI_FORMAT_R8_UNORM;
 	inline constexpr const char* kShaderDir = "Assets/Engine/Shaders/";
 
 	// メッシュ用のルートシグネチャの引数の番号

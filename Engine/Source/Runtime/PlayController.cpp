@@ -10,22 +10,22 @@ namespace rd
 	{
 		if (mPlaying) { return false; }
 		mSnapshot = scene.Serialize().dump();
+		mSnapshotPath = scene.GetPath();
 		mPlaying = true;
 		mPaused = false;
 		Time::sTotal = 0.0;
 		return true;
 	}
 
-	// パスは今のシーンのものを引き継ぐ
-	std::unique_ptr<Scene> PlayController::End(const Scene& current)
+	// プレイ中にゲームが別の場面へ切り替えていても、プレイを始めた場面（パスも）に戻す
+	std::unique_ptr<Scene> PlayController::End()
 	{
 		if (!mPlaying) { return nullptr; }
 		mPlaying = false;
 		mPaused = false;
-		std::string path = current.GetPath();
 		auto scene = std::make_unique<Scene>();
 		scene->Deserialize(Json::parse(mSnapshot));
-		scene->SetPath(path);
+		scene->SetPath(mSnapshotPath);
 		return scene;
 	}
 #endif

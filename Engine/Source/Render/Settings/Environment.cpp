@@ -1,4 +1,4 @@
-#include "RdPch.h"
+﻿#include "RdPch.h"
 #include "Render/Settings/Environment.h"
 
 namespace rd
@@ -24,5 +24,10 @@ namespace rd
 		v.Property("Saturation", saturation, { .speed = 0.5f, .min = -100.0f, .max = 100.0f });
 		v.Property("Retro Height", retroHeight, { .speed = 1.0f, .min = 0.0f, .max = 4320.0f });
 		v.Property("Retro Color Levels", retroColorLevels, { .speed = 0.2f, .min = 2.0f, .max = 256.0f });
+		v.Property("Vignette Color", vignetteColor);
+		v.Property("Vignette Center", vignetteCenter, { .speed = 0.01f, .min = 0.0f, .max = 1.0f });
+		v.Property("Vignette Intensity", vignetteIntensity, { .speed = 0.01f, .min = 0.0f, .max = 1.0f });
+		v.Property("Vignette Smoothness", vignetteSmoothness, { .speed = 0.01f, .min = 0.01f, .max = 1.0f });
+		v.Property("Vignette Rounded", vignetteRounded);
 	}
 }

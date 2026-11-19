@@ -67,6 +67,7 @@ namespace rd
 	{
 		std::filesystem::create_directories("Logs");
 		mImGui.Initialize(mEngine.GetWindow().GetHandle());
+		mEngine.GetWindow().EnableFileDrop();
 		ImGui::GetIO().IniFilename = kLayoutFile;
 		// 前回の配置が保存されていればそれを使う（既定の配置の版が古ければ作り直す）
 		mFirstLayout = !std::filesystem::exists(kLayoutFile) || ReadLayoutVersion() != kLayoutVersion;
@@ -226,6 +227,7 @@ namespace rd
 		if (!view.IsVisible()) { return; }
 		uint32_t width, height;
 		view.GetRenderSize(width, height);
+		mExtraList.uiScreenSize = mPrimaryGame ? Vector2() : Vector2(float(width), float(height));
 		scene.CollectRender(mExtraList);
 		DebugDraw debug;
 		if (mPrimaryGame) { DrawSceneGizmos(debug); }

@@ -12,6 +12,10 @@
 #include "Components/Rendering/CameraComponent.h"
 #include "Components/Rendering/MeshRenderer.h"
 #include "Components/Rendering/SpriteRenderer.h"
+#include "Components/UI/Canvas.h"
+#include "Components/UI/RectTransform.h"
+#include "Components/UI/UIImage.h"
+#include "Components/UI/UIText.h"
 #include "Physics/Character/CharacterController.h"
 #include "Physics/Colliders/BoxCollider.h"
 #include "Physics/Colliders/CapsuleCollider.h"
@@ -43,5 +47,10 @@ namespace rd
 		ComponentRegistry::Register<NavMeshSurface>("Navigation");
 		ComponentRegistry::Register<NavMeshLink>("Navigation");
 		ComponentRegistry::Register<NavMeshAgent>("Navigation");
+		ComponentRegistry::Register<Canvas>("UI");
+		ComponentRegistry::Register<CanvasGroup>("UI");
+		ComponentRegistry::Register<RectTransform>("UI");
+		ComponentRegistry::Register<UIImage>("UI");
+		ComponentRegistry::Register<UIText>("UI");
 	}
 }

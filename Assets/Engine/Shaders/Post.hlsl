@@ -162,6 +162,15 @@ float4 TonemapPS(VSOutput input) : SV_TARGET
     float3 bloom = gTexture1.SampleLevel(gLinearClamp, uv, 0).rgb;
     float3 color = (hdr + bloom * gParams.y) * gParams.x * gExtra[0].x;
 
+    // Unity（URP）の Vignette。gExtra[2] = (色, 縦横比), gExtra[3] = (中心, 強さ×3, なめらかさ×5)
+    if (gExtra[3].z > 0.0f)
+    {
+        float2 dist = abs(input.uv - gExtra[3].xy) * gExtra[3].z;
+        dist.x *= gExtra[2].w;
+        float vfactor = pow(saturate(1.0f - dot(dist, dist)), gExtra[3].w);
+        color *= lerp(gExtra[2].rgb, 1.0f.xxx, vfactor);
+    }
+
     // 色の調整（コントラスト → 彩度）
     color = max(LogCToLinear((LinearToLogC(max(color, 0.0f)) - kLogCMidGray) * gExtra[0].y + kLogCMidGray), 0.0f);
     float luma = dot(color, float3(0.2126729f, 0.7151522f, 0.0721750f));
