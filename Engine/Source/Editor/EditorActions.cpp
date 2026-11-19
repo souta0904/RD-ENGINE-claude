@@ -1,5 +1,6 @@
 #include "RdPch.h"
 #include "Editor/Editor.h"
+#include "Asset/Model/Model.h"
 #include "Components/Effects/ParticleSystem.h"
 #include "Components/Lighting/DirectionalLight.h"
 #include "Components/Lighting/PointLight.h"
@@ -17,6 +18,7 @@
 #include "Physics/Colliders/CapsuleCollider.h"
 #include "Physics/Colliders/SphereCollider.h"
 #include "Scene/Scene.h"
+#include "Editor/Core/EditorLocale.h"
 #include <ImGui/imgui.h>
 
 namespace rd
@@ -75,7 +77,7 @@ namespace rd
 			actor->GetTransform().SetPosition(cam.position + cam.GetForward() * 6.0f);
 		}
 		Select(actor);
-		PushCommand(ActorLifetimeCommand::Created("Create " + kind, scene, { actor }));
+		PushCommand(ActorLifetimeCommand::Created(EditorLocale::Format("Create {}", std::string(Tr(kind))), scene, { actor }));
 		return actor;
 	}
 
@@ -84,7 +86,7 @@ namespace rd
 		ActorId parentId = parent ? parent->GetId() : 0;
 		auto item = [&](const char* label)
 			{
-				if (ImGui::MenuItem(label))
+				if (ImGui::MenuItem(Tr(label)))
 				{
 					std::string kind = label;
 					Defer([this, kind, parentId] { CreateActor(kind, parentId ? GetScene().FindActor(parentId) : nullptr); });
@@ -92,17 +94,17 @@ namespace rd
 			};
 		item("Empty");
 		ImGui::Separator();
-		if (ImGui::BeginMenu("3D Object"))
+		if (ImGui::BeginMenu(Tr("3D Object")))
 		{
 			for (const char* kind : { "Cube", "Sphere", "Plane", "Capsule" }) { item(kind); }
 			ImGui::EndMenu();
 		}
-		if (ImGui::BeginMenu("Light"))
+		if (ImGui::BeginMenu(Tr("Light")))
 		{
 			for (const char* kind : { "Directional Light", "Point Light", "Spot Light" }) { item(kind); }
 			ImGui::EndMenu();
 		}
-		if (ImGui::BeginMenu("Effects"))
+		if (ImGui::BeginMenu(Tr("Effects")))
 		{
 			item("Particle System");
 			ImGui::EndMenu();
@@ -116,7 +118,7 @@ namespace rd
 		Actor* sel = GetSelected();
 		if (!sel) { return; }
 		Scene& scene = mEngine.GetScene();
-		auto command = ActorLifetimeCommand::Deleting("Delete " + sel->GetName(), scene, { sel });
+		auto command = ActorLifetimeCommand::Deleting(EditorLocale::Format("Delete {}", sel->GetName()), scene, { sel });
 		sel->Destroy();
 		scene.FlushPendingDestroy();
 		Select(nullptr);
@@ -131,7 +133,7 @@ namespace rd
 		if (Actor* copy = scene.Duplicate(sel))
 		{
 			Select(copy);
-			PushCommand(ActorLifetimeCommand::Created("Duplicate " + sel->GetName(), scene, { copy }));
+			PushCommand(ActorLifetimeCommand::Created(EditorLocale::Format("Duplicate {}", sel->GetName()), scene, { copy }));
 		}
 	}
 
@@ -152,7 +154,7 @@ namespace rd
 		Actor* copy = roots.front();
 		if (sel) { copy->SetParent(parent, false, sel->GetSiblingIndex() + 1); }
 		Select(copy);
-		PushCommand(ActorLifetimeCommand::Created("Paste " + copy->GetName(), scene, roots));
+		PushCommand(ActorLifetimeCommand::Created(EditorLocale::Format("Paste {}", copy->GetName()), scene, roots));
 	}
 
 	void Editor::RenameSelected()
@@ -184,14 +186,23 @@ namespace rd
 		return path;
 	}
 
-	Actor* Editor::InstantiatePrefab(const std::string& path, Actor* parent, int siblingIndex)
+	// ヒエラルキーへのドロップ。プレハブはその中身を、モデルは MeshRenderer を付けたアクターを作る
+	//  位置は Unity と同じく、ルートなら原点、親の中なら親の位置（ローカルの原点）
+	Actor* Editor::InstantiateAsset(const std::string& path, Actor* parent, int siblingIndex)
 	{
 		Scene& scene = mEngine.GetScene();
-		Actor* instance = scene.Instantiate(path, parent);
+		Actor* instance = nullptr;
+		if (GetExtension(path) == ".prefab") { instance = scene.Instantiate(path, parent); }
+		else if (Model::IsSupportedExtension(GetExtension(path)))
+		{
+			instance = scene.CreateActor(GetStem(path));
+			instance->AddComponent<MeshRenderer>()->SetModel(path);
+			if (parent) { instance->SetParent(parent, false); }
+		}
 		if (!instance) { return nullptr; }
 		if (siblingIndex >= 0) { instance->SetParent(parent, false, siblingIndex); }
 		Select(instance);
-		PushCommand(ActorLifetimeCommand::Created("Instantiate " + GetStem(path), scene, { instance }));
+		PushCommand(ActorLifetimeCommand::Created(EditorLocale::Format("Instantiate {}", GetStem(path)), scene, { instance }));
 		return instance;
 	}
 

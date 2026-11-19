@@ -3,6 +3,8 @@
 #include "Editor/Assistant/AIAssistant.h"
 #include "Editor/Commands/SceneSettingsCommand.h"
 #include "Editor/Commands/ActorStateCommand.h"
+#include "Editor/Core/EditorLocale.h"
+#include "Editor/Core/EditorSession.h"
 #include "Editor/Panels/GameViewPanel.h"
 #include "Editor/Panels/LogPanel.h"
 #include "Editor/Panels/HierarchyPanel.h"
@@ -15,6 +17,10 @@
 #include "Editor/Panels/StatsPanel.h"
 #include "Editor/Style/EditorStyle.h"
 #include "Engine.h"
+#include "AI/Navigation/NavigationSystem.h"
+#include "Components/Navigation/NavMeshSurface.h"
+#include "Components/Rendering/MeshRenderer.h"
+#include "Core/Util/StringUtil.h"
 #include "Physics/Colliders/Collider.h"
 #include "Render/Debug/DebugDraw.h"
 #include "Scene/Scene.h"
@@ -29,7 +35,8 @@ namespace rd
 		constexpr const char* kLayoutFile = "Logs/editor_layout.ini";
 		// 既定の配置の版（パネルを足したり名前を変えたりしたら上げる。保存してある版と違えば配置を作り直す）
 		constexpr const char* kLayoutVersionFile = "Logs/editor_layout.version";
-		constexpr int kLayoutVersion = 2;
+		//  3: ウィンドウの ID を「訳###英語」にした（言語を変えても配置が保たれるように）
+		constexpr int kLayoutVersion = 3;
 
 		int ReadLayoutVersion()
 		{
@@ -75,6 +82,7 @@ namespace rd
 
 	void Editor::Shutdown()
 	{
+		EditorLocale::WriteMissing();
 		mImGui.Shutdown();
 	}
 
@@ -104,6 +112,75 @@ namespace rd
 		}
 		RefreshSnapshots();
 		UpdateTitle();
+	}
+
+	void Editor::CaptureSession(EditorSession& session) const
+	{
+		// プレイ中にゲームが別の場面へ切り替えていたら、選択は編集中のシーンのものではないので残さない
+		session.selectedActor = GetScene().GetPath() == session.scene ? mSelectedId : 0;
+
+		const EditorCamera& camera = mSceneView->GetCamera();
+		session.hasCamera = true;
+		session.cameraPosition = camera.position;
+		session.cameraYaw = camera.yaw;
+		session.cameraPitch = camera.pitch;
+		session.cameraFov = camera.fov;
+		session.cameraMoveSpeed = camera.moveSpeed;
+
+		session.gizmoOp = int(mSceneView->GetGizmoOp());
+		session.gizmoLocal = mSceneView->IsGizmoLocal();
+		session.showGrid = mSceneView->showGrid;
+		session.showGizmos = mSceneView->showGizmos;
+		session.showPhysics = mSceneView->showPhysics;
+		session.showNavMesh = mSceneView->showNavMesh;
+		// プレイ中は自動でゲームビューが前に出ているだけなので、覚えない
+		session.gameViewActive = mPrimaryGame && !IsPlaying();
+
+		session.projectFolder = mProject->GetCurrentFolder();
+		session.projectSelected = mProject->GetSelectedFile();
+		session.projectIconScale = mProject->GetIconScale();
+
+		for (const auto& panel : mPanels) { session.panels[panel->GetTitle()] = panel->IsOpen(); }
+		session.language = EditorLocale::GetLanguageCode(EditorLocale::GetLanguage());
+	}
+
+	void Editor::RestoreSession(const EditorSession& session)
+	{
+		EditorLocale::SetLanguage(EditorLocale::FromCode(session.language));
+		for (auto& panel : mPanels)
+		{
+			if (auto it = session.panels.find(panel->GetTitle()); it != session.panels.end()) { panel->SetOpen(it->second); }
+		}
+
+		mSceneView->SetGizmoOp(SceneViewPanel::GizmoOp(session.gizmoOp));
+		mSceneView->SetGizmoLocal(session.gizmoLocal);
+		mSceneView->showGrid = session.showGrid;
+		mSceneView->showGizmos = session.showGizmos;
+		mSceneView->showPhysics = session.showPhysics;
+		mSceneView->showNavMesh = session.showNavMesh;
+		if (session.gameViewActive && mGameView->IsOpen())
+		{
+			mPrimaryGame = true;
+			mFocusView = "Game";
+		}
+
+		// -scene で別のシーンを開いたときや、前回のシーンが消されていたときは、選択もカメラも意味がない
+		if (!session.scene.empty() && GetScene().GetPath() == session.scene)
+		{
+			if (session.hasCamera)
+			{
+				EditorCamera& camera = mSceneView->GetCamera();
+				camera.position = session.cameraPosition;
+				camera.yaw = session.cameraYaw;
+				camera.pitch = session.cameraPitch;
+				camera.fov = session.cameraFov;
+				camera.moveSpeed = session.cameraMoveSpeed;
+			}
+			if (Actor* actor = GetScene().FindActor(session.selectedActor)) { Select(actor); }
+		}
+
+		// Select がプロジェクトの選択を消すので、その後で戻す
+		mProject->RestoreState(session.projectFolder, session.projectSelected, session.projectIconScale);
 	}
 
 	Scene& Editor::GetScene() const
@@ -154,6 +231,26 @@ namespace rd
 		Json after = mEngine.GetScene().SerializeSettings();
 		if (after == mSettingsSnapshot) { return; }
 		PushCommand(std::make_unique<SceneSettingsCommand>(label, std::move(mSettingsSnapshot), after));
+	}
+
+	// 入れる前後のアクターの状態を Undo に積む（アクターの値の変更と同じ扱い）
+	bool Editor::AssignMaterial(MeshRenderer& renderer, size_t slot, const std::string& path)
+	{
+		Actor* actor = renderer.GetActor();
+		Scene& scene = mEngine.GetScene();
+		Json before = scene.SerializeActorState(actor);
+		if (!renderer.SetSharedMaterial(slot, path))
+		{
+			Log::Warning(LogCat::Editor, "{} has no material slot {} (is the model loaded?)", actor->GetName(), slot);
+			return false;
+		}
+		Log::Info(LogCat::Editor, "Assigned {} to {} (slot {})", path, actor->GetName(), slot);
+		Json after = scene.SerializeActorState(actor);
+		if (after != before)
+		{
+			PushCommand(std::make_unique<ActorStateCommand>(EditorLocale::Format("Assign Material {}", GetStem(path)), actor->GetId(), std::move(before), std::move(after)));
+		}
+		return true;
 	}
 
 	void Editor::PushCommand(std::unique_ptr<EditorCommand> command)
@@ -245,6 +342,30 @@ namespace rd
 		{
 			for (auto* c : scene.FindComponents<Collider>()) { c->OnDrawGizmos(draw, false); }
 		}
+		DrawNavMeshGizmos(draw);
+	}
+
+	// ナビメッシュは「NavMesh」が オン のとき、または NavMeshSurface を持つアクターを選んでいるときに描く。
+	//  シーンのナビメッシュは 1 つ（NavigationSystem）なので、選んでいる Surface があればそれを、
+	//  なければ最初に見つかった Surface を読み込んで描く
+	void Editor::DrawNavMeshGizmos(DebugDraw& draw)
+	{
+		Scene& scene = mEngine.GetScene();
+		Actor* selected = GetSelected();
+		NavMeshSurface* surface = selected ? selected->GetComponent<NavMeshSurface>() : nullptr;
+		if (!surface && !mSceneView->showNavMesh) { return; }
+		if (!surface || surface->data.empty())
+		{
+			surface = nullptr;
+			for (NavMeshSurface* s : scene.FindComponents<NavMeshSurface>())
+			{
+				if (!s->data.empty()) { surface = s; break; }
+			}
+		}
+		if (!surface) { return; }
+		NavigationSystem& nav = scene.GetSystem<NavigationSystem>();
+		nav.LoadSurface(surface->data);
+		nav.GetMesh().DrawGizmos(draw);
 	}
 
 	void Editor::RenderUI()
@@ -283,7 +404,7 @@ namespace rd
 		// 最後に開いたウィンドウ（Stats）がフォーカスを持つと、そのタブが選ばれ続けるので、起動時はシーンビューにフォーカスを移す
 		if (mFocusView)
 		{
-			ImGui::SetWindowFocus(mFocusView);
+			ImGui::SetWindowFocus(TrId(mFocusView));
 			mFocusView = nullptr;
 		}
 		for (auto& panel : mPanels) { panel->Update(dt); }
@@ -304,17 +425,18 @@ namespace rd
 		ImGuiID right = ImGui::DockBuilderSplitNode(center, ImGuiDir_Right, 0.3f, nullptr, &center);
 		ImGuiID rightBottom = ImGui::DockBuilderSplitNode(right, ImGuiDir_Down, 0.5f, nullptr, &right);
 		ImGuiID bottom = ImGui::DockBuilderSplitNode(center, ImGuiDir_Down, 0.28f, nullptr, &center);
-		ImGui::DockBuilderDockWindow("Hierarchy", left);
-		ImGui::DockBuilderDockWindow("Properties", right);
-		ImGui::DockBuilderDockWindow("Lighting", right);
-		ImGui::DockBuilderDockWindow("Stats", right);
-		ImGui::DockBuilderDockWindow("AI Assistant", right);
-		ImGui::DockBuilderDockWindow("Preview", rightBottom);
-		ImGui::DockBuilderDockWindow("Project", bottom);
-		ImGui::DockBuilderDockWindow("Log", bottom);
-		ImGui::DockBuilderDockWindow("Profiler", bottom);
-		ImGui::DockBuilderDockWindow("Scene", center);
-		ImGui::DockBuilderDockWindow("Game", center);
+		// ウィンドウの ID は「訳###英語」なので、同じ形の名前で指す（ID は ### から後ろで決まる）
+		ImGui::DockBuilderDockWindow(TrId("Hierarchy"), left);
+		ImGui::DockBuilderDockWindow(TrId("Properties"), right);
+		ImGui::DockBuilderDockWindow(TrId("Lighting"), right);
+		ImGui::DockBuilderDockWindow(TrId("Stats"), right);
+		ImGui::DockBuilderDockWindow(TrId("AI Assistant"), right);
+		ImGui::DockBuilderDockWindow(TrId("Preview"), rightBottom);
+		ImGui::DockBuilderDockWindow(TrId("Project"), bottom);
+		ImGui::DockBuilderDockWindow(TrId("Log"), bottom);
+		ImGui::DockBuilderDockWindow(TrId("Profiler"), bottom);
+		ImGui::DockBuilderDockWindow(TrId("Scene"), center);
+		ImGui::DockBuilderDockWindow(TrId("Game"), center);
 		ImGui::DockBuilderFinish(dockId);
 		mSelectDefaultTabs = true;
 		WriteLayoutVersion();
@@ -325,13 +447,13 @@ namespace rd
 	{
 		for (const char* name : { "Properties", "Project" })
 		{
-			ImGuiWindow* window = ImGui::FindWindowByName(name);
+			ImGuiWindow* window = ImGui::FindWindowByName(TrId(name));
 			if (!window || !window->DockNode || !window->DockNode->TabBar) { return; }
 			if (!ImGui::TabBarFindTabByID(window->DockNode->TabBar, window->TabId)) { return; }
 		}
 		for (const char* name : { "Properties", "Project" })
 		{
-			ImGuiWindow* window = ImGui::FindWindowByName(name);
+			ImGuiWindow* window = ImGui::FindWindowByName(TrId(name));
 			window->DockNode->TabBar->NextSelectedTabId = window->TabId;
 			window->DockNode->SelectedTabId = window->TabId;
 		}

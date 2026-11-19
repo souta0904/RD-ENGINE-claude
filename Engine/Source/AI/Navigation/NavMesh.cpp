@@ -35,6 +35,7 @@ namespace rd
 		mTris.clear();
 		mLinks.clear();
 		mGrid.clear();
+		mOutline.clear();
 	}
 
 	bool NavMesh::LoadJson(const std::string& path)
@@ -88,6 +89,60 @@ namespace rd
 
 		ConnectSharedEdges();
 		BuildGrid();
+		BuildOutline();
+	}
+
+	// 三角形の各辺について、隣の三角形へつながっている区間（Edge の a～b）を辺の上に並べ、
+	// どこにも覆われていない隙間を外周として残す。
+	//  ふつうの共有辺は辺全体が覆われるので外周にならない。タイルの境目のように辺の一部だけが
+	//  別の三角形とつながっているときは、つながっていない残りの部分だけが外周になる。
+	void NavMesh::BuildOutline()
+	{
+		constexpr float kLineTolerance = 0.06f; // 辺の直線から、これ以上離れた区間は別の辺のもの
+		constexpr float kMinGap = 0.01f;        // これより短い隙間は外周として描かない
+
+		mOutline.clear();
+		std::vector<std::pair<float, float>> covered;
+		for (const Triangle& t : mTris)
+		{
+			for (int k = 0; k < 3; ++k)
+			{
+				const Vector3& a = mVertices[t.v[k]];
+				const Vector3& b = mVertices[t.v[(k + 1) % 3]];
+				// 上から見た（XZ の）向きと長さで測る。つなぐときも同じ測り方をしている
+				float dx = b.x - a.x, dz = b.z - a.z;
+				float len = std::sqrt(dx * dx + dz * dz);
+				if (len < 1.0e-4f) { continue; }
+				dx /= len;
+				dz /= len;
+				auto param = [&](const Vector3& p) { return (p.x - a.x) * dx + (p.z - a.z) * dz; };
+				auto offLine = [&](const Vector3& p) { return std::fabs((p.x - a.x) * dz - (p.z - a.z) * dx); };
+
+				covered.clear();
+				for (const Edge& e : t.edges)
+				{
+					if (e.link >= 0 || offLine(e.a) > kLineTolerance || offLine(e.b) > kLineTolerance) { continue; }
+					float s0 = std::max(0.0f, std::min(param(e.a), param(e.b)));
+					float s1 = std::min(len, std::max(param(e.a), param(e.b)));
+					if (s1 > s0) { covered.push_back({ s0, s1 }); }
+				}
+				std::sort(covered.begin(), covered.end());
+
+				// 0 から順に、覆われていない隙間を拾う
+				float cursor = 0.0f;
+				auto emit = [&](float s0, float s1)
+				{
+					if (s1 - s0 < kMinGap) { return; }
+					mOutline.push_back({ a + (b - a) * (s0 / len), a + (b - a) * (s1 / len) });
+				};
+				for (const auto& [s0, s1] : covered)
+				{
+					if (s0 > cursor) { emit(cursor, s0); }
+					cursor = std::max(cursor, s1);
+				}
+				if (cursor < len) { emit(cursor, len); }
+			}
+		}
 	}
 
 	void NavMesh::ConnectSharedEdges()
@@ -579,17 +634,54 @@ namespace rd
 		return true;
 	}
 
+	Color NavMesh::GetAreaColor(int area)
+	{
+		switch (area)
+		{
+		case 0: return Color(0.2f, 0.6f, 1.0f, 1.0f);
+		case 1: return Color(0.5f, 0.5f, 0.5f, 1.0f);
+		case 2: return Color(1.0f, 0.8f, 0.2f, 1.0f);
+		default: break;
+		}
+		// 番号ごとに色相をずらす（黄金比で回すと、近い番号どうしでも色が離れる）
+		float h = std::fmod(float(area) * 0.618034f, 1.0f) * 6.0f;
+		float x = 1.0f - std::fabs(std::fmod(h, 2.0f) - 1.0f);
+		float r = 0.0f, g = 0.0f, b = 0.0f;
+		switch (int(h))
+		{
+		case 0: r = 1.0f; g = x; break;
+		case 1: r = x; g = 1.0f; break;
+		case 2: g = 1.0f; b = x; break;
+		case 3: g = x; b = 1.0f; break;
+		case 4: r = x; b = 1.0f; break;
+		default: r = 1.0f; b = x; break;
+		}
+		return Color(0.25f + r * 0.75f, 0.25f + g * 0.75f, 0.25f + b * 0.75f, 1.0f);
+	}
+
 	void NavMesh::DrawGizmos(DebugDraw& draw) const
 	{
-		const Color fill(0.2f, 0.7f, 1.0f, 0.5f);
+		// 床と同じ高さに描くと床と奥行きが同じになってちらつくので、少しだけ浮かせる
+		const Vector3 fillLift(0.0f, 0.03f, 0.0f);
+		const Vector3 lineLift(0.0f, 0.04f, 0.0f);
+		const Color outline(0.55f, 0.85f, 1.0f, 0.95f);
 		const Color linkColor(1.0f, 0.6f, 0.1f, 1.0f);
 		for (const Triangle& t : mTris)
 		{
-			for (int k = 0; k < 3; ++k)
-			{
-				draw.Line(mVertices[t.v[k]], mVertices[t.v[(k + 1) % 3]], fill);
-			}
+			Color area = GetAreaColor(t.area);
+			Color fill = area;
+			fill.a = 0.35f;
+			Color inner = area;
+			inner.a = 0.15f;
+			const Vector3& p0 = mVertices[t.v[0]];
+			const Vector3& p1 = mVertices[t.v[1]];
+			const Vector3& p2 = mVertices[t.v[2]];
+			draw.Triangle(p0 + fillLift, p1 + fillLift, p2 + fillLift, fill);
+			draw.Line(p0 + lineLift, p1 + lineLift, inner);
+			draw.Line(p1 + lineLift, p2 + lineLift, inner);
+			draw.Line(p2 + lineLift, p0 + lineLift, inner);
 		}
+		for (const auto& [a, b] : mOutline) { draw.Line(a + lineLift, b + lineLift, outline); }
 		for (const ResolvedLink& l : mLinks)
 		{
 			if (l.startTri < 0) { continue; }

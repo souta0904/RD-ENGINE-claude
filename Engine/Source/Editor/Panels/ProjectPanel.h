@@ -22,6 +22,11 @@ namespace rd
 		const std::string& GetCurrentFolder() const { return mFolder; }
 		const std::string& GetSelectedFile() const { return mSelected; }
 		void ClearSelection() { mSelected.clear(); }
+		// そのファイルのあるフォルダを開いて選ぶ（Unity の Ping。アクターの選択はそのまま）
+		void SelectFile(const std::string& path);
+		float GetIconScale() const { return mIconScale; }
+		// 前回の状態を戻す（消えたフォルダやファイル、Assets の外を指していたら、その項目は戻さない）
+		void RestoreState(const std::string& folder, const std::string& selected, float iconScale);
 
 	protected:
 		void OnGui() override;
@@ -46,6 +51,8 @@ namespace rd
 		void CollectEntries();
 		void OpenEntry(const Entry& e);
 		void CreateFolder();
+		void CreateMaterial();
+		void CreateShader();
 		void BeginRename(const Entry& e);
 		// 直前に描いた項目の上にファイルが落とされていたら、そのフォルダを取り込み先にする
 		void CheckFileDropTarget(const std::string& folder);
@@ -63,6 +70,7 @@ namespace rd
 		std::string mPrefabFolder;
 		std::string mRenamePath;
 		std::string mRenameBuffer;
+		std::string mRenameExt;
 		bool mOpenRename = false;
 		std::string mDeletePath;
 		bool mOpenDelete = false;

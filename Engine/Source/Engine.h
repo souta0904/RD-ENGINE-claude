@@ -74,6 +74,9 @@ namespace rd
 		void Frame(float dt);
 		void ApplyPendingScene();
 		void UpdateAudio(Scene& scene);
+#if RD_EDITOR
+		void SaveEditorSession();
+#endif
 
 		static inline Engine* sInstance = nullptr;
 		EngineConfig mConfig;
@@ -85,6 +88,8 @@ namespace rd
 		std::unique_ptr<AudioSystem> mAudio;
 #if RD_EDITOR
 		std::unique_ptr<Editor> mEditor;
+		// 前回の状態を読み、終了時に保存するか（撮影や計測の実行は毎回同じ条件にしたいので使わない）
+		bool mUseEditorSession = false;
 #endif
 
 		SceneManager mScenes;

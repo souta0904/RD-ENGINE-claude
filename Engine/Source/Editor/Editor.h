@@ -13,8 +13,10 @@
 namespace rd
 {
 	class AIAssistant;
+	struct EditorSession;
 	class LogPanel;
 	class EditorPanel;
+	class MeshRenderer;
 	class Engine;
 	class HierarchyPanel;
 	class PropertiesPanel;
@@ -45,6 +47,11 @@ namespace rd
 		void Update(float dt);
 		// シーンが差し替わった（keepSelection ならプレイを止めて戻ったので選択と履歴を残す）
 		void OnSceneChanged(bool keepSelection = false);
+
+		// 次の起動のために今の状態を session へ書き出す（session.scene は呼ぶ側が先に入れておく）
+		void CaptureSession(EditorSession& session) const;
+		// 前回の状態を戻す。選択とカメラは、前回と同じシーンを開いたときだけ戻す
+		void RestoreSession(const EditorSession& session);
 
 		void GetViewportSize(uint32_t& width, uint32_t& height) const override;
 		bool OverrideCamera(float aspect, RenderCamera& camera) const override;
@@ -85,7 +92,10 @@ namespace rd
 		void FocusOn(Actor* actor);
 		// アクター（と子）を dir にプレハブとして保存する（同じ名前があれば番号を付ける）。保存したパスを返す
 		std::string CreatePrefab(Actor* actor, const std::string& dir);
-		Actor* InstantiatePrefab(const std::string& path, Actor* parent, int siblingIndex);
+		// MeshRenderer の枠にマテリアルのアセットを入れ、Undo に積む（入れられなければ false）
+		bool AssignMaterial(MeshRenderer& renderer, size_t slot, const std::string& path);
+		// プレハブかモデルを parent の siblingIndex 番目（-1 なら最後）に置いて選び、Undo に積む
+		Actor* InstantiateAsset(const std::string& path, Actor* parent, int siblingIndex);
 
 		void NewScene();
 		void OpenScene();
@@ -120,9 +130,11 @@ namespace rd
 		void UpdatePrimaryView();
 		// シーンビューに重ねる線（グリッド・ギズモ・コライダー）
 		void DrawSceneGizmos(DebugDraw& draw);
+		void DrawNavMeshGizmos(DebugDraw& draw);
 		void SetupDockLayout(unsigned int dockId);
 		void SelectDefaultTabs();
 		void DrawMenuBar();
+		void DrawLanguageMenu();
 		void DrawMainToolbar();
 		void DrawDialogs();
 		void HandleShortcuts();

@@ -5,7 +5,8 @@
 
 namespace rd
 {
-	// デバッグ用の線（そのフレームだけ表示される。depthTest=false なら手前に重ねて描く）
+	// デバッグ用の線と面（そのフレームだけ表示される。depthTest=false なら手前に重ねて描く）
+	//  面は半透明で塗るためのもの。線より先に描くので、同じ場所の線は面の上に見える
 	class DebugDraw
 	{
 	public:
@@ -28,14 +29,24 @@ namespace rd
 		void Frustum(const Matrix4& invViewProj, const Color& color, bool depthTest = true);
 		void Grid(float size, float step, const Color& color);
 		void Axes(const Matrix4& matrix, float length, bool depthTest = false);
+		// 塗りつぶした三角形（裏からも見える。半透明にするなら color.a を 1 より小さく）
+		void Triangle(const Vector3& a, const Vector3& b, const Vector3& c, const Color& color, bool depthTest = true);
+		// 立てた円柱の輪郭（base が底面の中心）
+		void Cylinder(const Vector3& base, float radius, float height, const Color& color, bool depthTest = true);
 
-		void Clear() { mDepth.clear(); mOverlay.clear(); }
+		void Clear() { mDepth.clear(); mOverlay.clear(); mDepthTris.clear(); mOverlayTris.clear(); }
+		// 線（2 頂点で 1 本）
 		const std::vector<Vertex>& GetDepthTested() const { return mDepth; }
 		const std::vector<Vertex>& GetOverlay() const { return mOverlay; }
+		// 三角形（3 頂点で 1 枚）
+		const std::vector<Vertex>& GetDepthTestedTriangles() const { return mDepthTris; }
+		const std::vector<Vertex>& GetOverlayTriangles() const { return mOverlayTris; }
 
 	private:
 		std::vector<Vertex>& Target(bool depthTest) { return depthTest ? mDepth : mOverlay; }
 		std::vector<Vertex> mDepth;
 		std::vector<Vertex> mOverlay;
+		std::vector<Vertex> mDepthTris;
+		std::vector<Vertex> mOverlayTris;
 	};
 }

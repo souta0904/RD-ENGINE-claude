@@ -53,7 +53,11 @@ namespace rd
 		{
 			ImFontConfig config;
 			config.MergeMode = true;
-			io.Fonts->AddFontFromFileTTF(japanese.string().c_str(), size, &config, io.Fonts->GetGlyphRangesJapanese());
+			// メイリオは行の高さに余白が多く、同じ大きさで読むと字面が英字より小さく見える。
+			//  1 割ほど大きく読み、大きくした分だけ上へずらして英字と下の線をそろえる
+			constexpr float kJapaneseScale = 1.1f;
+			config.GlyphOffset.y = -size * (kJapaneseScale - 1.0f) * 0.5f;
+			io.Fonts->AddFontFromFileTTF(japanese.string().c_str(), size * kJapaneseScale, &config, io.Fonts->GetGlyphRangesJapanese());
 		}
 	}
 

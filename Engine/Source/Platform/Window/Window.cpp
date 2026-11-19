@@ -46,7 +46,21 @@ namespace rd
 			Log::Error(LogCat::Platform, "Failed to create window");
 			return false;
 		}
-		ShowWindow(mHwnd, desc.maximized ? SW_SHOWMAXIMIZED : SW_SHOW);
+		// 保存された場所を使う。そこにモニタがなければ（外したなど）画面の外に出てしまうので、既定の場所で開く
+		bool placed = false;
+		if (desc.hasPlacement)
+		{
+			const WindowPlacement& p = desc.placement;
+			RECT saved = { p.x, p.y, p.x + p.width, p.y + p.height };
+			if (MonitorFromRect(&saved, MONITOR_DEFAULTTONULL))
+			{
+				WINDOWPLACEMENT wp = { sizeof(WINDOWPLACEMENT) };
+				wp.showCmd = desc.maximized ? SW_SHOWMAXIMIZED : SW_SHOWNORMAL;
+				wp.rcNormalPosition = saved;
+				placed = SetWindowPlacement(mHwnd, &wp) != FALSE;
+			}
+		}
+		if (!placed) { ShowWindow(mHwnd, desc.maximized ? SW_SHOWMAXIMIZED : SW_SHOW); }
 		if (desc.fullscreen) { SetFullscreen(true); }
 		UpdateWindow(mHwnd);
 
@@ -117,6 +131,33 @@ namespace rd
 				SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER);
 		}
 		Log::Info(LogCat::Platform, "Fullscreen: {}", mFullscreen ? "on" : "off");
+	}
+
+	WindowPlacement Window::GetPlacement()
+	{
+		CapturePlacement();
+		return mPlacement;
+	}
+
+	// ×ボタンで閉じるとエンジンの終了処理より先にウィンドウが消えるので、WM_DESTROY でも呼んで値を残しておく
+	void Window::CapturePlacement()
+	{
+		if (!mHwnd || !IsWindow(mHwnd)) { return; }
+		// フルスクリーンの間は画面全体の大きさになっているので、入る前に覚えた配置を使う
+		WINDOWPLACEMENT wp = mWindowedPlacement;
+		if (!mFullscreen)
+		{
+			wp.length = sizeof(WINDOWPLACEMENT);
+			if (!GetWindowPlacement(mHwnd, &wp)) { return; }
+		}
+		const RECT& r = wp.rcNormalPosition;
+		mPlacement.x = r.left;
+		mPlacement.y = r.top;
+		mPlacement.width = r.right - r.left;
+		mPlacement.height = r.bottom - r.top;
+		// 最小化のまま閉じたときは、最小化する前に最大化だったかを見る
+		mPlacement.maximized = wp.showCmd == SW_SHOWMAXIMIZED || (wp.showCmd == SW_SHOWMINIMIZED && (wp.flags & WPF_RESTORETOMAXIMIZED));
+		mPlacement.fullscreen = mFullscreen;
 	}
 
 	void Window::EnableFileDrop()
@@ -225,6 +266,7 @@ namespace rd
 			HandleFileDrop(wParam);
 			return 0;
 		case WM_DESTROY:
+			CapturePlacement();
 			PostQuitMessage(0);
 			return 0;
 		}

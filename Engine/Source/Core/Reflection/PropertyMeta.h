@@ -18,11 +18,15 @@ namespace rd
 			AssetPrefab = 1 << 6,
 			AssetScene = 1 << 7,
 			Multiline = 1 << 8,
+			AssetMaterial = 1 << 9,
+			AssetShader = 1 << 10,
 		};
 		float speed = 0.05f;
 		float min = 0.0f;
 		float max = 0.0f;
 		uint32_t flags = None;
 		const char* tooltip = nullptr;
+		// 画面に出す名前（空なら保存に使う名前をそのまま出す。シェーダーの Properties の表示名など）
+		const char* label = nullptr;
 	};
 }

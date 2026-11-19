@@ -2,6 +2,7 @@
 #include "Editor/Assistant/AIAssistant.h"
 #include "Editor/Style/EditorGui.h"
 #include "Editor/Style/EditorStyle.h"
+#include "Editor/Core/EditorLocale.h"
 #include <ImGui/imgui_stdlib.h>
 
 namespace rd
@@ -13,16 +14,16 @@ namespace rd
 
 	void AIAssistant::OnGui()
 	{
-		if (ImGui::CollapsingHeader("Settings", ImGuiTreeNodeFlags_DefaultOpen)) { DrawSettings(); }
-		if (ImGui::Button("New Chat")) { NewChat(); }
+		if (ImGui::CollapsingHeader(TrId("Settings"), ImGuiTreeNodeFlags_DefaultOpen)) { DrawSettings(); }
+		if (ImGui::Button(Tr("New Chat"))) { NewChat(); }
 		ImGui::SameLine();
 		if (mSettings.IsLocal())
 		{
-			ImGui::TextDisabled("Tokens: in %llu / out %llu", (unsigned long long)mInputTokens, (unsigned long long)mOutputTokens);
+			ImGui::TextDisabled(Tr("Tokens: in %llu / out %llu"), (unsigned long long)mInputTokens, (unsigned long long)mOutputTokens);
 		}
 		else
 		{
-			ImGui::TextDisabled("Tokens: in %llu (cached %llu) / out %llu", (unsigned long long)mInputTokens,
+			ImGui::TextDisabled(Tr("Tokens: in %llu (cached %llu) / out %llu"), (unsigned long long)mInputTokens,
 				(unsigned long long)mCacheReadTokens, (unsigned long long)mOutputTokens);
 		}
 		float inputHeight = ImGui::GetTextLineHeightWithSpacing() * 4.0f + 10.0f;
@@ -35,7 +36,7 @@ namespace rd
 		bool changed = false;
 		int provider = int(mSettings.provider);
 		ImGui::SetNextItemWidth(-1.0f);
-		if (ImGui::Combo("##provider", &provider, kProviderLabels, int(std::size(kProviderLabels))))
+		if (ImGui::Combo("##provider", &provider, std::array{ Tr(kProviderLabels[0]), Tr(kProviderLabels[1]), Tr(kProviderLabels[2]) }.data(), int(std::size(kProviderLabels))))
 		{
 			mSettings.provider = AssistantProviderKind(provider);
 			mModels.clear();
@@ -55,14 +56,14 @@ namespace rd
 
 		std::string& url = mSettings.provider == AssistantProviderKind::Ollama ? mSettings.ollamaUrl : mSettings.openAIUrl;
 		// 名前の欄の幅は一番長い "Context" に合わせる
-		const float labelWidth = ImGui::CalcTextSize("Context").x + ImGui::GetStyle().ItemInnerSpacing.x * 2.0f;
+		const float labelWidth = std::max(ImGui::CalcTextSize(Tr("Context")).x, ImGui::CalcTextSize(Tr("Model")).x) + ImGui::GetStyle().ItemInnerSpacing.x * 2.0f;
 		ImGui::SetNextItemWidth(-labelWidth);
 		if (ImGui::InputText("URL", &url, ImGuiInputTextFlags_EnterReturnsTrue)) { changed = true; RefreshModels(); }
 		if (ImGui::IsItemDeactivatedAfterEdit()) { changed = true; }
 
 		const float refreshWidth = ImGui::GetFrameHeight() + ImGui::GetStyle().ItemSpacing.x;
 		ImGui::SetNextItemWidth(-(labelWidth + refreshWidth));
-		const char* preview = mSettings.localModel.empty() ? "(none)" : mSettings.localModel.c_str();
+		const char* preview = mSettings.localModel.empty() ? Tr("(none)") : mSettings.localModel.c_str();
 		if (ImGui::BeginCombo("##model", preview))
 		{
 			for (const auto& m : mModels)
@@ -72,18 +73,18 @@ namespace rd
 			ImGui::EndCombo();
 		}
 		ImGui::SameLine();
-		if (EditorGui::IconButton("##refresh", Icon::Rotate, "Refresh the model list", false, mModelList == nullptr)) { RefreshModels(); }
+		if (EditorGui::IconButton("##refresh", Icon::Rotate, Tr("Refresh the model list"), false, mModelList == nullptr)) { RefreshModels(); }
 		ImGui::SameLine(0.0f, ImGui::GetStyle().ItemInnerSpacing.x);
-		ImGui::TextUnformatted("Model");
+		ImGui::TextUnformatted(Tr("Model"));
 		if (mSettings.provider == AssistantProviderKind::Ollama)
 		{
 			ImGui::SetNextItemWidth(-labelWidth);
-			if (ImGui::InputInt("Context", &mSettings.contextSize, 1024, 4096)) { mSettings.contextSize = std::clamp(mSettings.contextSize, 2048, 262144); }
+			if (ImGui::InputInt(TrId("Context"), &mSettings.contextSize, 1024, 4096)) { mSettings.contextSize = std::clamp(mSettings.contextSize, 2048, 262144); }
 			if (ImGui::IsItemDeactivatedAfterEdit()) { changed = true; }
-			if (ImGui::IsItemHovered()) { ImGui::SetTooltip("num_ctx: how many tokens the model can see. Larger uses more memory"); }
+			if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", Tr("num_ctx: how many tokens the model can see. Larger uses more memory")); }
 		}
 
-		if (mModelList) { ImGui::TextDisabled("Connecting..."); return; }
+		if (mModelList) { ImGui::TextDisabled("%s", Tr("Connecting...")); return; }
 		if (mModelListError.empty() && !mModels.empty()) { return; }
 		ImGui::PushStyleColor(ImGuiCol_Text, EditorStyle::kWarning);
 		if (!mModelListError.empty()) { ImGui::TextWrapped("%s", mModelListError.c_str()); }
@@ -115,8 +116,8 @@ namespace rd
 		}
 		ImGui::SameLine();
 		ImGui::SetNextItemWidth(ImGui::GetFontSize() * 5.0f);
-		changed |= ImGui::Combo("Effort", &mSettings.claudeEffort, kClaudeEfforts, int(std::size(kClaudeEfforts)));
-		ImGui::TextDisabled("Needs ANTHROPIC_API_KEY (paid)");
+		changed |= ImGui::Combo(TrId("Effort"), &mSettings.claudeEffort, kClaudeEfforts, int(std::size(kClaudeEfforts)));
+		ImGui::TextDisabled("%s", Tr("Needs ANTHROPIC_API_KEY (paid)"));
 	}
 
 	void AIAssistant::DrawChat(float inputHeight)
@@ -127,10 +128,10 @@ namespace rd
 			switch (e.kind)
 			{
 			case ChatEntry::Kind::User:
-				ImGui::TextColored(EditorStyle::kAccent, "You");
+				ImGui::TextColored(EditorStyle::kAccent, "%s", Tr("You"));
 				break;
 			case ChatEntry::Kind::Assistant:
-				ImGui::TextColored(EditorStyle::kIconAudio, "Assistant");
+				ImGui::TextColored(EditorStyle::kIconAudio, "%s", Tr("Assistant"));
 				break;
 			case ChatEntry::Kind::Tool:
 				ImGui::TextColored(EditorStyle::kSuccess, "  > %s", e.text.c_str());
@@ -169,12 +170,12 @@ namespace rd
 		ImGui::SameLine();
 		if (mRequest)
 		{
-			if (ImGui::Button("Stop", ImVec2(-1, 0))) { Cancel(); }
+			if (ImGui::Button(Tr("Stop"), ImVec2(-1, 0))) { Cancel(); }
 		}
 		else
 		{
 			ImGui::PushStyleColor(ImGuiCol_Button, EditorStyle::kAccentDim);
-			if (ImGui::Button("Send", ImVec2(-1, 0))) { send = true; }
+			if (ImGui::Button(Tr("Send"), ImVec2(-1, 0))) { send = true; }
 			ImGui::PopStyleColor();
 		}
 		if (ImGui::IsItemHovered()) { ImGui::SetTooltip("Ctrl+Enter"); }

@@ -14,6 +14,7 @@
 #include "Editor/Style/EditorStyle.h"
 #include "Physics/Colliders/Collider.h"
 #include "Physics/Rigidbody/Rigidbody.h"
+#include "Render/Material/MaterialAsset.h"
 #include "Scene/Actor/Actor.h"
 
 namespace rd
@@ -174,6 +175,11 @@ namespace rd
 		case Icon::Prefab:
 			DrawCube(dl, cx, cy, s * 0.9f, color, true);
 			break;
+		case Icon::Material:
+			// 球（Unity のマテリアルのアイコンと同じ考え方）。左上に光の当たった点
+			dl->AddCircleFilled(ImVec2(cx, cy), s * 0.36f, color, 24);
+			dl->AddCircleFilled(ImVec2(cx - s * 0.12f, cy - s * 0.12f), s * 0.1f, IM_COL32(255, 255, 255, 170), 12);
+			break;
 		case Icon::Shader:
 			DrawFile(dl, p, s, color);
 			dl->AddLine(ImVec2(cx - s * 0.16f, cy), ImVec2(cx + s * 0.16f, cy), color);
@@ -257,6 +263,7 @@ namespace rd
 		case Icon::Physics: return ToU32(EditorStyle::kIconPhysics);
 		case Icon::Audio: case Icon::Animation: return ToU32(EditorStyle::kIconAudio);
 		case Icon::Folder: return ToU32(EditorStyle::kIconFolder);
+		case Icon::Material: return IM_COL32(214, 120, 190, 255);
 		case Icon::Play: return ToU32(EditorStyle::kSuccess);
 		case Icon::Info: return ToU32(EditorStyle::kInfo);
 		case Icon::Warning: return ToU32(EditorStyle::kWarning);
@@ -294,6 +301,7 @@ namespace rd
 		if (AudioClip::IsSupportedExtension(ext)) { return Icon::Audio; }
 		if (ext == ".scene") { return Icon::Scene; }
 		if (ext == ".prefab") { return Icon::Prefab; }
+		if (ext == MaterialAsset::kExtension) { return Icon::Material; }
 		if (ext == ".hlsl" || ext == ".hlsli") { return Icon::Shader; }
 		return Icon::File;
 	}

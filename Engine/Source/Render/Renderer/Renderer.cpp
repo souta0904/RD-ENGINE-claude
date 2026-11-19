@@ -2,6 +2,7 @@
 #include "Render/Renderer/Renderer.h"
 #include "Asset/AssetManager.h"
 #include "Asset/Model/Model.h"
+#include "Render/Material/ShaderAsset.h"
 #include "Render/Renderer/RendererCommon.h"
 #include "RHI/Device/GpuScope.h"
 
@@ -39,11 +40,16 @@ namespace rd
 		sInstance = nullptr;
 	}
 
+	// 自作のシェーダーは Properties も読み直す（足した値がマテリアルの画面に出るように）
 	void Renderer::ReloadShaders()
 	{
 		GraphicsDevice::Get().WaitIdle();
 		GraphicsDevice::Get().GetShaderCompiler().ClearCache();
 		mMeshPipelines.clear();
+		for (const auto& asset : AssetManager::Get().GetAllAssets())
+		{
+			if (auto shader = std::dynamic_pointer_cast<ShaderAsset>(asset)) { shader->Reload(); }
+		}
 		CreatePipelines();
 		Log::Info(LogCat::Render, "Shaders reloaded");
 	}
@@ -354,7 +360,8 @@ namespace rd
 			const Material& mat = *item->material;
 			bool skinned = sub.skinned && item->palette != 0;
 
-			ID3D12PipelineState* pso = GetMeshPipeline(skinned, mat.blend, mat.doubleSided, shadow);
+			const ShaderAsset* custom = shadow ? nullptr : mat.GetCustomShader();
+			ID3D12PipelineState* pso = GetMeshPipeline(skinned, mat.blend, mat.doubleSided, shadow, custom);
 			if (!pso) { continue; }
 			if (pso != current)
 			{
@@ -375,6 +382,7 @@ namespace rd
 				cmd->SetGraphicsRootDescriptorTable(kRootAlbedo, TextureSrv(mat.albedo.get(), assets.GetWhiteTexture()));
 				cmd->SetGraphicsRootDescriptorTable(kRootNormal, TextureSrv(mat.normal.get(), assets.GetFlatNormalTexture()));
 				cmd->SetGraphicsRootDescriptorTable(kRootEmissive, TextureSrv(mat.emissiveMap.get(), assets.GetWhiteTexture()));
+				if (custom) { BindShaderProperties(cmd, mat, *custom); }
 			}
 			if (skinned) { cmd->SetGraphicsRootShaderResourceView(kRootPalette, item->palette); }
 
@@ -389,6 +397,29 @@ namespace rd
 			cmd->DrawIndexedInstanced(sub.indexCount, 1, sub.indexStart, 0, 0);
 			++mStats.drawCalls;
 			mStats.triangles += sub.indexCount / 3;
+		}
+	}
+
+	// 自作のシェーダーの値を b4 と t5～t8 に置く
+	//  値が 1 つもなくても、シェーダーが参照しない枠に何かを置いておく（空のままだと GPU の検証で怒られる）
+	//  テクスチャがまだなければ、既定値の名前の色（white / black / gray / bump）で代わりにする
+	void Renderer::BindShaderProperties(ID3D12GraphicsCommandList* cmd, const Material& mat, const ShaderAsset& shader)
+	{
+		auto& device = GraphicsDevice::Get();
+		auto& assets = AssetManager::Get();
+		mat.BuildShaderConstants(mPropertyScratch);
+		if (mPropertyScratch.empty()) { mPropertyScratch.push_back(Vector4()); }
+		uint64_t size = sizeof(Vector4) * mPropertyScratch.size();
+		cmd->SetGraphicsRootConstantBufferView(kRootShaderProps, device.UploadData(mPropertyScratch.data(), size, D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT));
+		for (int slot = 0; slot < ShaderAsset::kMaxTextures; ++slot)
+		{
+			const Texture* tex = mat.GetShaderTexture(slot);
+			AssetRef<Texture> fallback = assets.GetWhiteTexture();
+			for (const ShaderProperty& p : shader.GetProperties())
+			{
+				if (p.textureSlot == slot) { fallback = assets.GetBuiltinTexture(p.defaultTexture); break; }
+			}
+			cmd->SetGraphicsRootDescriptorTable(UINT(kRootShaderTex0 + slot), TextureSrv(tex, fallback));
 		}
 	}
 

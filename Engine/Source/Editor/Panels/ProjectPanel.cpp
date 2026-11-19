@@ -10,7 +10,10 @@
 #include "Editor/Style/EditorGui.h"
 #include "Editor/Style/EditorStyle.h"
 #include "Engine.h"
+#include "Render/Material/MaterialAsset.h"
+#include "Render/Material/ShaderAsset.h"
 #include "Scene/Scene.h"
+#include "Editor/Core/EditorLocale.h"
 #include <ImGui/imgui_stdlib.h>
 
 namespace rd
@@ -42,6 +45,14 @@ namespace rd
 	}
 
 	ProjectPanel::ProjectPanel(Editor& editor) : EditorPanel(editor, "Project") {}
+
+	void ProjectPanel::RestoreState(const std::string& folder, const std::string& selected, float iconScale)
+	{
+		std::error_code ec;
+		if (IsInside(folder, "Assets") && fs::is_directory(ToWide(folder), ec)) { mFolder = folder; }
+		if (IsInside(selected, "Assets") && fs::is_regular_file(ToWide(selected), ec)) { mSelected = selected; }
+		mIconScale = iconScale;
+	}
 
 	// 落とされたファイルは次のフレームの描画でどのフォルダの上かを調べ、その後のここで取り込みを始める
 	//  （パネルが隠れていて描画されないときは、今のフォルダへ取り込む）
@@ -94,11 +105,13 @@ namespace rd
 	void ProjectPanel::DrawToolbar()
 	{
 		EditorGui::BeginToolbar("toolbar");
-		if (EditorGui::IconButton("##create", Icon::Plus, "Create")) { ImGui::OpenPopup("CreateAsset"); }
+		if (EditorGui::IconButton("##create", Icon::Plus, Tr("Create"))) { ImGui::OpenPopup("CreateAsset"); }
 		if (ImGui::BeginPopup("CreateAsset"))
 		{
-			if (ImGui::MenuItem("Folder")) { CreateFolder(); }
-			if (ImGui::MenuItem("Prefab from Selection", nullptr, false, mEditor.GetSelected() != nullptr))
+			if (ImGui::MenuItem(Tr("Folder"))) { CreateFolder(); }
+			if (ImGui::MenuItem(Tr("Material"))) { CreateMaterial(); }
+			if (ImGui::MenuItem(Tr("Shader"))) { CreateShader(); }
+			if (ImGui::MenuItem(Tr("Prefab from Selection"), nullptr, false, mEditor.GetSelected() != nullptr))
 			{
 				mPrefabActor = mEditor.GetSelectedId();
 				mPrefabFolder = mFolder;
@@ -121,15 +134,15 @@ namespace rd
 		{
 			ImGui::SameLine();
 			ImGui::AlignTextToFramePadding();
-			ImGui::TextColored(EditorStyle::kWarning, "Importing...");
+			ImGui::TextColored(EditorStyle::kWarning, "%s", Tr("Importing..."));
 		}
 		float right = 180.0f + 90.0f + ImGui::GetStyle().ItemSpacing.x * 2.0f;
 		ImGui::SameLine(std::max(ImGui::GetCursorPosX() + 8.0f, ImGui::GetWindowContentRegionMax().x - right));
-		EditorGui::SearchField("##filter", mFilter, "Search", 180.0f);
+		EditorGui::SearchField("##filter", mFilter, Tr("Search"), 180.0f);
 		ImGui::SameLine();
 		ImGui::SetNextItemWidth(ImGui::GetFontSize() * 5.0f);
 		ImGui::SliderFloat("##size", &mIconScale, 0.6f, 2.0f, "");
-		if (ImGui::IsItemHovered()) { ImGui::SetTooltip("Icon size"); }
+		if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", Tr("Icon size")); }
 		EditorGui::EndToolbar();
 	}
 
@@ -197,7 +210,7 @@ namespace rd
 			if (i % size_t(columns) != 0) { ImGui::SameLine(); }
 			DrawEntry(mEntries[i], cell);
 		}
-		if (mEntries.empty()) { EditorGui::EmptyHint(mFilter.empty() ? "This folder is empty." : "No results."); }
+		if (mEntries.empty()) { EditorGui::EmptyHint(Tr(mFilter.empty() ? "This folder is empty." : "No results.")); }
 
 		// 空いている所: 選択を外す、アクターのドロップでプレハブを作る、右クリックのメニュー
 		ImVec2 avail = ImGui::GetContentRegionAvail();
@@ -241,7 +254,7 @@ namespace rd
 				drewThumb = true;
 			}
 		}
-		else if (icon == Icon::Model || icon == Icon::Prefab)
+		else if (icon == Icon::Model || icon == Icon::Prefab || icon == Icon::Material)
 		{
 			if (const GpuTexture* thumb = mThumbnails.Get(e.path))
 			{
@@ -280,33 +293,35 @@ namespace rd
 	void ProjectPanel::DrawEntryMenu(const Entry& e)
 	{
 		if (!ImGui::BeginPopupContextItem("item")) { return; }
-		if (ImGui::MenuItem(e.directory ? "Open" : (e.ext == ".scene" ? "Open Scene" : "Select"))) { OpenEntry(e); }
-		if (!e.directory && Model::IsSourceExtension(e.ext) && ImGui::MenuItem("Convert to .rdmodel"))
+		if (ImGui::MenuItem(Tr(e.directory ? "Open" : (e.ext == ".scene" ? "Open Scene" : "Select")))) { OpenEntry(e); }
+		if (!e.directory && Model::IsSourceExtension(e.ext) && ImGui::MenuItem(Tr("Convert to .rdmodel")))
 		{
 			AssetImporter::ImportAsync({ std::filesystem::path(ToWide(e.path)) }, mFolder);
 		}
-		if (ImGui::MenuItem("Rename")) { BeginRename(e); }
-		if (ImGui::MenuItem("Delete"))
+		if (ImGui::MenuItem(Tr("Rename"))) { BeginRename(e); }
+		if (ImGui::MenuItem(Tr("Delete")))
 		{
 			mDeletePath = e.path;
 			mOpenDelete = true;
 		}
 		ImGui::Separator();
-		if (ImGui::MenuItem("Show in Explorer")) { FileDialog::ShowInExplorer(e.path); }
+		if (ImGui::MenuItem(Tr("Show in Explorer"))) { FileDialog::ShowInExplorer(e.path); }
 		ImGui::EndPopup();
 	}
 
 	void ProjectPanel::DrawBackgroundMenu()
 	{
 		if (!ImGui::BeginPopupContextItem("##backgroundMenu")) { return; }
-		if (ImGui::MenuItem("Create Folder")) { CreateFolder(); }
-		if (ImGui::MenuItem("Create Prefab from Selection", nullptr, false, mEditor.GetSelected() != nullptr))
+		if (ImGui::MenuItem(Tr("Create Folder"))) { CreateFolder(); }
+		if (ImGui::MenuItem(Tr("Create Material"))) { CreateMaterial(); }
+		if (ImGui::MenuItem(Tr("Create Shader"))) { CreateShader(); }
+		if (ImGui::MenuItem(Tr("Create Prefab from Selection"), nullptr, false, mEditor.GetSelected() != nullptr))
 		{
 			mPrefabActor = mEditor.GetSelectedId();
 			mPrefabFolder = mFolder;
 		}
 		ImGui::Separator();
-		if (ImGui::MenuItem("Show in Explorer")) { FileDialog::ShowInExplorer(mFolder); }
+		if (ImGui::MenuItem(Tr("Show in Explorer"))) { FileDialog::ShowInExplorer(mFolder); }
 		ImGui::EndPopup();
 	}
 
@@ -318,7 +333,43 @@ namespace rd
 			mSelected.clear();
 		}
 		else if (e.ext == ".scene") { mEditor.OpenScene(e.path); }
+		// シェーダーはエディタの中では書けないので、Windows で決めてあるアプリで開く（Unity と同じ）
+		else if (e.ext == ".hlsl" || e.ext == ".hlsli") { mSelected = e.path; FileDialog::OpenWithDefaultApp(e.path); }
 		else { mSelected = e.path; mEditor.Select(nullptr); }
+	}
+
+	void ProjectPanel::SelectFile(const std::string& path)
+	{
+		std::string folder = GetDirectory(path);
+		if (!folder.empty() && folder.back() == '/') { folder.pop_back(); }
+		std::error_code ec;
+		if (folder.empty() || !fs::is_directory(ToWide(folder), ec)) { return; }
+		mFolder = folder;
+		mSelected = path;
+	}
+
+	// 今のフォルダに "New Material.rdmat" を作り、選んで名前の変更を始める（Unity の Create > Material）
+	void ProjectPanel::CreateMaterial()
+	{
+		std::string path = std::format("{}/New Material{}", mFolder, MaterialAsset::kExtension);
+		for (int n = 1; fs::exists(ToWide(path)); ++n) { path = std::format("{}/New Material {}{}", mFolder, n, MaterialAsset::kExtension); }
+		if (!MaterialAsset::CreateFile(path)) { return; }
+		Log::Info(LogCat::Editor, "Created material: {}", path);
+		mSelected = path;
+		mEditor.Select(nullptr);
+		BeginRename({ GetFileName(path), path, MaterialAsset::kExtension, false });
+	}
+
+	// 今のフォルダにサーフェスシェーダーの雛形 "New Shader.hlsl" を作る（Unity の Create > Shader）
+	void ProjectPanel::CreateShader()
+	{
+		std::string path = std::format("{}/New Shader.hlsl", mFolder);
+		for (int n = 1; fs::exists(ToWide(path)); ++n) { path = std::format("{}/New Shader {}.hlsl", mFolder, n); }
+		if (!ShaderAsset::CreateFile(path)) { return; }
+		Log::Info(LogCat::Editor, "Created shader: {}", path);
+		mSelected = path;
+		mEditor.Select(nullptr);
+		BeginRename({ GetFileName(path), path, ".hlsl", false });
 	}
 
 	void ProjectPanel::CreateFolder()
@@ -330,26 +381,28 @@ namespace rd
 		if (!ec) { BeginRename({ GetFileName(path), path, "", true }); }
 	}
 
+	// ファイルは拡張子を除いた名前だけを編集する（Unity と同じ。拡張子を消してしまう間違いを防ぐ）
 	void ProjectPanel::BeginRename(const Entry& e)
 	{
 		mRenamePath = e.path;
-		mRenameBuffer = e.name;
+		mRenameExt = e.directory ? std::string() : GetExtension(e.name);
+		mRenameBuffer = e.name.substr(0, e.name.size() - mRenameExt.size());
 		mOpenRename = true;
 	}
 
 	// 名前の変更と削除の確認（削除はごみ箱へ移すので元に戻せる）
 	void ProjectPanel::DrawDialogs()
 	{
-		if (mOpenRename) { ImGui::OpenPopup("Rename##project"); mOpenRename = false; }
+		if (mOpenRename) { ImGui::OpenPopup(TrId("Rename##project")); mOpenRename = false; }
 		ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
-		if (ImGui::BeginPopupModal("Rename##project", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+		if (ImGui::BeginPopupModal(TrId("Rename##project"), nullptr, ImGuiWindowFlags_AlwaysAutoResize))
 		{
 			if (ImGui::IsWindowAppearing()) { ImGui::SetKeyboardFocusHere(); }
 			ImGui::SetNextItemWidth(ImGui::GetFontSize() * 16.0f);
 			bool enter = ImGui::InputText("##name", &mRenameBuffer, ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_AutoSelectAll);
-			if (enter || ImGui::Button("Rename", ImVec2(100.0f, 0.0f)))
+			if (enter || ImGui::Button(Tr("Rename"), ImVec2(100.0f, 0.0f)))
 			{
-				std::string target = GetDirectory(mRenamePath) + mRenameBuffer;
+				std::string target = GetDirectory(mRenamePath) + mRenameBuffer + mRenameExt;
 				std::error_code ec;
 				if (!mRenameBuffer.empty() && target != mRenamePath && !fs::exists(ToWide(target), ec))
 				{
@@ -360,15 +413,15 @@ namespace rd
 				ImGui::CloseCurrentPopup();
 			}
 			ImGui::SameLine();
-			if (ImGui::Button("Cancel", ImVec2(100.0f, 0.0f)) || ImGui::IsKeyPressed(ImGuiKey_Escape)) { ImGui::CloseCurrentPopup(); }
+			if (ImGui::Button(Tr("Cancel"), ImVec2(100.0f, 0.0f)) || ImGui::IsKeyPressed(ImGuiKey_Escape)) { ImGui::CloseCurrentPopup(); }
 			ImGui::EndPopup();
 		}
 
-		if (mOpenDelete) { ImGui::OpenPopup("Delete##project"); mOpenDelete = false; }
-		static const char* const kButtons[] = { "Delete", "Cancel" };
-		std::string message = std::format("Move \"{}\" to the Recycle Bin?", mDeletePath);
+		if (mOpenDelete) { ImGui::OpenPopup(TrId("Delete##project")); mOpenDelete = false; }
+		const char* const kButtons[] = { Tr("Delete"), Tr("Cancel") };
+		std::string message = EditorLocale::Format("Move \"{}\" to the Recycle Bin?", mDeletePath);
 		int choice = -1;
-		if (EditorGui::ConfirmPopup("Delete##project", message.c_str(), kButtons, 2, choice) && choice == 0)
+		if (EditorGui::ConfirmPopup(TrId("Delete##project"), message.c_str(), kButtons, 2, choice) && choice == 0)
 		{
 			if (FileDialog::MoveToRecycleBin(mDeletePath))
 			{

@@ -23,6 +23,26 @@ namespace rd
 		mFlatNormal->LoadFromPixels(&flatNormal, 1, 1, false);
 		Register(mWhite->mPath, mWhite);
 		Register(mFlatNormal->mPath, mFlatNormal);
+
+		// 自作のシェーダーのテクスチャの既定値（Unity の "black" / "gray" と同じ）
+		const uint32_t black = 0xFF000000;
+		const uint32_t gray = 0xFF808080;
+		mBlack = std::make_shared<Texture>();
+		mBlack->mPath = "Engine/Black";
+		mBlack->LoadFromPixels(&black, 1, 1, false);
+		mGray = std::make_shared<Texture>();
+		mGray->mPath = "Engine/Gray";
+		mGray->LoadFromPixels(&gray, 1, 1, false);
+		Register(mBlack->mPath, mBlack);
+		Register(mGray->mPath, mGray);
+	}
+
+	AssetRef<Texture> AssetManager::GetBuiltinTexture(const std::string& name) const
+	{
+		if (name == "black") { return mBlack; }
+		if (name == "gray" || name == "grey") { return mGray; }
+		if (name == "bump") { return mFlatNormal; }
+		return mWhite;
 	}
 
 	void AssetManager::Shutdown()
@@ -33,6 +53,8 @@ namespace rd
 		mAssets.clear();
 		mWhite.reset();
 		mFlatNormal.reset();
+		mBlack.reset();
+		mGray.reset();
 		sInstance = nullptr;
 	}
 
@@ -58,6 +80,12 @@ namespace rd
 	AssetRef<AudioClip> AssetManager::LoadAudio(const std::string& path)
 	{
 		return Load<AudioClip>(NormalizePath(path));
+	}
+
+	// LoadNow（ヘッダーのテンプレート）がキーを作るのに使う。NormalizePath をヘッダーから見せないための窓口
+	std::string AssetManager::NormalizePathKey(const std::string& path)
+	{
+		return NormalizePath(path);
 	}
 
 	void AssetManager::Register(const std::string& key, std::shared_ptr<Asset> asset)

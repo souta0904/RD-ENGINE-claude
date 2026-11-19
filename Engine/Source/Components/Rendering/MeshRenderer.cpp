@@ -3,7 +3,9 @@
 #include "Asset/AssetManager.h"
 #include "Asset/Model/Model.h"
 #include "Components/Animation/Animator.h"
+#include "Core/Util/StringUtil.h"
 #include "Math/Geometry/Intersection.h"
+#include "Render/Material/MaterialAsset.h"
 #include "Render/Debug/DebugDraw.h"
 #include "Render/RenderList/RenderList.h"
 #include "RHI/Device/GraphicsDevice.h"
@@ -29,6 +31,11 @@ namespace rd
 
 	// 読み込むときはファイルのマテリアルを残し、編集でモデルを変えたときはモデルの既定値へ戻す
 	// マテリアルの数はモデルで決まるので、読み込むときは JSON の数に合わせる
+	//
+	// 枠ごとに "Material i" のまとまりを作る:
+	//  "Asset" にアセットのパス（空でも必ず書く。Undo で「入れる前」へ戻したときに空へ戻すため）。
+	//  アセットがなければ、続けてこのレンダラー専用のマテリアルの値を並べる。
+	//  前からのシーンには "Asset" がないので、空のまま専用のマテリアルを読む
 	void MeshRenderer::Reflect(PropertyVisitor& v)
 	{
 		if (v.Property("Model", modelPath, { .flags = PropertyMeta::AssetModel }))
@@ -38,18 +45,90 @@ namespace rd
 		}
 		v.Property("Tint", tint);
 
+		MatchSlotArrays();
 		uint32_t count = uint32_t(mMaterials.size());
 		v.Property("Material Count", count, { .flags = PropertyMeta::ReadOnly });
-		if (v.IsLoading() && count != mMaterials.size()) { mMaterials.resize(count); }
+		if (v.IsLoading() && count != mMaterials.size()) { ResizeSlots(count); }
 		for (size_t i = 0; i < mMaterials.size(); ++i)
 		{
 			std::string name = std::format("Material {}", i);
 			if (v.BeginGroup(name.c_str()))
 			{
-				mMaterials[i].Reflect(v);
+				if (v.Property("Asset", mMaterialPaths[i], { .flags = PropertyMeta::AssetMaterial,
+					.tooltip = "Material asset (.rdmat). Empty = this renderer's own material below" }))
+				{
+					ResolveSharedMaterial(i);
+				}
+				if (mMaterialPaths[i].empty()) { mMaterials[i].Reflect(v); }
 				v.EndGroup();
 			}
 		}
+	}
+
+	void MeshRenderer::ResizeSlots(size_t count)
+	{
+		mMaterials.resize(count);
+		mMaterialPaths.resize(count);
+		mMaterialAssets.resize(count);
+	}
+
+	// ゲームのコードが GetMaterials() の配列ごと入れ替えて数が変わったときに、パスとアセットの数を合わせる
+	void MeshRenderer::MatchSlotArrays()
+	{
+		if (mMaterialPaths.size() == mMaterials.size()) { return; }
+		mMaterialPaths.resize(mMaterials.size());
+		mMaterialAssets.resize(mMaterials.size());
+	}
+
+	void MeshRenderer::ResolveSharedMaterial(size_t index)
+	{
+		const std::string& path = mMaterialPaths[index];
+		AssetRef<MaterialAsset>& asset = mMaterialAssets[index];
+		if (path.empty()) { asset.reset(); return; }
+		if (!asset || asset->GetPath() != NormalizePath(path)) { asset = AssetManager::Get().LoadNow<MaterialAsset>(path); }
+	}
+
+	// アセットを入れている枠は、今のアセットの値を写して専用のものに切り替える（アセットは変わらない）
+	std::vector<Material>& MeshRenderer::GetMaterials()
+	{
+		for (size_t i = 0; i < mMaterials.size(); ++i)
+		{
+			if (mMaterialPaths[i].empty()) { continue; }
+			if (mMaterialAssets[i] && mMaterialAssets[i]->IsReady()) { mMaterials[i] = mMaterialAssets[i]->material; }
+			mMaterialPaths[i].clear();
+			mMaterialAssets[i].reset();
+		}
+		return mMaterials;
+	}
+
+	const std::string& MeshRenderer::GetSharedMaterialPath(size_t index) const
+	{
+		static const std::string kEmpty;
+		return index < mMaterialPaths.size() ? mMaterialPaths[index] : kEmpty;
+	}
+
+	MaterialAsset* MeshRenderer::GetSharedMaterial(size_t index) const
+	{
+		return index < mMaterialAssets.size() ? mMaterialAssets[index].get() : nullptr;
+	}
+
+	bool MeshRenderer::SetSharedMaterial(size_t index, const std::string& path)
+	{
+		if (index >= mMaterials.size()) { return false; }
+		if (path.empty())
+		{
+			// 外すときは、見た目が急に変わらないようにアセットの値を専用のものへ写しておく
+			if (mMaterialAssets[index] && mMaterialAssets[index]->IsReady()) { mMaterials[index] = mMaterialAssets[index]->material; }
+		}
+		mMaterialPaths[index] = path;
+		ResolveSharedMaterial(index);
+		return true;
+	}
+
+	const Material& MeshRenderer::GetRenderMaterial(size_t index) const
+	{
+		const MaterialAsset* asset = GetSharedMaterial(index);
+		return asset && asset->IsReady() ? asset->material : mMaterials[index];
 	}
 
 	void MeshRenderer::OnValidate()
@@ -76,15 +155,18 @@ namespace rd
 		const auto& defaults = mModel->GetMaterials();
 		if (mResetMaterials || mMaterials.empty())
 		{
-			mMaterials.clear();
-			for (const auto& d : defaults) { mMaterials.push_back(ToMaterial(d)); }
+			// モデルを変えたら、入れていたアセットも外してモデルの既定値から始める
+			ResizeSlots(0);
+			ResizeSlots(defaults.size());
+			for (size_t i = 0; i < defaults.size(); ++i) { mMaterials[i] = ToMaterial(defaults[i]); }
 		}
 		else if (mMaterials.size() != defaults.size())
 		{
 			size_t loaded = mMaterials.size();
-			mMaterials.resize(defaults.size());
+			ResizeSlots(defaults.size());
 			for (size_t i = loaded; i < defaults.size(); ++i) { mMaterials[i] = ToMaterial(defaults[i]); }
 		}
+		MatchSlotArrays();
 		mResetMaterials = false;
 		mSyncedModel = mModel.get();
 	}
@@ -119,7 +201,10 @@ namespace rd
 		const auto& subs = mModel->GetSubMeshes();
 		for (uint32_t i = 0; i < subs.size(); ++i)
 		{
-			Material& mat = mMaterials[std::min<size_t>(subs[i].materialIndex, mMaterials.size() - 1)];
+			size_t slot = std::min<size_t>(subs[i].materialIndex, mMaterials.size() - 1);
+			// アセットを入れた枠はアセットの値で描く（読めなかったときは専用のもので代わりにする）
+			MaterialAsset* shared = GetSharedMaterial(slot);
+			Material& mat = shared && shared->IsReady() ? shared->material : mMaterials[slot];
 			mat.ResolveTextures();
 			MeshDrawItem item;
 			item.model = mModel.get();
@@ -153,8 +238,9 @@ namespace rd
 
 	// レイをモデルのローカル空間へ移して三角形と調べる（距離は拡大率で戻す）
 	// スキンメッシュは姿勢が変わるので、三角形に当たらなければ境界の箱で代わりにする
-	bool MeshRenderer::Raycast(const Ray& ray, float& outDistance) const
+	bool MeshRenderer::Raycast(const Ray& ray, float& outDistance, int* outSubMesh) const
 	{
+		if (outSubMesh) { *outSubMesh = -1; }
 		if (!mModel || !mModel->IsReady()) { return false; }
 		float t;
 		if (!RayIntersectsAABB(ray, GetWorldBounds(), t)) { return false; }
@@ -167,9 +253,19 @@ namespace rd
 		const auto& pos = mModel->GetCollisionPositions();
 		const auto& idx = mModel->GetCollisionIndices();
 		float best = math::kInfinity;
+		size_t bestIndex = 0;
 		for (size_t i = 0; i + 2 < idx.size(); i += 3)
 		{
-			if (RayIntersectsTriangle(local, pos[idx[i]], pos[idx[i + 1]], pos[idx[i + 2]], t) && t < best) { best = t; }
+			if (RayIntersectsTriangle(local, pos[idx[i]], pos[idx[i + 1]], pos[idx[i + 2]], t) && t < best) { best = t; bestIndex = i; }
+		}
+		// 当たった三角形のインデックスの位置から、どのサブメッシュの範囲かを探す
+		if (outSubMesh && best != math::kInfinity)
+		{
+			const auto& subs = mModel->GetSubMeshes();
+			for (size_t s = 0; s < subs.size(); ++s)
+			{
+				if (bestIndex >= subs[s].indexStart && bestIndex < size_t(subs[s].indexStart) + subs[s].indexCount) { *outSubMesh = int(s); break; }
+			}
 		}
 		if (best == math::kInfinity)
 		{

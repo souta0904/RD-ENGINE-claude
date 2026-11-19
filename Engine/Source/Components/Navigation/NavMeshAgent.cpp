@@ -206,14 +206,31 @@ namespace rd
 	}
 
 #if RD_EDITOR
+	// 選んでいるときだけ描く
+	//  円柱：エージェントの大きさ（足もとから radius と height）。Unity と同じく、これが通れる幅の目安になる
+	//  緑の線：今の経路（リンクを跳ぶ区間はオレンジ）。曲がり角には小さな点
+	//  目的地：地面に円と縦の線
 	void NavMeshAgent::OnDrawGizmos(DebugDraw& draw, bool selected)
 	{
-		if (!selected || !mHasPath) { return; }
+		if (!selected) { return; }
+		const Color body(0.4f, 0.85f, 1.0f, 0.9f);
+		draw.Cylinder(GetAgentPosition(), radius, height, body);
+		if (!mHasPath) { return; }
+
+		const Color walk(0.2f, 1.0f, 0.4f, 1.0f);
+		const Color jump(1.0f, 0.6f, 0.1f, 1.0f);
 		for (size_t i = 1; i < mPath.corners.size(); ++i)
 		{
 			bool link = mPath.links[i - 1] >= 0;
-			draw.Line(mPath.corners[i - 1], mPath.corners[i], link ? Color(1.0f, 0.6f, 0.1f, 1.0f) : Color(0.2f, 1.0f, 0.4f, 1.0f), false);
+			draw.Line(mPath.corners[i - 1], mPath.corners[i], link ? jump : walk, false);
 		}
+		for (size_t i = 1; i + 1 < mPath.corners.size(); ++i)
+		{
+			draw.Circle(mPath.corners[i], Vector3::kUnitY, 0.08f, walk, false, 12);
+		}
+		const Color goal(1.0f, 0.3f, 0.3f, 1.0f);
+		draw.Circle(mDestination, Vector3::kUnitY, std::max(radius, 0.2f), goal, false);
+		draw.Line(mDestination, mDestination + Vector3(0.0f, std::max(height, 0.5f), 0.0f), goal, false);
 	}
 #endif
 }

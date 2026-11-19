@@ -48,6 +48,8 @@ namespace rd
 		// 折りたたみのグループ（JSON ではネストしたオブジェクトになる）
 		virtual bool BeginGroup(const char* /*name*/) { return true; }
 		virtual void EndGroup() {}
+		// 次のグループを、はじめは開いた状態で出す（画面の表示だけ。保存には関係しない）
+		virtual void SetNextGroupOpen() {}
 
 		virtual bool IsLoading() const { return false; }
 

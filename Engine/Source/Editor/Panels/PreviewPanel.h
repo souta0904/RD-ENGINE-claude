@@ -22,5 +22,6 @@ namespace rd
 
 		ModelPreviewWidget mModelPreview;
 		PrefabPreviewWidget mPrefabPreview;
+		MaterialPreviewWidget mMaterialPreview;
 	};
 }

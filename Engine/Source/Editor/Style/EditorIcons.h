@@ -11,7 +11,7 @@ namespace rd
 	enum class Icon
 	{
 		Actor, Mesh, Light, Camera, Particles, Physics, Audio, Animation, Component,
-		Folder, File, Image, Model, Scene, Prefab, Shader,
+		Folder, File, Image, Model, Scene, Prefab, Shader, Material,
 		Play, Pause, Step, Move, Rotate, Scale, Global, Local,
 		Eye, EyeOff, Plus, Search, Menu, Info, Warning, Error,
 	};

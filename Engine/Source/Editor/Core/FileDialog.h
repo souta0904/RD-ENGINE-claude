@@ -13,6 +13,8 @@ namespace rd
 		static std::string Save(HWND owner, const wchar_t* filter, const wchar_t* defaultExt);
 		// エクスプローラーで開いて、そのファイルを選んだ状態にする
 		static void ShowInExplorer(const std::string& path);
+		// Windows でその種類に決めてあるアプリで開く（決まっていなければメモ帳）
+		static void OpenWithDefaultApp(const std::string& path);
 		// ごみ箱へ移す（元に戻せる）
 		static bool MoveToRecycleBin(const std::string& path);
 

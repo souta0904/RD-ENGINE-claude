@@ -41,6 +41,19 @@ namespace rd
 		mSavedCursor = 0;
 	}
 
+	// 保存した時点と今の位置の間にあるコマンドを見る（どちらが前でも、間のものを戻すかやり直すと保存した状態になる）
+	bool CommandHistory::IsDirty() const
+	{
+		if (mSavedCursor == kUnreachable) { return true; }
+		size_t from = std::min(mCursor, mSavedCursor);
+		size_t to = std::min(std::max(mCursor, mSavedCursor), mCommands.size());
+		for (size_t i = from; i < to; ++i)
+		{
+			if (mCommands[i]->ChangesScene()) { return true; }
+		}
+		return false;
+	}
+
 	ActorId CommandHistory::Undo(Scene& scene)
 	{
 		if (!CanUndo()) { return 0; }

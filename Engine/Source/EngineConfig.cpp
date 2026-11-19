@@ -17,9 +17,9 @@ namespace rd
 			if (arg == "-play") { autoPlay = true; continue; }
 #endif
 			if (arg == "-novsync") { vsync = false; }
-			else if (arg == "-fullscreen") { window.fullscreen = true; }
-			else if (arg == "-windowed") { window.fullscreen = false; }
-			else if (arg == "-scene" && i + 1 < argc) { startScene = ToUtf8(argv[++i]); }
+			else if (arg == "-fullscreen") { window.fullscreen = true; fullscreenFromCommandLine = true; }
+			else if (arg == "-windowed") { window.fullscreen = false; fullscreenFromCommandLine = true; }
+			else if (arg == "-scene" && i + 1 < argc) { startScene = ToUtf8(argv[++i]); sceneFromCommandLine = true; }
 			else if (arg == "-loglevel" && i + 1 < argc)
 			{
 				std::string level = ToLower(ToUtf8(argv[++i]));

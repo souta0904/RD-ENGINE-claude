@@ -2,12 +2,14 @@
 #include "Core/Serialization/Json.h"
 #include "Editor/Panels/EditorPanel.h"
 #include <string>
+#include <unordered_map>
 
 namespace rd
 {
 	class Actor;
 	class Component;
 	class ImGuiInspector;
+	class MaterialAsset;
 
 	// プロパティ（選んだアクターの名前・Transform・コンポーネントを編集する。Unity のインスペクタにあたる）
 	//  コンポーネントの見出しをドラッグして並べ替え、右クリックで削除・リセット・値のコピーと貼り付け・並べ替え
@@ -42,8 +44,15 @@ namespace rd
 		void DrawAddComponent();
 		void ApplyPendingOps(Actor* actor, bool& commit);
 		void DrawAssetInfo(const std::string& path);
+		// アクターの MeshRenderer に入れたマテリアルのアセットを、コンポーネントの下に並べて編集できるようにする（Unity と同じ）
+		void DrawActorMaterials(Actor* actor);
+		// マテリアルのアセットの値を編集する。確定したらファイルへ保存し、Undo の記録を積む
+		void DrawMaterialEditor(MaterialAsset& asset);
+		void DrawShaderInfo(const std::string& path);
 
 		std::string mAddFilter;
+		// マテリアルの編集を始める前の値（アセットのパスごと。Undo の「前」に使う）
+		std::unordered_map<std::string, Json> mMaterialSnapshots;
 		Json mComponentClipboard;
 		PendingOps mOps;
 		bool mDropLine = false;

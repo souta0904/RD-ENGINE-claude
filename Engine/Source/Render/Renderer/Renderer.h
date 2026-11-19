@@ -68,7 +68,9 @@ namespace rd
 
 		void CreateRootSignatures();
 		void CreatePipelines();
-		ID3D12PipelineState* GetMeshPipeline(bool skinned, BlendMode blend, bool doubleSided, bool shadow);
+		// custom は自作のシェーダー（nullptr なら標準の Mesh.hlsl）
+		void BindShaderProperties(ID3D12GraphicsCommandList* cmd, const Material& mat, const ShaderAsset& shader);
+		ID3D12PipelineState* GetMeshPipeline(bool skinned, BlendMode blend, bool doubleSided, bool shadow, const ShaderAsset* custom = nullptr);
 		void EnsureTargets(uint32_t width, uint32_t height);
 
 		void SetupFrameData(const RenderCamera& camera, const Environment& env, uint32_t width, uint32_t height, float time);
@@ -90,7 +92,9 @@ namespace rd
 		void BloomPass(ID3D12GraphicsCommandList* cmd);
 		void TonemapPass(ID3D12GraphicsCommandList* cmd);
 		void OverlayPass(ID3D12GraphicsCommandList* cmd, const Matrix4& viewProj);
-		void DrawLines(ID3D12GraphicsCommandList* cmd, const std::vector<DebugDraw::Vertex>& lines, ID3D12PipelineState* pso, const Matrix4& viewProj);
+		// デバッグ描画の頂点を描く（topology が線なら 2 頂点で 1 本、三角形なら 3 頂点で 1 枚）
+		void DrawDebugVertices(ID3D12GraphicsCommandList* cmd, const std::vector<DebugDraw::Vertex>& vertices, ID3D12PipelineState* pso,
+			const Matrix4& viewProj, D3D12_PRIMITIVE_TOPOLOGY topology);
 		void DrawSprites(ID3D12GraphicsCommandList* cmd);
 		void DrawFullscreen(ID3D12GraphicsCommandList* cmd, ID3D12PipelineState* pso, const Vector4& params,
 			D3D12_GPU_DESCRIPTOR_HANDLE t0, D3D12_GPU_DESCRIPTOR_HANDLE t1 = {});
@@ -100,6 +104,8 @@ namespace rd
 
 		RenderList mList;
 		DebugDraw mDebug;
+		// 自作のシェーダーの値を詰める作業用（毎回確保しないように使い回す）
+		std::vector<Vector4> mPropertyScratch;
 		RenderSettings mSettings;
 		RenderStats mStats;
 
@@ -107,7 +113,7 @@ namespace rd
 		ComPtr<ID3D12RootSignature> mMeshRS;
 		ComPtr<ID3D12RootSignature> mSimpleRS;
 
-		std::unordered_map<uint32_t, ComPtr<ID3D12PipelineState>> mMeshPipelines;
+		std::unordered_map<uint64_t, ComPtr<ID3D12PipelineState>> mMeshPipelines;
 		ComPtr<ID3D12PipelineState> mSkyPSO;
 		ComPtr<ID3D12PipelineState> mParticleAlphaPSO;
 		ComPtr<ID3D12PipelineState> mParticleAddPSO;
@@ -117,6 +123,9 @@ namespace rd
 		ComPtr<ID3D12PipelineState> mOutlinePSO[2];
 		ComPtr<ID3D12PipelineState> mLineDepthPSO;
 		ComPtr<ID3D12PipelineState> mLineOverlayPSO;
+		// デバッグ描画の半透明の面（奥行きを見る / 手前に重ねる）
+		ComPtr<ID3D12PipelineState> mDebugTriDepthPSO;
+		ComPtr<ID3D12PipelineState> mDebugTriOverlayPSO;
 		ComPtr<ID3D12PipelineState> mSpritePSO;
 		ComPtr<ID3D12PipelineState> mBloomPrefilterPSO;
 		ComPtr<ID3D12PipelineState> mBloomDownPSO;

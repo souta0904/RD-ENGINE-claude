@@ -3,6 +3,7 @@
 #include "Core/Profiling/ProfileScope.h"
 #include "Editor/Style/EditorGui.h"
 #include "Editor/Style/EditorStyle.h"
+#include "Editor/Core/EditorLocale.h"
 
 namespace rd
 {
@@ -52,7 +53,7 @@ namespace rd
 		const auto& frames = Profiler::GetFrames();
 		if (frames.empty())
 		{
-			EditorGui::EmptyHint("No frames yet");
+			EditorGui::EmptyHint(Tr("No frames yet"));
 			return;
 		}
 		DrawFrameGraph();
@@ -67,24 +68,24 @@ namespace rd
 	{
 		EditorGui::BeginToolbar("toolbar");
 		bool paused = Profiler::IsPaused();
-		if (EditorGui::IconButton("##pause", paused ? Icon::Play : Icon::Pause, paused ? "Resume recording" : "Pause recording", paused))
+		if (EditorGui::IconButton("##pause", paused ? Icon::Play : Icon::Pause, Tr(paused ? "Resume recording" : "Pause recording"), paused))
 		{
 			Profiler::SetPaused(!paused);
 			if (paused) { mSelected = -1; }
 		}
 		ImGui::SameLine();
-		if (ImGui::Button("Save Trace"))
+		if (ImGui::Button(Tr("Save Trace")))
 		{
 			std::string path = TraceFileName();
 			if (Profiler::SaveTrace(path)) { Log::Info(LogCat::Editor, "Profile saved: {} (open in ui.perfetto.dev)", path); }
 		}
-		if (ImGui::IsItemHovered()) { ImGui::SetTooltip("Chrome trace format. Open in ui.perfetto.dev or chrome://tracing"); }
+		if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", Tr("Chrome trace format. Open in ui.perfetto.dev or chrome://tracing")); }
 		EditorGui::ToolbarSeparator();
 		ImGui::AlignTextToFramePadding();
-		ImGui::TextDisabled("Average");
+		ImGui::TextDisabled("%s", Tr("Average"));
 		ImGui::SameLine();
 		ImGui::SetNextItemWidth(ImGui::GetFontSize() * 7.0f);
-		ImGui::SliderInt("##average", &mAverage, 10, int(Profiler::kHistory), "%d frames");
+		ImGui::SliderInt("##average", &mAverage, 10, int(Profiler::kHistory), Tr("%d frames"));
 		EditorGui::EndToolbar();
 	}
 
@@ -125,7 +126,7 @@ namespace rd
 			int index = int((ImGui::GetIO().MousePos.x - origin.x) / barW) - int(offset);
 			if (index >= 0 && index < int(frames.size()))
 			{
-				ImGui::SetTooltip("Frame %llu\nCPU %.2f ms\nGPU %.2f ms", (unsigned long long)frames[index].number,
+				ImGui::SetTooltip(Tr("Frame %llu\nCPU %.2f ms\nGPU %.2f ms"), (unsigned long long)frames[index].number,
 					frames[index].GetMs(), frames[index].gpuMs);
 				if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
 				{
@@ -134,13 +135,13 @@ namespace rd
 				}
 			}
 		}
-		ImGui::TextDisabled("Bars: CPU frame time   Blue line: GPU time   White line: 60 FPS   Click a bar to inspect it");
+		ImGui::TextDisabled("%s", Tr("Bars: CPU frame time   Blue line: GPU time   White line: 60 FPS   Click a bar to inspect it"));
 	}
 
 	// スレッドごとに、区間を入れ子の深さの段に並べて描く。GPU は最後の段
 	void ProfilerPanel::DrawTimeline(const ProfileFrame& frame)
 	{
-		ImGui::SeparatorText(std::format("Frame {}  CPU {:.2f} ms  GPU {:.2f} ms", frame.number, frame.GetMs(), frame.gpuMs).c_str());
+		ImGui::SeparatorText(EditorLocale::Format("Frame {}  CPU {:.2f} ms  GPU {:.2f} ms", frame.number, frame.GetMs(), frame.gpuMs).c_str());
 
 		auto threadNames = Profiler::GetThreadNames();
 		uint16_t maxDepth[256] = {};
@@ -203,7 +204,7 @@ namespace rd
 		ImGui::Dummy(ImVec2(labelW + width, y - start.y));
 		if (hovered)
 		{
-			ImGui::SetTooltip("%s\n%.3f ms  (at %.3f ms)\nthread: %s", hovered->name,
+			ImGui::SetTooltip(Tr("%s\n%.3f ms  (at %.3f ms)\nthread: %s"), hovered->name,
 				Profiler::TicksToMs(hovered->end - hovered->start), Profiler::TicksToMs(hovered->start - frame.start),
 				threadNames[hovered->thread].c_str());
 		}
@@ -212,7 +213,7 @@ namespace rd
 			ImGui::SetTooltip("%s (GPU)\n%.3f ms", hoveredGpu->name, hoveredGpu->endMs - hoveredGpu->startMs);
 		}
 		ImGui::EndChild();
-		ImGui::TextDisabled("Ctrl + wheel to zoom the timeline");
+		ImGui::TextDisabled("%s", Tr("Ctrl + wheel to zoom the timeline"));
 	}
 
 	void ProfilerPanel::DrawStatsTable()
@@ -220,11 +221,11 @@ namespace rd
 		auto stats = Profiler::ComputeStats(size_t(mAverage));
 		if (!ImGui::BeginTable("##stats", 5, ImGuiTableFlags_RowBg | ImGuiTableFlags_Borders | ImGuiTableFlags_ScrollY | ImGuiTableFlags_Resizable)) { return; }
 		ImGui::TableSetupScrollFreeze(0, 1);
-		ImGui::TableSetupColumn("Scope", ImGuiTableColumnFlags_WidthStretch);
+		ImGui::TableSetupColumn(Tr("Scope"), ImGuiTableColumnFlags_WidthStretch);
 		ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, ImGui::GetFontSize() * 2.5f);
-		ImGui::TableSetupColumn("Avg ms", ImGuiTableColumnFlags_WidthFixed, ImGui::GetFontSize() * 4.5f);
-		ImGui::TableSetupColumn("Max ms", ImGuiTableColumnFlags_WidthFixed, ImGui::GetFontSize() * 4.5f);
-		ImGui::TableSetupColumn("Calls", ImGuiTableColumnFlags_WidthFixed, ImGui::GetFontSize() * 3.5f);
+		ImGui::TableSetupColumn(Tr("Avg ms"), ImGuiTableColumnFlags_WidthFixed, ImGui::GetFontSize() * 4.5f);
+		ImGui::TableSetupColumn(Tr("Max ms"), ImGuiTableColumnFlags_WidthFixed, ImGui::GetFontSize() * 4.5f);
+		ImGui::TableSetupColumn(Tr("Calls"), ImGuiTableColumnFlags_WidthFixed, ImGui::GetFontSize() * 3.5f);
 		ImGui::TableHeadersRow();
 		for (const auto& s : stats)
 		{

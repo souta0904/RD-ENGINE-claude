@@ -9,12 +9,14 @@ namespace rd
 	enum class ShaderStage : uint8_t { Vertex, Pixel, Compute, Geometry };
 
 	// コンパイルするシェーダーの指定（defines は "NAME" か "NAME=VALUE"）
+	//  source が空でなければ、ファイルを読まずにその文字列をコンパイルする（path は名前と include の基準）
 	struct ShaderDesc
 	{
 		std::string path;
 		std::string entry = "main";
 		ShaderStage stage = ShaderStage::Vertex;
 		std::vector<std::string> defines;
+		std::string source;
 
 		std::string GetKey() const;
 	};

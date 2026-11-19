@@ -9,6 +9,7 @@
 #include "Render/Renderer/Renderer.h"
 #include "RHI/Device/GraphicsDevice.h"
 #include "Scene/Scene.h"
+#include "Editor/Core/EditorLocale.h"
 
 namespace rd
 {
@@ -32,32 +33,32 @@ namespace rd
 		for (float t : mFrameTimes) { maxMs = std::max(maxMs, t); }
 		ImGui::PlotLines("##frame", mFrameTimes.data(), int(mFrameTimes.size()), 0, nullptr, 0.0f, maxMs * 1.2f, ImVec2(-1, 60));
 
-		if (ImGui::CollapsingHeader("Rendering", ImGuiTreeNodeFlags_DefaultOpen))
+		if (ImGui::CollapsingHeader(TrId("Rendering"), ImGuiTreeNodeFlags_DefaultOpen))
 		{
 			uint32_t w, h;
 			mEditor.GetViewportSize(w, h);
 			ImGui::Text("GPU: %s", device.GetAdapterName().c_str());
-			ImGui::Text("Viewport: %u x %u", w, h);
-			ImGui::Text("Draw calls: %u   Triangles: %u", rs.drawCalls, rs.triangles);
-			ImGui::Text("Meshes: %u visible / %u culled", rs.meshesVisible, rs.meshesCulled);
-			ImGui::Text("Shadow casters: %u   Lights: %u", rs.shadowCasters, rs.lights);
-			ImGui::Text("Particles: %u   Sprites: %u", rs.particles, rs.sprites);
-			ImGui::Text("Dynamic upload: %.1f KB/frame", double(device.GetDynamicBytesUsed()) / 1024.0);
-			ImGui::Text("Descriptors: %u / %u", device.GetSrvHeap().GetUsedCount(), device.GetSrvHeap().GetCapacity());
+			ImGui::TextUnformatted(EditorLocale::Format("Viewport: {} x {}", w, h).c_str());
+			ImGui::TextUnformatted(EditorLocale::Format("Draw calls: {}   Triangles: {}", rs.drawCalls, rs.triangles).c_str());
+			ImGui::TextUnformatted(EditorLocale::Format("Meshes: {} visible / {} culled", rs.meshesVisible, rs.meshesCulled).c_str());
+			ImGui::TextUnformatted(EditorLocale::Format("Shadow casters: {}   Lights: {}", rs.shadowCasters, rs.lights).c_str());
+			ImGui::TextUnformatted(EditorLocale::Format("Particles: {}   Sprites: {}", rs.particles, rs.sprites).c_str());
+			ImGui::TextUnformatted(EditorLocale::Format("Dynamic upload: {:.1f} KB/frame", double(device.GetDynamicBytesUsed()) / 1024.0).c_str());
+			ImGui::TextUnformatted(EditorLocale::Format("Descriptors: {} / {}", device.GetSrvHeap().GetUsedCount(), device.GetSrvHeap().GetCapacity()).c_str());
 			bool vsync = device.GetVSync();
 			if (ImGui::Checkbox("VSync", &vsync)) { device.SetVSync(vsync); }
 		}
-		if (ImGui::CollapsingHeader("Systems", ImGuiTreeNodeFlags_DefaultOpen))
+		if (ImGui::CollapsingHeader(TrId("Systems"), ImGuiTreeNodeFlags_DefaultOpen))
 		{
-			ImGui::Text("Job workers: %u   Pending jobs: %u", JobSystem::GetWorkerCount(), JobSystem::GetPendingCount());
+			ImGui::TextUnformatted(EditorLocale::Format("Job workers: {}   Pending jobs: {}", JobSystem::GetWorkerCount(), JobSystem::GetPendingCount()).c_str());
 			auto assets = AssetManager::Get().GetAllAssets();
-			ImGui::Text("Assets: %zu (loading %u)", assets.size(), AssetManager::Get().GetLoadingCount());
-			ImGui::Text("Actors: %zu", scene.GetActorCount());
+			ImGui::TextUnformatted(EditorLocale::Format("Assets: {} (loading {})", assets.size(), AssetManager::Get().GetLoadingCount()).c_str());
+			ImGui::TextUnformatted(EditorLocale::Format("Actors: {}", scene.GetActorCount()).c_str());
 			auto& physics = scene.GetSystem<PhysicsWorld>();
-			ImGui::Text("Physics: %u colliders, %u contacts", physics.GetBodyCount(), physics.GetContactCount());
-			ImGui::Text("Time: %.2f s  (scale %.2f)", Time::TotalTime(), Time::TimeScale());
+			ImGui::TextUnformatted(EditorLocale::Format("Physics: {} colliders, {} contacts", physics.GetBodyCount(), physics.GetContactCount()).c_str());
+			ImGui::TextUnformatted(EditorLocale::Format("Time: {:.2f} s  (scale {:.2f})", Time::TotalTime(), Time::TimeScale()).c_str());
 		}
-		if (ImGui::CollapsingHeader("Loaded Assets"))
+		if (ImGui::CollapsingHeader(TrId("Loaded Assets")))
 		{
 			for (auto& a : AssetManager::Get().GetAllAssets())
 			{

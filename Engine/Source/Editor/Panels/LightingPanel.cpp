@@ -6,6 +6,7 @@
 #include "Physics/World/PhysicsWorld.h"
 #include "Render/Renderer/Renderer.h"
 #include "Scene/Scene.h"
+#include "Editor/Core/EditorLocale.h"
 
 namespace rd
 {
@@ -14,18 +15,18 @@ namespace rd
 	void LightingPanel::OnGui()
 	{
 		ImGuiInspector inspector(&mEditor);
-		if (ImGui::CollapsingHeader("Renderer", ImGuiTreeNodeFlags_DefaultOpen))
+		if (ImGui::CollapsingHeader(TrId("Renderer"), ImGuiTreeNodeFlags_DefaultOpen))
 		{
 			Renderer::Get().GetSettings().Reflect(inspector);
 		}
 		inspector.ResetFrameState();
 
 		Scene& scene = mEditor.GetScene();
-		if (ImGui::CollapsingHeader("Environment (Scene)", ImGuiTreeNodeFlags_DefaultOpen))
+		if (ImGui::CollapsingHeader(TrId("Environment (Scene)"), ImGuiTreeNodeFlags_DefaultOpen))
 		{
 			scene.GetEnvironment().Reflect(inspector);
 		}
-		if (ImGui::CollapsingHeader("Physics / Time"))
+		if (ImGui::CollapsingHeader(TrId("Physics / Time")))
 		{
 			Vector3 gravity = scene.GetGravity();
 			if (inspector.Property("Gravity", gravity)) { scene.SetGravity(gravity); }
@@ -33,6 +34,6 @@ namespace rd
 			float timeScale = Time::TimeScale();
 			if (inspector.Property("Time Scale", timeScale, { .speed = 0.01f, .min = 0.0f, .max = 10.0f })) { Time::SetTimeScale(timeScale); }
 		}
-		if (inspector.AnyCommitted()) { mEditor.CommitSettingsEdit("Environment"); }
+		if (inspector.AnyCommitted()) { mEditor.CommitSettingsEdit(Tr("Environment")); }
 	}
 }

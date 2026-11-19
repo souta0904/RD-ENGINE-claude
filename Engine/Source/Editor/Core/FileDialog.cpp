@@ -44,6 +44,18 @@ namespace rd
 		ShellExecuteW(nullptr, L"open", L"explorer.exe", args.c_str(), nullptr, SW_SHOWNORMAL);
 	}
 
+	// ShellExecute は 32 以下を返すと失敗（その拡張子に開くアプリが決まっていないなど）
+	void FileDialog::OpenWithDefaultApp(const std::string& path)
+	{
+		std::wstring file = std::filesystem::absolute(ToWide(path)).wstring();
+		auto result = reinterpret_cast<INT_PTR>(ShellExecuteW(nullptr, L"open", file.c_str(), nullptr, nullptr, SW_SHOWNORMAL));
+		if (result <= 32)
+		{
+			std::wstring quoted = L"\"" + file + L"\"";
+			ShellExecuteW(nullptr, L"open", L"notepad.exe", quoted.c_str(), nullptr, SW_SHOWNORMAL);
+		}
+	}
+
 	// SHFileOperation はパスの終わりに \0 が 2 つ要る
 	bool FileDialog::MoveToRecycleBin(const std::string& path)
 	{

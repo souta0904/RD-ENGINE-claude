@@ -5,6 +5,8 @@
 namespace rd
 {
 	// ナビメッシュの形を読み込む（Unity の NavMeshSurface。焼いた結果は data の JSON から読む）
+	//  エディタでの表示は、シーンビューの「NavMesh」が オン のときか、このコンポーネントを持つ
+	//  アクターを選んでいるときに、エディタがまとめて描く（Editor::DrawSceneGizmos）
 	class NavMeshSurface final : public Component
 	{
 		RD_COMPONENT(NavMeshSurface)
@@ -13,9 +15,6 @@ namespace rd
 
 		void Reflect(PropertyVisitor& v) override;
 		void Awake() override;
-#if RD_EDITOR
-		void OnDrawGizmos(DebugDraw& draw, bool selected) override;
-#endif
 	};
 
 	// 離れた場所どうしを跳んで渡る道（Unity の NavMeshLink。両端はこのアクターから見た位置）

@@ -8,6 +8,7 @@
 #include "Engine.h"
 #include "Platform/Input/Input.h"
 #include "Scene/Scene.h"
+#include "Editor/Core/EditorLocale.h"
 
 namespace rd
 {
@@ -48,7 +49,7 @@ namespace rd
 		ImVec2 pos = mImagePos, size = mImageSize;
 		if (!CameraComponent::FindMain(mEditor.GetScene()))
 		{
-			dl->AddText(ImVec2(pos.x + 10.0f, pos.y + 8.0f), ImGui::ColorConvertFloat4ToU32(EditorStyle::kTextDim), "No camera in the scene");
+			dl->AddText(ImVec2(pos.x + 10.0f, pos.y + 8.0f), ImGui::ColorConvertFloat4ToU32(EditorStyle::kTextDim), Tr("No camera in the scene"));
 		}
 		if (mEditor.IsPlaying())
 		{
@@ -60,11 +61,11 @@ namespace rd
 	void GameViewPanel::DrawToolbar()
 	{
 		ImGui::SetNextItemWidth(ImGui::GetFontSize() * 9.0f);
-		if (ImGui::BeginCombo("##aspect", kAspects[mAspect].label))
+		if (ImGui::BeginCombo("##aspect", Tr(kAspects[mAspect].label)))
 		{
 			for (int i = 0; i < int(std::size(kAspects)); ++i)
 			{
-				if (ImGui::Selectable(kAspects[i].label, i == mAspect)) { mAspect = i; }
+				if (ImGui::Selectable(Tr(kAspects[i].label), i == mAspect)) { mAspect = i; }
 			}
 			ImGui::EndCombo();
 		}
@@ -74,7 +75,7 @@ namespace rd
 		if (mEditor.IsPlaying())
 		{
 			ImGui::SameLine();
-			ImGui::TextDisabled(mFocused ? "  Input: game" : "  Click to give input to the game");
+			ImGui::TextDisabled("%s", Tr(mFocused ? "  Input: game" : "  Click to give input to the game"));
 		}
 	}
 }

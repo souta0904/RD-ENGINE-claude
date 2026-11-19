@@ -28,7 +28,8 @@ namespace rd
 		const std::string& GetUndoLabel() const;
 		const std::string& GetRedoLabel() const;
 
-		bool IsDirty() const { return mCursor != mSavedCursor; }
+		// 保存した時点から今の位置までに、シーンを書き換える操作があるか
+		bool IsDirty() const;
 		void MarkSaved() { mSavedCursor = mCursor; }
 
 	private:

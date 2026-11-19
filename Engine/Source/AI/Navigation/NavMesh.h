@@ -1,4 +1,5 @@
 #pragma once
+#include "Math/Color.h"
 #include "Math/Vector3.h"
 #include <string>
 #include <unordered_map>
@@ -59,7 +60,13 @@ namespace rd
 		// start から end への経路。始点が乗らなければ false
 		bool CalculatePath(const Vector3& start, const Vector3& end, NavMeshPath& outPath) const;
 
+		// Unity のように見せる：歩ける面を区画の色で半透明に塗り、内側の三角形の辺は薄く、
+		//  外周（隣の三角形がない辺）ははっきりした線で描く。リンクはオレンジの矢印
 		void DrawGizmos(DebugDraw& draw) const;
+		// 区画ごとの表示色（0: Walkable は青、1: Not Walkable は灰、2: Jump は黄、それ以外は番号から決めた色）
+		static Color GetAreaColor(int area);
+		// 外周の線分の数（テスト用）
+		size_t GetOutlineSegmentCount() const { return mOutline.size(); }
 
 		// 目的地をナビメッシュへ寄せるときに探す距離
 		float destinationSearchDistance = 10.0f;
@@ -100,6 +107,7 @@ namespace rd
 		void ConnectSharedEdges();
 		void ConnectOverlappingEdges(const std::vector<std::pair<int, int>>& openEdges);
 		void BuildGrid();
+		void BuildOutline();
 		void ConnectLink(int index);
 		Vector3 ClosestPointOnTriangle(int tri, const Vector3& p) const;
 		bool FindTriangles(const Vector3& start, const Vector3& end, std::vector<Step>& outSteps, bool& outComplete, Vector3& ioEnd, int endTri) const;
@@ -110,6 +118,8 @@ namespace rd
 		std::vector<Triangle> mTris;
 		std::vector<ResolvedLink> mLinks;
 		std::unordered_map<int64_t, std::vector<int>> mGrid;
+		// 外周の線分（三角形の辺のうち、どの三角形ともつながっていない区間）。Build のときに 1 回だけ求める
+		std::vector<std::pair<Vector3, Vector3>> mOutline;
 		float mCellSize = 4.0f;
 	};
 }

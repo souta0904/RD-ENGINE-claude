@@ -9,6 +9,7 @@
 #include "Editor/Panels/ProjectPanel.h"
 #include "Editor/Style/EditorGui.h"
 #include "Editor/Style/EditorStyle.h"
+#include "Editor/Core/EditorLocale.h"
 
 namespace rd
 {
@@ -39,9 +40,9 @@ namespace rd
 	{
 		Icon icon = Icon::File;
 		std::string path = GetTargetPath(icon);
-		if (icon != Icon::Image && icon != Icon::Model && icon != Icon::Prefab)
+		if (icon != Icon::Image && icon != Icon::Model && icon != Icon::Prefab && icon != Icon::Material)
 		{
-			EditorGui::EmptyHint("Select a texture, a model or a prefab in the Project panel.");
+			EditorGui::EmptyHint(Tr("Select a texture, a model, a prefab or a material in the Project panel."));
 			return;
 		}
 
@@ -55,7 +56,7 @@ namespace rd
 			auto tex = AssetManager::Get().LoadTexture(path);
 			if (!tex->IsReady())
 			{
-				ImGui::TextDisabled(tex->IsFailed() ? "Failed to load" : "Loading...");
+				ImGui::TextDisabled("%s", Tr(tex->IsFailed() ? "Failed to load" : "Loading..."));
 				return;
 			}
 			ImGui::SameLine();
@@ -68,11 +69,16 @@ namespace rd
 			mPrefabPreview.Draw(path);
 			return;
 		}
+		if (icon == Icon::Material)
+		{
+			mMaterialPreview.Draw(path);
+			return;
+		}
 
 		auto model = AssetManager::Get().LoadModel(path);
 		if (!model->IsReady())
 		{
-			ImGui::TextDisabled(model->IsFailed() ? "Failed to load" : "Loading...");
+			ImGui::TextDisabled("%s", Tr(model->IsFailed() ? "Failed to load" : "Loading..."));
 			return;
 		}
 		mModelPreview.Draw(path);

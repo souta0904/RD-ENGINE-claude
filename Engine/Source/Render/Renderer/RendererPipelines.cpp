@@ -4,6 +4,7 @@
 #include "RHI/Pipeline/PipelineBuilder.h"
 #include "RHI/Pipeline/RootSignatureBuilder.h"
 #include "RHI/Pipeline/Samplers.h"
+#include "Render/Material/ShaderAsset.h"
 
 namespace rd
 {
@@ -52,11 +53,12 @@ namespace rd
 	}
 
 	// メッシュ: b0 Object / b1 Frame / b2 Material / b3 Lights / t0 Albedo / t1 Normal / t2 Palette（またはパーティクル）/ t3 ShadowMap / t4 Emissive
+	//  b4 と t5～t8 は自作のシェーダーの Properties（頂点を動かす関数でも読めるように、どの段からも見える）
 	void Renderer::CreateRootSignatures()
 	{
 		auto device = GraphicsDevice::Get().GetDevice();
-		mMeshRS = RootSignatureBuilder()
-			.AddCbv(0)
+		RootSignatureBuilder mesh;
+		mesh.AddCbv(0)
 			.AddCbv(1)
 			.AddCbv(2)
 			.AddCbv(3)
@@ -65,6 +67,9 @@ namespace rd
 			.AddSrv(2, D3D12_SHADER_VISIBILITY_VERTEX)
 			.AddSrvTable(3)
 			.AddSrvTable(4)
+			.AddCbv(4);
+		for (int i = 0; i < ShaderAsset::kMaxTextures; ++i) { mesh.AddSrvTable(5 + i, 1, D3D12_SHADER_VISIBILITY_ALL); }
+		mMeshRS = mesh
 			.AddStaticSampler(Samplers::AnisotropicWrap(0))
 			.AddStaticSampler(Samplers::LinearClamp(1))
 			.AddStaticSampler(Samplers::ShadowCompare(2))
@@ -114,6 +119,19 @@ namespace rd
 			.SetRenderTargets({ kOutputRtvFormat }, DepthTexture::kDsvFormat);
 		mLineDepthPSO = line.SetDepth(DepthMode::ReadOnly).Build(device, L"LineDepthPSO");
 		mLineOverlayPSO = line.SetDepth(DepthMode::Disabled).Build(device, L"LineOverlayPSO");
+
+		// デバッグ描画の面。線と同じシェーダと頂点で、三角形として描く（トーンマップの後の画面へ直接描く）
+		PipelineBuilder debugTri;
+		debugTri.SetRootSignature(mSimpleRS.Get())
+			.SetVS(CompileShader("Simple.hlsl", "LineVS", ShaderStage::Vertex))
+			.SetPS(CompileShader("Simple.hlsl", "LinePS", ShaderStage::Pixel))
+			.SetInputLayout(kLineLayout)
+			.SetTopology(D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE)
+			.SetBlend(BlendMode::Alpha)
+			.SetCull(CullMode::None)
+			.SetRenderTargets({ kOutputRtvFormat }, DepthTexture::kDsvFormat);
+		mDebugTriDepthPSO = debugTri.SetDepth(DepthMode::ReadOnly).Build(device, L"DebugTriDepthPSO");
+		mDebugTriOverlayPSO = debugTri.SetDepth(DepthMode::Disabled).Build(device, L"DebugTriOverlayPSO");
 
 		// 線と同じシェーダで三角形を描く（HDR に描くのでトーンマップがかかる）
 		mTranslucentTrianglePSO = PipelineBuilder()
@@ -174,15 +192,39 @@ namespace rd
 		mBlitPSO = BuildPostPipeline(device, rs, fullscreen, "BlitPS", GraphicsDevice::kBackBufferFormat, BlendMode::Opaque, L"BlitPSO");
 	}
 
-	// 組み合わせごとに初めて使うときに作ってキャッシュする（キーはビットで組み合わせを表す）
-	ID3D12PipelineState* Renderer::GetMeshPipeline(bool skinned, BlendMode blend, bool doubleSided, bool shadow)
+	// 組み合わせごとに初めて使うときに作ってキャッシュする（キーはビットで組み合わせを表す。上位は自作のシェーダーの番号）
+	//  自作のシェーダーがコンパイルできなければ、標準のシェーダーのパイプラインを代わりに覚えておく
+	//  （毎フレームコンパイルし直さないため。直したら Reload Shaders で作り直す）
+	ID3D12PipelineState* Renderer::GetMeshPipeline(bool skinned, BlendMode blend, bool doubleSided, bool shadow, const ShaderAsset* custom)
 	{
 		bool wire = mSettings.wireframe && !shadow;
-		uint32_t key = (skinned ? 1u : 0u) | (uint32_t(blend) << 1) | (doubleSided ? 16u : 0u) | (shadow ? 32u : 0u) | (wire ? 64u : 0u);
+		if (shadow) { custom = nullptr; } // 影は形だけなので、どのシェーダーでも同じものを使う
+		uint64_t key = (skinned ? 1u : 0u) | (uint32_t(blend) << 1) | (doubleSided ? 16u : 0u) | (shadow ? 32u : 0u) | (wire ? 64u : 0u);
+		if (custom) { key |= uint64_t(custom->GetId()) << 8; }
 		if (auto it = mMeshPipelines.find(key); it != mMeshPipelines.end()) { return it->second.Get(); }
 
 		std::vector<std::string> defines;
 		if (skinned) { defines.push_back("SKINNED=1"); }
+		const Shader* vs = nullptr;
+		const Shader* ps = nullptr;
+		if (custom)
+		{
+			std::string source = custom->GetPrelude() + custom->GetSource();
+			vs = CompileShaderSource(custom->GetPath(), source, "VSMain", ShaderStage::Vertex, defines);
+			ps = CompileShaderSource(custom->GetPath(), source, "PSMain", ShaderStage::Pixel, defines);
+			if (!vs || !vs->IsValid() || !ps || !ps->IsValid())
+			{
+				Log::Error(LogCat::Render, "Shader '{}' failed to compile; drawing with the standard shader instead", custom->GetPath());
+				ID3D12PipelineState* fallback = GetMeshPipeline(skinned, blend, doubleSided, shadow, nullptr);
+				mMeshPipelines[key] = fallback;
+				return fallback;
+			}
+		}
+		else if (!shadow)
+		{
+			vs = CompileShader("Mesh.hlsl", "VSMain", ShaderStage::Vertex, defines);
+			ps = CompileShader("Mesh.hlsl", "PSMain", ShaderStage::Pixel, defines);
+		}
 		PipelineBuilder builder;
 		builder.SetRootSignature(mMeshRS.Get())
 			.SetInputLayout(skinned ? std::span<const D3D12_INPUT_ELEMENT_DESC>(kSkinnedLayout) : std::span<const D3D12_INPUT_ELEMENT_DESC>(kStaticLayout))
@@ -197,8 +239,8 @@ namespace rd
 		}
 		else
 		{
-			builder.SetVS(CompileShader("Mesh.hlsl", "VSMain", ShaderStage::Vertex, defines))
-				.SetPS(CompileShader("Mesh.hlsl", "PSMain", ShaderStage::Pixel, defines))
+			builder.SetVS(vs)
+				.SetPS(ps)
 				.SetBlend(blend)
 				.SetDepth(blend == BlendMode::Opaque ? DepthMode::ReadWrite : DepthMode::ReadOnly)
 				.SetWireframe(wire)

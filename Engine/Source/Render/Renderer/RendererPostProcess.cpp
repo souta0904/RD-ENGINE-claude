@@ -109,24 +109,30 @@ namespace rd
 		cmd->OMSetRenderTargets(1, &rtv, FALSE, &dsv);
 		SetViewport(cmd, mT->output.GetWidth(), mT->output.GetHeight());
 		cmd->SetGraphicsRootSignature(mSimpleRS.Get());
-		DrawLines(cmd, mDebug.GetDepthTested(), mLineDepthPSO.Get(), viewProj);
-		DrawLines(cmd, mDebug.GetOverlay(), mLineOverlayPSO.Get(), viewProj);
+		// 面を先に描き、その上に線を重ねる（面の縁取りの線が面に埋もれないように）
+		constexpr auto kTris = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+		constexpr auto kLines = D3D_PRIMITIVE_TOPOLOGY_LINELIST;
+		DrawDebugVertices(cmd, mDebug.GetDepthTestedTriangles(), mDebugTriDepthPSO.Get(), viewProj, kTris);
+		DrawDebugVertices(cmd, mDebug.GetDepthTested(), mLineDepthPSO.Get(), viewProj, kLines);
+		DrawDebugVertices(cmd, mDebug.GetOverlayTriangles(), mDebugTriOverlayPSO.Get(), viewProj, kTris);
+		DrawDebugVertices(cmd, mDebug.GetOverlay(), mLineOverlayPSO.Get(), viewProj, kLines);
 		DrawSprites(cmd);
 	}
 
-	void Renderer::DrawLines(ID3D12GraphicsCommandList* cmd, const std::vector<DebugDraw::Vertex>& lines, ID3D12PipelineState* pso, const Matrix4& viewProj)
+	void Renderer::DrawDebugVertices(ID3D12GraphicsCommandList* cmd, const std::vector<DebugDraw::Vertex>& vertices, ID3D12PipelineState* pso,
+		const Matrix4& viewProj, D3D12_PRIMITIVE_TOPOLOGY topology)
 	{
-		if (lines.empty() || !pso) { return; }
+		if (vertices.empty() || !pso) { return; }
 		auto& device = GraphicsDevice::Get();
-		uint64_t size = sizeof(DebugDraw::Vertex) * lines.size();
-		D3D12_VERTEX_BUFFER_VIEW vbv = { device.UploadData(lines.data(), size), UINT(size), sizeof(DebugDraw::Vertex) };
+		uint64_t size = sizeof(DebugDraw::Vertex) * vertices.size();
+		D3D12_VERTEX_BUFFER_VIEW vbv = { device.UploadData(vertices.data(), size), UINT(size), sizeof(DebugDraw::Vertex) };
 		SimpleConstants c;
 		c.matrix = viewProj;
 		cmd->SetPipelineState(pso);
 		cmd->SetGraphicsRoot32BitConstants(kSimpleConstants, sizeof(c) / 4, &c, 0);
-		cmd->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_LINELIST);
+		cmd->IASetPrimitiveTopology(topology);
 		cmd->IASetVertexBuffers(0, 1, &vbv);
-		cmd->DrawInstanced(UINT(lines.size()), 1, 0, 0);
+		cmd->DrawInstanced(UINT(vertices.size()), 1, 0, 0);
 		++mStats.drawCalls;
 	}
 

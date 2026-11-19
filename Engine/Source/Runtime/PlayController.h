@@ -30,6 +30,8 @@ namespace rd
 		bool Begin(const Scene& scene);
 		// 保存しておいたシーンを作り直して返す（プレイ中でなければ nullptr）
 		std::unique_ptr<Scene> End();
+		// プレイを始めたときのシーンのパス
+		const std::string& GetSnapshotPath() const { return mSnapshotPath; }
 #endif
 
 		FrameTime AdvanceTime(float dt);

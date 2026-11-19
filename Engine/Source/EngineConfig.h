@@ -23,6 +23,9 @@ namespace rd
 		bool vsync = true;
 		std::string startScene;
 		std::function<void(Scene&)> buildDefaultScene;
+		// コマンドラインで指定された（前回のエディタの状態より優先する）
+		bool sceneFromCommandLine = false;
+		bool fullscreenFromCommandLine = false;
 
 		int captureFrame = -1;
 		std::string capturePath = "Logs/capture.png";

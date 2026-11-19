@@ -22,6 +22,8 @@ namespace rd
 	{
 		std::string key = path + "|" + entry + "|" + std::to_string(int(stage));
 		for (const auto& d : defines) { key += "|" + d; }
+		// 文字列から作るときは中身が変われば別物（読み直したシェーダーを古い結果で済ませない）
+		if (!source.empty()) { key += "|src" + std::to_string(std::hash<std::string>{}(source)); }
 		return key;
 	}
 
@@ -43,7 +45,7 @@ namespace rd
 		std::wstring wpath = ToWide(desc.path);
 
 		ComPtr<IDxcBlobEncoding> source;
-		if (FAILED(mUtils->LoadFile(wpath.c_str(), nullptr, &source)))
+		if (desc.source.empty() && FAILED(mUtils->LoadFile(wpath.c_str(), nullptr, &source)))
 		{
 			Log::Error(LogCat::RHI, "Shader not found: {}", desc.path);
 			return mCache.emplace(key, std::move(shader)).first->second.get();
@@ -60,6 +62,8 @@ namespace rd
 			L"-T", Profile(desc.stage),
 			L"-Zpr",
 			L"-HV", L"2021",
+			// 自作のシェーダーが場所によらず #include "Surface.hlsli" と書けるように
+			L"-I", L"Assets/Engine/Shaders",
 #if RD_DEBUG
 			L"-Zi", L"-Qembed_debug", L"-Od",
 #else
@@ -73,8 +77,8 @@ namespace rd
 		}
 
 		DxcBuffer buffer = {};
-		buffer.Ptr = source->GetBufferPointer();
-		buffer.Size = source->GetBufferSize();
+		buffer.Ptr = desc.source.empty() ? source->GetBufferPointer() : desc.source.data();
+		buffer.Size = desc.source.empty() ? source->GetBufferSize() : desc.source.size();
 		buffer.Encoding = DXC_CP_UTF8;
 
 		ComPtr<IDxcResult> result;

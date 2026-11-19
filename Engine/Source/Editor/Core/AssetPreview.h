@@ -11,6 +11,7 @@
 
 namespace rd
 {
+	class MaterialAsset;
 	class Model;
 	class Scene;
 	class Texture;
@@ -31,6 +32,8 @@ namespace rd
 		virtual bool IsFullyLoaded() = 0;
 		// 描けたら true（結果は GetOutput）
 		virtual bool Render(uint32_t width, uint32_t height) = 0;
+		// 前に描いた後で中身が変わった（サムネイルを描き直す）
+		virtual bool NeedsRefresh() const { return false; }
 		const GpuTexture& GetOutput() const { return mTargets.output; }
 
 	protected:
@@ -94,6 +97,34 @@ namespace rd
 		std::unique_ptr<Scene> mScene;
 		std::string mPath;
 		std::string mError;
+	};
+
+	// マテリアル（.rdmat）を球に塗って描く（Unity のマテリアルのプレビューと同じ）
+	//  値を変えると GetVersion が増えるので、サムネイルはそれを見て描き直す
+	class MaterialView final : public PreviewView
+	{
+	public:
+		void SetMaterial(const std::string& path);
+		bool IsReady() const override;
+		bool IsFullyLoaded() override;
+		bool Render(uint32_t width, uint32_t height) override;
+		bool NeedsRefresh() const override;
+
+	private:
+		AssetRef<Model> mSphere;
+		AssetRef<MaterialAsset> mAsset;
+		std::string mPath;
+		uint32_t mRenderedVersion = ~0u;
+	};
+
+	// プレビューパネルのマテリアル（操作はモデルと同じ）
+	class MaterialPreviewWidget
+	{
+	public:
+		void Draw(const std::string& path);
+
+	private:
+		MaterialView mView;
 	};
 
 	// プレビューパネルのモデル（残りの広さいっぱいに描く。左ドラッグで回す・ホイールで寄る・ダブルクリックで元の向き）

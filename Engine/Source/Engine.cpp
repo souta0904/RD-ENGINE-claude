@@ -14,6 +14,8 @@
 #include "RHI/Device/GraphicsDevice.h"
 #include "Scene/Scene.h"
 #if RD_EDITOR
+#include "Core/Util/FileUtil.h"
+#include "Editor/Core/EditorSession.h"
 #include "Editor/Editor.h"
 #endif
 
@@ -91,6 +93,25 @@ namespace rd
 
 		WindowDesc wd = mConfig.window;
 		if (wd.title.empty()) { wd.title = kName; }
+#if RD_EDITOR
+		// 前回の状態を読む。ウィンドウとシーンは作る前に決める必要があるので、ここで設定へ反映する
+		EditorSession session;
+		bool hasSession = false;
+		mUseEditorSession = mConfig.enableEditor && mConfig.captureFrame < 0 && mConfig.profileFrames == 0;
+		if (mUseEditorSession) { hasSession = session.Load(EditorSession::GetDefaultPath()); }
+		if (hasSession)
+		{
+			if (session.hasWindow)
+			{
+				wd.hasPlacement = true;
+				wd.placement = session.window;
+				wd.maximized = session.window.maximized;
+				if (!mConfig.fullscreenFromCommandLine) { wd.fullscreen = session.window.fullscreen; }
+			}
+			// シーンが消されていたら、いつもの開始シーンで起動する
+			if (!mConfig.sceneFromCommandLine && !session.scene.empty() && FileExists(session.scene)) { mConfig.startScene = session.scene; }
+		}
+#endif
 		if (!mWindow.Create(wd)) { return false; }
 
 		mDevice = std::make_unique<GraphicsDevice>();
@@ -137,6 +158,7 @@ namespace rd
 
 #if RD_EDITOR
 		if (mEditor) { mEditor->OnSceneChanged(); }
+		if (mEditor && hasSession) { mEditor->RestoreSession(session); }
 		mPlay.SetPlaying(!mEditor);
 		if (mEditor && mConfig.autoPlay) { BeginPlay(); }
 		SetWindowTitleSuffix("");
@@ -148,6 +170,10 @@ namespace rd
 
 	void Engine::Shutdown()
 	{
+#if RD_EDITOR
+		// シーンやエディタを消す前に保存する
+		SaveEditorSession();
+#endif
 		if (mDevice && GraphicsDevice::IsAlive()) { mDevice->WaitIdle(); }
 		// DestroyWindow 中のメッセージが破棄済みの Editor / デバイスへ届かないように外す
 		mWindow.SetMessageHook(nullptr);
@@ -246,6 +272,18 @@ namespace rd
 		SetWindowTitleSuffix("");
 		mEditor->OnSceneChanged(true);
 		Log::Info(LogCat::Core, "Stop");
+	}
+
+	void Engine::SaveEditorSession()
+	{
+		if (!mUseEditorSession || !mEditor || !mScenes.HasScene()) { return; }
+		EditorSession session;
+		session.hasWindow = true;
+		session.window = mWindow.GetPlacement();
+		// プレイ中に閉じたら、ゲームが切り替えた場面ではなく、編集していたシーンを次に開く
+		session.scene = mPlay.IsPlaying() ? mPlay.GetSnapshotPath() : mScenes.GetScene().GetPath();
+		mEditor->CaptureSession(session);
+		if (!session.Save(EditorSession::GetDefaultPath())) { Log::Warning(LogCat::Editor, "Failed to save the editor session"); }
 	}
 #endif
 

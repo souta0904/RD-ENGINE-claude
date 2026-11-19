@@ -17,16 +17,6 @@ namespace rd
 		if (!data.empty()) { GetScene()->GetSystem<NavigationSystem>().LoadSurface(data); }
 	}
 
-#if RD_EDITOR
-	void NavMeshSurface::OnDrawGizmos(DebugDraw& draw, bool selected)
-	{
-		if (!selected || data.empty()) { return; }
-		NavigationSystem& nav = GetScene()->GetSystem<NavigationSystem>();
-		nav.LoadSurface(data);
-		nav.GetMesh().DrawGizmos(draw);
-	}
-#endif
-
 	void NavMeshLink::Reflect(PropertyVisitor& v)
 	{
 		v.Property("Start Point", startPoint);

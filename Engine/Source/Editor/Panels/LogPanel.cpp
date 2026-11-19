@@ -4,6 +4,7 @@
 #include "Editor/Editor.h"
 #include "Editor/Style/EditorGui.h"
 #include "Editor/Style/EditorStyle.h"
+#include "Editor/Core/EditorLocale.h"
 
 namespace rd
 {
@@ -53,23 +54,23 @@ namespace rd
 	void LogPanel::DrawToolbar(int infoCount, int warnCount, int errorCount)
 	{
 		EditorGui::BeginToolbar("toolbar");
-		if (ImGui::Button("Clear")) { Log::Clear(); }
+		if (ImGui::Button(Tr("Clear"))) { Log::Clear(); }
 		ImGui::SameLine();
-		ImGui::Checkbox("Collapse", &mCollapse);
+		ImGui::Checkbox(Tr("Collapse"), &mCollapse);
 		ImGui::SameLine();
-		ImGui::Checkbox("Clear on Play", &mClearOnPlay);
+		ImGui::Checkbox(Tr("Clear on Play"), &mClearOnPlay);
 		ImGui::SameLine();
-		ImGui::Checkbox("Debug", &mShowDebug);
+		ImGui::Checkbox(Tr("Debug"), &mShowDebug);
 		EditorGui::ToolbarSeparator();
 		float right = 220.0f + 3.0f * 64.0f;
 		ImGui::SameLine(std::max(ImGui::GetCursorPosX(), ImGui::GetWindowContentRegionMax().x - right));
-		EditorGui::SearchField("##filter", mFilter, "Search", 200.0f);
+		EditorGui::SearchField("##filter", mFilter, Tr("Search"), 200.0f);
 		ImGui::SameLine();
-		LevelToggle("info", Icon::Info, infoCount, mShowInfo, "Show messages");
+		LevelToggle("info", Icon::Info, infoCount, mShowInfo, Tr("Show messages"));
 		ImGui::SameLine(0.0f, 2.0f);
-		LevelToggle("warn", Icon::Warning, warnCount, mShowWarn, "Show warnings");
+		LevelToggle("warn", Icon::Warning, warnCount, mShowWarn, Tr("Show warnings"));
 		ImGui::SameLine(0.0f, 2.0f);
-		LevelToggle("error", Icon::Error, errorCount, mShowError, "Show errors");
+		LevelToggle("error", Icon::Error, errorCount, mShowError, Tr("Show errors"));
 		EditorGui::EndToolbar();
 	}
 
@@ -131,7 +132,7 @@ namespace rd
 				ImGui::TextDisabled("(%d)", line.count);
 			}
 		}
-		if (lines.empty()) { EditorGui::EmptyHint("No messages."); }
+		if (lines.empty()) { EditorGui::EmptyHint(Tr("No messages.")); }
 		// 新しいログが来たら一番下へ
 		if (Log::GetVersion() != mVersion)
 		{

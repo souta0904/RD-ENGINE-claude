@@ -25,6 +25,9 @@ namespace rd::render
 		kRootPalette,
 		kRootShadow,
 		kRootEmissive,
+		// 自作のシェーダーの Properties（b4 の定数バッファと t5 から 4 枚のテクスチャ）
+		kRootShaderProps,
+		kRootShaderTex0,
 	};
 
 	// 2D / ポストエフェクト用のルートシグネチャの引数の番号
@@ -51,6 +54,15 @@ namespace rd::render
 	inline const Shader* CompileShader(const char* file, const char* entry, ShaderStage stage, std::vector<std::string> defines = {})
 	{
 		return GraphicsDevice::Get().GetShaderCompiler().Compile({ std::string(kShaderDir) + file, entry, stage, std::move(defines) });
+	}
+
+	// ファイルの中身ではなく、渡した文字列をコンパイルする（自作のシェーダーに宣言を足したもの）
+	//  path はエラーの表示と、相対の include を探す場所に使う
+	inline const Shader* CompileShaderSource(const std::string& path, const std::string& source, const char* entry, ShaderStage stage, std::vector<std::string> defines = {})
+	{
+		ShaderDesc desc{ path, entry, stage, std::move(defines) };
+		desc.source = source;
+		return GraphicsDevice::Get().GetShaderCompiler().Compile(desc);
 	}
 
 	// 読み込みが終わっていなければ代わりのテクスチャを使う

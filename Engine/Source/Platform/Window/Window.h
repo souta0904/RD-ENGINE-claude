@@ -30,6 +30,9 @@ namespace rd
 		void ToggleFullscreen() { SetFullscreen(!mFullscreen); }
 		bool IsFullscreen() const { return mFullscreen; }
 
+		// 今の置き場所。ウィンドウが閉じられた後は、閉じる直前の値を返す
+		WindowPlacement GetPlacement();
+
 		// エクスプローラーからファイルを落とせるようにする（エディタだけが呼ぶ）
 		void EnableFileDrop();
 		// 前回から今までに落とされたファイルを受け取る。outPoint は落とされた位置（ウィンドウの左上が原点）
@@ -45,6 +48,7 @@ namespace rd
 		static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 		LRESULT HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam);
 		void HandleFileDrop(WPARAM dropHandle);
+		void CapturePlacement();
 
 		HWND mHwnd = nullptr;
 		uint32_t mWidth = 0;
@@ -55,6 +59,7 @@ namespace rd
 		bool mFullscreenHotkeys = true;
 		DWORD mWindowedStyle = 0;
 		WINDOWPLACEMENT mWindowedPlacement = { sizeof(WINDOWPLACEMENT) };
+		WindowPlacement mPlacement;
 		MessageHook mHook;
 		ResizeCallback mOnResize;
 		std::vector<std::wstring> mDroppedFiles;

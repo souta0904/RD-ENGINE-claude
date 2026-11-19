@@ -27,6 +27,7 @@ namespace rd
 		using PropertyVisitor::Property;
 
 		bool BeginGroup(const char* name) override;
+		void SetNextGroupOpen() override;
 		void EndGroup() override;
 
 		bool AnyChanged() const { return mChanged; }
@@ -41,6 +42,8 @@ namespace rd
 	private:
 		void Label(const char* name, const PropertyMeta& meta);
 		bool Track(bool changed, bool discrete = false);
+		// マテリアル（.rdmat）・シェーダー（.hlsl）のアセットの欄（Unity のオブジェクトの欄と同じ見た目と操作）
+		bool AssetObjectField(std::string& value, const PropertyMeta& meta);
 
 		Editor* mEditor = nullptr;
 		bool mChanged = false;

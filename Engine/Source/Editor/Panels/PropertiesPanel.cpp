@@ -3,16 +3,23 @@
 #include "Asset/AssetManager.h"
 #include "Asset/Model/Model.h"
 #include "Asset/Texture/Texture.h"
+#include "Components/Rendering/MeshRenderer.h"
 #include "Core/Serialization/JsonReader.h"
 #include "Core/Serialization/JsonWriter.h"
 #include "Core/Util/StringUtil.h"
+#include "Editor/Commands/MaterialAssetCommand.h"
 #include "Editor/Editor.h"
 #include "Editor/Inspector/ImGuiInspector.h"
 #include "Editor/Panels/ProjectPanel.h"
 #include "Editor/Style/EditorGui.h"
 #include "Editor/Style/EditorStyle.h"
+#include "Editor/Core/FileDialog.h"
+#include "Render/Material/MaterialAsset.h"
+#include "Render/Material/ShaderAsset.h"
+#include "Render/Renderer/Renderer.h"
 #include "Scene/Component/ComponentRegistry.h"
 #include "Scene/Scene.h"
+#include "Editor/Core/EditorLocale.h"
 #include <ImGui/imgui_stdlib.h>
 
 namespace rd
@@ -45,23 +52,24 @@ namespace rd
 		{
 			const std::string& asset = mEditor.GetProject().GetSelectedFile();
 			if (!asset.empty()) { DrawAssetInfo(asset); }
-			else { EditorGui::EmptyHint("Select an actor in the Hierarchy or the Scene view to edit it."); }
+			else { EditorGui::EmptyHint(Tr("Select an actor in the Hierarchy or the Scene view to edit it.")); }
 			return;
 		}
 
 		mOps = {};
-		mOps.label = "Edit " + actor->GetName();
+		mOps.label = EditorLocale::Format("Edit {}", actor->GetName());
 		ImGuiInspector inspector(&mEditor);
 		bool commit = false;
 		DrawActorHeader(actor, commit);
 		DrawComponents(actor, inspector, commit);
 		commit |= inspector.AnyCommitted();
 		ApplyPendingOps(actor, commit);
+		DrawActorMaterials(actor);
 		DrawAddComponent();
 		if (!mOps.add.empty())
 		{
 			actor->AddComponent(mOps.add);
-			mOps.label = "Add " + mOps.add;
+			mOps.label = EditorLocale::Format("Add {}", mOps.add);
 			commit = true;
 		}
 		if (commit) { mEditor.CommitActorEdit(mOps.label); }
@@ -180,18 +188,18 @@ namespace rd
 	void PropertiesPanel::DrawComponentMenu(Component* c, int index, int count)
 	{
 		if (!ImGui::BeginPopupContextItem("comp")) { return; }
-		if (ImGui::MenuItem("Remove Component")) { mOps.remove = c; }
-		if (ImGui::MenuItem("Reset")) { mOps.reset = c; }
+		if (ImGui::MenuItem(Tr("Remove Component"))) { mOps.remove = c; }
+		if (ImGui::MenuItem(Tr("Reset"))) { mOps.reset = c; }
 		ImGui::Separator();
-		if (ImGui::MenuItem("Copy Component")) { mComponentClipboard = SaveComponent(c); }
+		if (ImGui::MenuItem(Tr("Copy Component"))) { mComponentClipboard = SaveComponent(c); }
 		bool sameType = mComponentClipboard.is_object() && mComponentClipboard.value("Type", "") == c->GetTypeName();
-		if (ImGui::MenuItem("Paste Component Values", nullptr, false, sameType)) { mOps.paste = c; }
-		if (ImGui::MenuItem("Paste Component As New", nullptr, false, mComponentClipboard.is_object())) { mOps.paste = c; mOps.pasteAsNew = true; }
+		if (ImGui::MenuItem(Tr("Paste Component Values"), nullptr, false, sameType)) { mOps.paste = c; }
+		if (ImGui::MenuItem(Tr("Paste Component As New"), nullptr, false, mComponentClipboard.is_object())) { mOps.paste = c; mOps.pasteAsNew = true; }
 		ImGui::Separator();
-		if (ImGui::MenuItem("Move Up", nullptr, false, index > 0)) { mOps.move = c; mOps.moveIndex = index - 1; }
-		if (ImGui::MenuItem("Move Down", nullptr, false, index < count - 1)) { mOps.move = c; mOps.moveIndex = index + 1; }
-		if (ImGui::MenuItem("Move to Top", nullptr, false, index > 0)) { mOps.move = c; mOps.moveIndex = 0; }
-		if (ImGui::MenuItem("Move to Bottom", nullptr, false, index < count - 1)) { mOps.move = c; mOps.moveIndex = count - 1; }
+		if (ImGui::MenuItem(Tr("Move Up"), nullptr, false, index > 0)) { mOps.move = c; mOps.moveIndex = index - 1; }
+		if (ImGui::MenuItem(Tr("Move Down"), nullptr, false, index < count - 1)) { mOps.move = c; mOps.moveIndex = index + 1; }
+		if (ImGui::MenuItem(Tr("Move to Top"), nullptr, false, index > 0)) { mOps.move = c; mOps.moveIndex = 0; }
+		if (ImGui::MenuItem(Tr("Move to Bottom"), nullptr, false, index < count - 1)) { mOps.move = c; mOps.moveIndex = count - 1; }
 		ImGui::EndPopup();
 	}
 
@@ -199,14 +207,14 @@ namespace rd
 	{
 		if (mOps.remove)
 		{
-			mOps.label = std::format("Remove {}", mOps.remove->GetTypeName());
+			mOps.label = EditorLocale::Format("Remove {}", mOps.remove->GetTypeName());
 			actor->RemoveComponent(mOps.remove);
 			mEditor.GetScene().FlushPendingDestroy();
 			commit = true;
 		}
 		if (mOps.move && actor->SetComponentIndex(mOps.move, mOps.moveIndex))
 		{
-			mOps.label = std::format("Move {}", mOps.move->GetTypeName());
+			mOps.label = EditorLocale::Format("Move {}", mOps.move->GetTypeName());
 			commit = true;
 		}
 		// 新品のインスタンスの値で上書きする
@@ -215,7 +223,7 @@ namespace rd
 			if (auto fresh = ComponentRegistry::Create(mOps.reset->GetTypeName()))
 			{
 				LoadComponent(mOps.reset, SaveComponent(fresh.get()));
-				mOps.label = std::format("Reset {}", mOps.reset->GetTypeName());
+				mOps.label = EditorLocale::Format("Reset {}", mOps.reset->GetTypeName());
 				commit = true;
 			}
 		}
@@ -227,7 +235,7 @@ namespace rd
 			if (target)
 			{
 				LoadComponent(target, mComponentClipboard);
-				mOps.label = std::format("Paste {}", type);
+				mOps.label = EditorLocale::Format("Paste {}", type);
 				commit = true;
 			}
 		}
@@ -241,11 +249,11 @@ namespace rd
 		float w = ImGui::GetContentRegionAvail().x;
 		ImGui::SetCursorPosX(ImGui::GetCursorPosX() + w * 0.15f);
 		ImGui::PushStyleColor(ImGuiCol_Button, EditorStyle::kAccentDim);
-		if (ImGui::Button("Add Component", ImVec2(w * 0.7f, 0))) { ImGui::OpenPopup("AddComponent"); mAddFilter.clear(); }
+		if (ImGui::Button(Tr("Add Component"), ImVec2(w * 0.7f, 0))) { ImGui::OpenPopup("AddComponent"); mAddFilter.clear(); }
 		ImGui::PopStyleColor();
 		if (!ImGui::BeginPopup("AddComponent")) { return; }
 		if (ImGui::IsWindowAppearing()) { ImGui::SetKeyboardFocusHere(); }
-		EditorGui::SearchField("##filter", mAddFilter, "Search", 240.0f);
+		EditorGui::SearchField("##filter", mAddFilter, Tr("Search"), 240.0f);
 		std::string category;
 		for (const auto& entry : ComponentRegistry::GetEntries())
 		{
@@ -253,7 +261,8 @@ namespace rd
 			if (entry.category != category)
 			{
 				category = entry.category;
-				EditorGui::SectionLabel(category.c_str());
+				// 分類は訳す。コンポーネントの名前はコードの型の名前なので英語のまま（Unity と同じ）
+				EditorGui::SectionLabel(Tr(category));
 			}
 			if (ImGui::Selectable(entry.name.c_str()))
 			{
@@ -283,24 +292,169 @@ namespace rd
 		{
 			auto tex = AssetManager::Get().LoadTexture(path);
 			if (tex->IsReady()) { ImGui::Text("%u x %u", tex->GetWidth(), tex->GetHeight()); }
-			else { ImGui::TextDisabled(tex->IsFailed() ? "Failed to load" : "Loading..."); }
+			else { ImGui::TextDisabled("%s", Tr(tex->IsFailed() ? "Failed to load" : "Loading...")); }
 		}
 		else if (icon == Icon::Model)
 		{
 			auto model = AssetManager::Get().LoadModel(path);
 			if (model->IsReady())
 			{
-				ImGui::Text("Meshes: %zu", model->GetSubMeshes().size());
-				ImGui::Text("Materials: %zu", model->GetMaterials().size());
-				ImGui::Text("Animations: %zu", model->GetClips().size());
-				ImGui::Text("Skinned: %s", model->HasSkinning() ? "yes" : "no");
+				ImGui::Text("%s: %zu", Tr("Meshes"), model->GetSubMeshes().size());
+				ImGui::Text("%s: %zu", Tr("Materials"), model->GetMaterials().size());
+				ImGui::Text("%s: %zu", Tr("Animations"), model->GetClips().size());
+				ImGui::Text("%s: %s", Tr("Skinned"), Tr(model->HasSkinning() ? "yes" : "no"));
 				for (const auto& clip : model->GetClips()) { ImGui::BulletText("%s (%.2fs)", clip->name.c_str(), clip->duration); }
 			}
-			else { ImGui::TextDisabled(model->IsFailed() ? "Failed to load" : "Loading..."); }
+			else { ImGui::TextDisabled("%s", Tr(model->IsFailed() ? "Failed to load" : "Loading...")); }
 		}
 		else if (icon == Icon::Prefab || icon == Icon::Scene)
 		{
-			EditorGui::EmptyHint(icon == Icon::Prefab ? "Drag into the Hierarchy or the Scene view to place it." : "Double-click in the Project panel to open it.");
+			EditorGui::EmptyHint(Tr(icon == Icon::Prefab ? "Drag into the Hierarchy or the Scene view to place it." : "Double-click in the Project panel to open it."));
+		}
+		else if (icon == Icon::Shader && GetExtension(path) == ".hlsl")
+		{
+			// 読み込みはキャッシュされるので、毎フレームファイルを読み直さない
+			auto shader = AssetManager::Get().LoadNow<ShaderAsset>(path);
+			if (shader && shader->IsReady() && ShaderAsset::IsSurfaceShaderSource(shader->GetSource())) { DrawShaderInfo(path); }
+			else { EditorGui::EmptyHint(Tr("Engine shader. Surface shaders (that include Surface.hlsli) can be set in a material.")); }
+		}
+		else if (icon == Icon::Material)
+		{
+			auto material = AssetManager::Get().LoadNow<MaterialAsset>(path);
+			if (!material || !material->IsReady())
+			{
+				ImGui::TextDisabled("%s", Tr("Failed to load"));
+				return;
+			}
+			ImGui::PushTextWrapPos(0.0f);
+			ImGui::TextDisabled("%s", Tr("Drag onto a model in the Scene view or the Hierarchy, or onto a material slot of a MeshRenderer."));
+			ImGui::PopTextWrapPos();
+			ImGui::Spacing();
+			DrawMaterialEditor(*material);
+		}
+	}
+
+	// サーフェスシェーダーの Properties の一覧と書き間違い。開く・読み直すボタン
+	void PropertiesPanel::DrawShaderInfo(const std::string& path)
+	{
+		auto shader = AssetManager::Get().LoadNow<ShaderAsset>(path);
+		if (!shader || !shader->IsReady())
+		{
+			ImGui::TextDisabled("%s", Tr("Failed to load"));
+			return;
+		}
+		if (ImGui::Button(Tr("Open"))) { FileDialog::OpenWithDefaultApp(path); }
+		ImGui::SameLine();
+		if (ImGui::Button(Tr("Reload Shaders (Ctrl+R)"))) { Renderer::Get().ReloadShaders(); }
+		ImGui::PushTextWrapPos(0.0f);
+		ImGui::TextDisabled("%s", Tr("Surface shader. Set it in a material's Shader field; the properties below appear in the material."));
+		ImGui::PopTextWrapPos();
+		ImGui::Spacing();
+
+		for (const std::string& error : shader->GetErrors())
+		{
+			ImGui::PushTextWrapPos(0.0f);
+			ImGui::TextColored(EditorStyle::kError, "%s", error.c_str());
+			ImGui::PopTextWrapPos();
+		}
+		const auto& props = shader->GetProperties();
+		if (props.empty())
+		{
+			ImGui::TextDisabled("%s", Tr("No properties. Add a /* Properties { ... } */ block to expose values."));
+			return;
+		}
+		static const char* const kTypeNames[] = { "Color", "Float", "Range", "Int", "Vector", "2D" };
+		if (ImGui::BeginTable("props", 3, ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_SizingStretchProp))
+		{
+			ImGui::TableSetupColumn(Tr("Name"));
+			ImGui::TableSetupColumn(Tr("Type"));
+			ImGui::TableSetupColumn(Tr("Default"));
+			ImGui::TableHeadersRow();
+			for (const ShaderProperty& p : props)
+			{
+				ImGui::TableNextRow();
+				ImGui::TableNextColumn();
+				ImGui::TextUnformatted(p.displayName.c_str());
+				if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", p.name.c_str()); }
+				ImGui::TableNextColumn();
+				std::string type = kTypeNames[int(p.type)];
+				if (p.type == ShaderProperty::Type::Range) { type = std::format("Range({:g}, {:g})", p.min, p.max); }
+				if (p.hdr) { type = "[HDR] " + type; }
+				if (p.toggle) { type = "[Toggle] " + type; }
+				ImGui::TextDisabled("%s", type.c_str());
+				ImGui::TableNextColumn();
+				const Vector4& d = p.defaultValue;
+				switch (p.type)
+				{
+				case ShaderProperty::Type::Color:
+				case ShaderProperty::Type::Vector: ImGui::Text("(%g, %g, %g, %g)", d.x, d.y, d.z, d.w); break;
+				case ShaderProperty::Type::Texture: ImGui::Text("\"%s\"", p.defaultTexture.c_str()); break;
+				default: ImGui::Text("%g", d.x); break;
+				}
+			}
+			ImGui::EndTable();
+		}
+	}
+
+	// 同じアセットを 2 つの枠に入れていても 1 回だけ出す
+	void PropertiesPanel::DrawActorMaterials(Actor* actor)
+	{
+		std::vector<MaterialAsset*> assets;
+		for (MeshRenderer* mr : actor->GetComponents<MeshRenderer>())
+		{
+			for (size_t i = 0; i < mr->GetMaterialCount(); ++i)
+			{
+				MaterialAsset* asset = mr->GetSharedMaterial(i);
+				if (asset && asset->IsReady() && std::find(assets.begin(), assets.end(), asset) == assets.end()) { assets.push_back(asset); }
+			}
+		}
+		for (MaterialAsset* asset : assets)
+		{
+			ImGui::PushID(asset->GetPath().c_str());
+			std::string label = std::format("      {} ({})###{}", GetStem(asset->GetPath()), Tr("Material"), asset->GetPath());
+			bool open = ImGui::CollapsingHeader(label.c_str(), ImGuiTreeNodeFlags_DefaultOpen);
+			ImVec2 min = ImGui::GetItemRectMin(), max = ImGui::GetItemRectMax();
+			float iconSize = EditorStyle::IconSize();
+			EditorIcons::Draw(ImGui::GetWindowDrawList(), ImVec2(min.x + ImGui::GetTreeNodeToLabelSpacing(), min.y + (max.y - min.y - iconSize) * 0.5f), iconSize, Icon::Material);
+			if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s\n%s", asset->GetPath().c_str(), Tr("Shared asset: changes apply to every renderer that uses it.")); }
+			if (open)
+			{
+				ImGui::Indent(4.0f);
+				DrawMaterialEditor(*asset);
+				ImGui::Unindent(4.0f);
+			}
+			ImGui::PopID();
+		}
+	}
+
+	// ドラッグ中は値だけを変え（見た目はすぐ変わる）、離したときにファイルへ保存して Undo に積む。
+	//  編集していない間は、Undo などで外から変わった値に「前」の記録を合わせておく
+	void PropertiesPanel::DrawMaterialEditor(MaterialAsset& asset)
+	{
+		const std::string& path = asset.GetPath();
+		auto [it, inserted] = mMaterialSnapshots.try_emplace(path);
+		if (inserted) { it->second = asset.ToJson(); }
+
+		ImGuiInspector inspector(&mEditor);
+		ImGui::PushID("material");
+		asset.material.Reflect(inspector);
+		ImGui::PopID();
+		if (inspector.AnyChanged()) { asset.MarkChanged(); }
+		if (inspector.AnyCommitted())
+		{
+			Json after = asset.ToJson();
+			if (after != it->second)
+			{
+				asset.Save();
+				auto command = std::make_unique<MaterialAssetCommand>(EditorLocale::Format("Edit Material {}", GetStem(path)), path, it->second, after);
+				command->SetSelection(mEditor.GetSelectedId());
+				mEditor.PushCommand(std::move(command));
+			}
+			it->second = std::move(after);
+		}
+		else if (!inspector.AnyChanged() && !ImGui::IsAnyItemActive())
+		{
+			it->second = asset.ToJson();
 		}
 	}
 }

@@ -1,8 +1,13 @@
 #include "RdPch.h"
 #include "Editor/Inspector/ImGuiInspector.h"
 #include "Core/Util/StringUtil.h"
+#include "Editor/Core/EditorLocale.h"
 #include "Editor/Editor.h"
+#include "Editor/Panels/ProjectPanel.h"
 #include "Editor/Style/EditorStyle.h"
+#include "Render/Material/MaterialAsset.h"
+#include "Render/Material/ShaderAsset.h"
+#include <filesystem>
 #include "Scene/Reference/ActorRef.h"
 #include "Scene/Reference/ComponentRef.h"
 #include "Scene/Scene.h"
@@ -26,6 +31,20 @@ namespace rd
 			Vector3 degrees;
 		};
 		std::unordered_map<const void*, EulerCache> gEulerCache;
+
+		// 項目名の訳。"Material 0" のように後ろに番号が付く名前は、番号の前だけを訳す（"マテリアル 0"）
+		std::string PropertyText(std::string_view name)
+		{
+			if (EditorLocale::Has(name)) { return Tr(name); }
+			size_t space = name.find_last_of(' ');
+			if (space != std::string_view::npos && space + 1 < name.size() &&
+				std::all_of(name.begin() + space + 1, name.end(), [](char c) { return c >= '0' && c <= '9'; }))
+			{
+				std::string_view head = name.substr(0, space);
+				if (EditorLocale::Has(head)) { return std::string(Tr(head)) + std::string(name.substr(space)); }
+			}
+			return std::string(Tr(name)); // 表になければ英語のまま（訳し忘れの一覧に残る）
+		}
 	}
 
 	float ImGuiInspector::LabelWidth()
@@ -36,8 +55,24 @@ namespace rd
 	void ImGuiInspector::Label(const char* name, const PropertyMeta& meta)
 	{
 		ImGui::AlignTextToFramePadding();
-		ImGui::TextUnformatted(name);
-		if (meta.tooltip && ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", meta.tooltip); }
+		const char* tooltip = meta.tooltip ? Tr(meta.tooltip) : nullptr;
+		// 表示名があればそれを出し、保存に使う名前は乗せたときに出す（シェーダーの _Color など）
+		if (meta.label && *meta.label)
+		{
+			ImGui::TextUnformatted(meta.label);
+			if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s%s%s", name, tooltip ? "\n" : "", tooltip ? tooltip : ""); }
+		}
+		else
+		{
+			// 訳した名前を出し、コードやファイルで使う英語の名前は乗せたときに出す（Unity の日本語表示と同じ）
+			std::string text = PropertyText(name);
+			ImGui::TextUnformatted(text.c_str());
+			bool translated = text != name;
+			if (ImGui::IsItemHovered() && (translated || tooltip))
+			{
+				ImGui::SetTooltip("%s%s%s", translated ? name : "", translated && tooltip ? "\n" : "", tooltip ? tooltip : "");
+			}
+		}
 		ImGui::SameLine(LabelWidth());
 		ImGui::SetNextItemWidth(-1.0f);
 	}
@@ -171,6 +206,12 @@ namespace rd
 	{
 		ImGui::PushID(name);
 		Label(name, meta);
+		if (meta.flags & (PropertyMeta::AssetMaterial | PropertyMeta::AssetShader))
+		{
+			bool changed = AssetObjectField(value, meta);
+			ImGui::PopID();
+			return changed;
+		}
 		ImGui::BeginDisabled(meta.flags & PropertyMeta::ReadOnly);
 		bool changed = (meta.flags & PropertyMeta::Multiline)
 			? ImGui::InputTextMultiline("##v", &value)
@@ -195,6 +236,116 @@ namespace rd
 		return changed;
 	}
 
+	// アセットの欄: [ Wood (Material) ][...] / [ Stripes (Shader) ][...]
+	//  プロジェクトパネルから合う種類のファイルをドラッグして入れる（ほかの種類は受け付けない）、
+	//  [...] で Assets/ の中の候補の一覧から選ぶ、ダブルクリックでプロジェクトパネルのそのファイルを選ぶ
+	//  シェーダーの候補は、Surface.hlsli を使っている .hlsl だけ。空なら標準のシェーダー（Standard）
+	bool ImGuiInspector::AssetObjectField(std::string& value, const PropertyMeta& meta)
+	{
+		const bool shaderField = (meta.flags & PropertyMeta::AssetShader) != 0;
+		const char* typeName = Tr(shaderField ? "Shader" : "Material");
+		auto accepts = [&](const std::string& path)
+			{
+				return shaderField ? ShaderAsset::IsSurfaceShaderPath(path) : MaterialAsset::IsMaterialPath(path);
+			};
+		bool changed = false;
+		bool readOnly = (meta.flags & PropertyMeta::ReadOnly) != 0;
+		std::error_code ec;
+		bool missing = !value.empty() && !std::filesystem::exists(ToWide(value), ec);
+		std::string text = value.empty() ? std::string(Tr(shaderField ? "Standard" : "None (Material)"))
+			: std::format("{} ({}){}", GetStem(value), typeName, missing ? Tr(" - Missing") : "");
+
+		const float buttonWidth = ImGui::GetFrameHeight() * 1.4f;
+		const float fieldWidth = std::max(1.0f, ImGui::GetContentRegionAvail().x - buttonWidth - ImGui::GetStyle().ItemInnerSpacing.x);
+		ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetStyleColorVec4(ImGuiCol_FrameBg));
+		ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImGui::GetStyleColorVec4(ImGuiCol_FrameBgHovered));
+		ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImGui::GetStyleColorVec4(ImGuiCol_FrameBgActive));
+		ImGui::PushStyleVar(ImGuiStyleVar_ButtonTextAlign, ImVec2(0.0f, 0.5f));
+		if (missing) { ImGui::PushStyleColor(ImGuiCol_Text, EditorStyle::kError); }
+		else if (value.empty()) { ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled)); }
+		else { ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_Text)); }
+		ImGui::Button(text.c_str(), ImVec2(fieldWidth, 0.0f));
+		ImGui::PopStyleColor(4);
+		ImGui::PopStyleVar();
+		if (ImGui::IsItemHovered() && !value.empty()) { ImGui::SetTooltip("%s", value.c_str()); }
+		if (!value.empty() && !missing && mEditor && ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+		{
+			mEditor->GetProject().SelectFile(value);
+		}
+
+		if (!readOnly && ImGui::BeginDragDropTarget())
+		{
+			const ImGuiPayload* peek = ImGui::GetDragDropPayload();
+			if (peek && peek->IsDataType("ASSET_PATH") && accepts(static_cast<const char*>(peek->Data)))
+			{
+				if (const ImGuiPayload* p = ImGui::AcceptDragDropPayload("ASSET_PATH"))
+				{
+					value = static_cast<const char*>(p->Data);
+					changed = true;
+				}
+			}
+			ImGui::EndDragDropTarget();
+		}
+
+		ImGui::SameLine(0.0f, ImGui::GetStyle().ItemInnerSpacing.x);
+		ImGui::BeginDisabled(readOnly);
+		if (ImGui::Button("...", ImVec2(buttonWidth, 0.0f))) { ImGui::OpenPopup("pickAsset"); }
+		ImGui::EndDisabled();
+		if (ImGui::BeginPopup("pickAsset"))
+		{
+			static std::string sFilter;
+			static std::vector<std::string> sFound;
+			if (ImGui::IsWindowAppearing())
+			{
+				sFilter.clear();
+				ImGui::SetKeyboardFocusHere();
+				// 開いたときに 1 回だけ Assets/ の中を探す
+				sFound.clear();
+				for (auto it = std::filesystem::recursive_directory_iterator(L"Assets", ec); !ec && it != std::filesystem::recursive_directory_iterator(); it.increment(ec))
+				{
+					if (!it->is_regular_file(ec)) { continue; }
+					std::string path = NormalizePath(ToUtf8(it->path().generic_wstring()));
+					// エンジンの組み込みのシェーダーは候補に出さない（Standard を選べば同じ）
+					if (shaderField && path.starts_with("Assets/Engine/")) { continue; }
+					if (accepts(path)) { sFound.push_back(path); }
+				}
+				std::sort(sFound.begin(), sFound.end());
+			}
+			ImGui::SetNextItemWidth(ImGui::GetFontSize() * 16.0f);
+			ImGui::InputTextWithHint("##filter", Tr("Search"), &sFilter);
+			ImGui::Separator();
+			ImGui::BeginChild("list", ImVec2(320.0f, 280.0f));
+			if (ImGui::Selectable(Tr(shaderField ? "Standard" : "None"), value.empty()))
+			{
+				value.clear();
+				changed = true;
+				ImGui::CloseCurrentPopup();
+			}
+			for (const std::string& path : sFound)
+			{
+				if (!sFilter.empty() && !ContainsNoCase(path, sFilter)) { continue; }
+				std::string label = std::format("{}##{}", GetStem(path), path);
+				if (ImGui::Selectable(label.c_str(), path == value))
+				{
+					value = path;
+					changed = true;
+					ImGui::CloseCurrentPopup();
+				}
+				if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", path.c_str()); }
+			}
+			if (sFound.empty())
+			{
+				ImGui::TextDisabled("%s", Tr(shaderField ? "No surface shaders in Assets/. Create one in the Project panel."
+					: "No materials in Assets/. Create one in the Project panel."));
+			}
+			ImGui::EndChild();
+			ImGui::EndPopup();
+		}
+
+		if (changed) { mChanged = mCommitted = true; }
+		return changed;
+	}
+
 	// 参照の欄: [ Player (Actor) ][...]
 	//  ヒエラルキーからアクターをドラッグして入れる（型が合わないものは受け付けない）、[...] で候補の一覧から選ぶ、
 	//  ダブルクリックで参照先を選ぶ
@@ -208,7 +359,7 @@ namespace rd
 		if (!scenePtr)
 		{
 			// どのシーンの参照か分からない（エディタなしで使われた）ので表示だけにする
-			ImGui::TextDisabled("(no scene)");
+			ImGui::TextDisabled("%s", Tr("(no scene)"));
 			ImGui::PopID();
 			return false;
 		}
@@ -219,8 +370,8 @@ namespace rd
 
 		std::string text;
 		if (target) { text = std::format("{} ({})", target->GetName(), value.GetTypeName()); }
-		else if (value.GetId() != 0) { text = std::format("Missing ({})", value.GetTypeName()); }
-		else { text = std::format("None ({})", value.GetTypeName()); }
+		else if (value.GetId() != 0) { text = EditorLocale::Format("Missing ({})", value.GetTypeName()); }
+		else { text = EditorLocale::Format("None ({})", value.GetTypeName()); }
 
 		const float buttonWidth = ImGui::GetFrameHeight() * 1.4f;
 		const float fieldWidth = std::max(1.0f, ImGui::GetContentRegionAvail().x - buttonWidth - ImGui::GetStyle().ItemInnerSpacing.x);
@@ -264,10 +415,10 @@ namespace rd
 			static std::string sFilter;
 			if (ImGui::IsWindowAppearing()) { sFilter.clear(); ImGui::SetKeyboardFocusHere(); }
 			ImGui::SetNextItemWidth(ImGui::GetFontSize() * 14.0f);
-			ImGui::InputTextWithHint("##filter", "Search", &sFilter);
+			ImGui::InputTextWithHint("##filter", Tr("Search"), &sFilter);
 			ImGui::Separator();
 			ImGui::BeginChild("list", ImVec2(260.0f, 280.0f));
-			if (ImGui::Selectable("None", value.GetId() == 0))
+			if (ImGui::Selectable(Tr("None"), value.GetId() == 0))
 			{
 				value.Clear();
 				changed = true;
@@ -302,13 +453,13 @@ namespace rd
 		ImGui::PushID(name);
 		Label(name, meta);
 		std::string current = "?";
-		for (size_t i = 0; i < values.size(); ++i) { if (values[i] == value) { current = std::string(names[i]); } }
+		for (size_t i = 0; i < values.size(); ++i) { if (values[i] == value) { current = PropertyText(names[i]); } }
 		bool changed = false;
 		if (ImGui::BeginCombo("##v", current.c_str()))
 		{
 			for (size_t i = 0; i < values.size(); ++i)
 			{
-				std::string label(names[i]);
+				std::string label = std::format("{}##{}", PropertyText(names[i]), names[i]);
 				if (ImGui::Selectable(label.c_str(), values[i] == value))
 				{
 					value = values[i];
@@ -324,7 +475,13 @@ namespace rd
 
 	bool ImGuiInspector::BeginGroup(const char* name)
 	{
-		return ImGui::TreeNodeEx(name, ImGuiTreeNodeFlags_SpanAvailWidth);
+		// ID は英語の名前のまま（言語を変えても開いている状態が保たれる）
+		return ImGui::TreeNodeEx(name, ImGuiTreeNodeFlags_SpanAvailWidth, "%s", PropertyText(name).c_str());
+	}
+
+	void ImGuiInspector::SetNextGroupOpen()
+	{
+		ImGui::SetNextItemOpen(true, ImGuiCond_Once);
 	}
 
 	void ImGuiInspector::EndGroup()

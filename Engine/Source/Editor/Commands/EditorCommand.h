@@ -20,6 +20,8 @@ namespace rd
 		virtual void Redo(Scene& scene) = 0;
 		// 直前のコマンドと 1 つにまとめられるなら取り込んで true（続けて打ったキーなど）
 		virtual bool MergeWith(const EditorCommand& /*next*/) { return false; }
+		// シーンを書き換える操作か（false ならシーンの「保存していない」印に数えない。アセットのファイルの編集など）
+		virtual bool ChangesScene() const { return true; }
 
 		const std::string& GetLabel() const { return mLabel; }
 		ActorId GetSelection() const { return mSelection; }

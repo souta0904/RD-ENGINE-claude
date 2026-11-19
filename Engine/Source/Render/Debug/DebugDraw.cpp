@@ -142,6 +142,25 @@ namespace rd
 		}
 	}
 
+	void DebugDraw::Triangle(const Vector3& a, const Vector3& b, const Vector3& c, const Color& color, bool depthTest)
+	{
+		auto& t = depthTest ? mDepthTris : mOverlayTris;
+		t.push_back({ a, color });
+		t.push_back({ b, color });
+		t.push_back({ c, color });
+	}
+
+	void DebugDraw::Cylinder(const Vector3& base, float radius, float height, const Color& color, bool depthTest)
+	{
+		Vector3 top = base + Vector3(0.0f, height, 0.0f);
+		Circle(base, Vector3::kUnitY, radius, color, depthTest);
+		Circle(top, Vector3::kUnitY, radius, color, depthTest);
+		for (Vector3 d : { Vector3::kUnitX, -Vector3::kUnitX, Vector3::kUnitZ, -Vector3::kUnitZ })
+		{
+			Line(base + d * radius, top + d * radius, color, depthTest);
+		}
+	}
+
 	void DebugDraw::Axes(const Matrix4& m, float length, bool depthTest)
 	{
 		Vector3 o = m.GetTranslation();
