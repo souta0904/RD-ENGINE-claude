@@ -2,6 +2,8 @@
 #include "Platform/Window/WindowDesc.h"
 #include <Windows.h>
 #include <functional>
+#include <string>
+#include <vector>
 
 namespace rd
 {
@@ -28,6 +30,11 @@ namespace rd
 		void ToggleFullscreen() { SetFullscreen(!mFullscreen); }
 		bool IsFullscreen() const { return mFullscreen; }
 
+		// エクスプローラーからファイルを落とせるようにする（エディタだけが呼ぶ）
+		void EnableFileDrop();
+		// 前回から今までに落とされたファイルを受け取る。outPoint は落とされた位置（ウィンドウの左上が原点）
+		std::vector<std::wstring> TakeDroppedFiles(POINT& outPoint);
+
 		HWND GetHandle() const { return mHwnd; }
 		uint32_t GetWidth() const { return mWidth; }
 		uint32_t GetHeight() const { return mHeight; }
@@ -37,6 +44,7 @@ namespace rd
 	private:
 		static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 		LRESULT HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam);
+		void HandleFileDrop(WPARAM dropHandle);
 
 		HWND mHwnd = nullptr;
 		uint32_t mWidth = 0;
@@ -49,5 +57,7 @@ namespace rd
 		WINDOWPLACEMENT mWindowedPlacement = { sizeof(WINDOWPLACEMENT) };
 		MessageHook mHook;
 		ResizeCallback mOnResize;
+		std::vector<std::wstring> mDroppedFiles;
+		POINT mDropPoint = {};
 	};
 }

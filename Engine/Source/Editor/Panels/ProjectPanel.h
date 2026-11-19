@@ -11,10 +11,13 @@ namespace rd
 	// プロジェクトパネル（Assets/ の中を見る。左にフォルダの木、右に今のフォルダの中身。画像とモデルは縮小した絵で出す）
 	//  ダブルクリックでフォルダへ入る / シーンを開く。ファイルはドラッグしてビューやプロパティへ入れられる
 	//  アクターをドロップするとプレハブを作る。右クリックでフォルダの作成・名前の変更・削除（ごみ箱へ）・エクスプローラーで表示
+	//  エクスプローラーからファイルを落とすと取り込む（フォルダの上なら そのフォルダ、それ以外は今のフォルダへ）
 	class ProjectPanel final : public EditorPanel
 	{
 	public:
 		explicit ProjectPanel(Editor& editor);
+
+		void Update(float dt) override;
 
 		const std::string& GetCurrentFolder() const { return mFolder; }
 		const std::string& GetSelectedFile() const { return mSelected; }
@@ -44,13 +47,18 @@ namespace rd
 		void OpenEntry(const Entry& e);
 		void CreateFolder();
 		void BeginRename(const Entry& e);
+		// 直前に描いた項目の上にファイルが落とされていたら、そのフォルダを取り込み先にする
+		void CheckFileDropTarget(const std::string& folder);
 
+		std::vector<std::filesystem::path> mDroppedFiles;
+		ImVec2 mDropPoint;
+		std::string mDropFolder;
 		std::string mFolder = "Assets";
 		std::string mSelected;
 		std::string mFilter;
 		float mIconScale = 1.0f;
 		std::vector<Entry> mEntries;
-		ModelThumbnails mThumbnails;
+		AssetThumbnails mThumbnails;
 		ActorId mPrefabActor = 0;
 		std::string mPrefabFolder;
 		std::string mRenamePath;

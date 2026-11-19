@@ -5,6 +5,7 @@
 #include "Editor/Commands/ActorStateCommand.h"
 #include "Editor/Commands/ReparentCommand.h"
 #include "Asset/Audio/AudioClip.h"
+#include "Asset/Model/Model.h"
 #include "Core/Util/StringUtil.h"
 #include "Scene/Component/ComponentRegistry.h"
 #include "Scene/Scene.h"
@@ -99,7 +100,7 @@ namespace rd
 				if (!e.is_regular_file()) { continue; }
 				std::string ext = ToLower(e.path().extension().string());
 				std::string type;
-				if (ext == ".obj" || ext == ".fbx" || ext == ".gltf" || ext == ".glb") { type = "model"; }
+				if (Model::IsSupportedExtension(ext)) { type = "model"; }
 				else if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".tga" || ext == ".dds" || ext == ".bmp") { type = "texture"; }
 				else if (AudioClip::IsSupportedExtension(ext)) { type = "audio"; }
 				else if (ext == ".prefab") { type = "prefab"; }

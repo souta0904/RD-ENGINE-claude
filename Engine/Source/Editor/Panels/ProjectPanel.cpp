@@ -1,12 +1,15 @@
 #include "RdPch.h"
 #include "Editor/Panels/ProjectPanel.h"
 #include "Asset/AssetManager.h"
+#include "Asset/Model/Model.h"
 #include "Asset/Texture/Texture.h"
 #include "Core/Util/StringUtil.h"
+#include "Editor/Core/AssetImporter.h"
 #include "Editor/Core/FileDialog.h"
 #include "Editor/Editor.h"
 #include "Editor/Style/EditorGui.h"
 #include "Editor/Style/EditorStyle.h"
+#include "Engine.h"
 #include "Scene/Scene.h"
 #include <ImGui/imgui_stdlib.h>
 
@@ -39,6 +42,34 @@ namespace rd
 	}
 
 	ProjectPanel::ProjectPanel(Editor& editor) : EditorPanel(editor, "Project") {}
+
+	// 落とされたファイルは次のフレームの描画でどのフォルダの上かを調べ、その後のここで取り込みを始める
+	//  （パネルが隠れていて描画されないときは、今のフォルダへ取り込む）
+	void ProjectPanel::Update(float /*dt*/)
+	{
+		if (!mDroppedFiles.empty())
+		{
+			AssetImporter::ImportAsync(std::move(mDroppedFiles), mDropFolder.empty() ? mFolder : mDropFolder);
+			mDroppedFiles.clear();
+			mDropFolder.clear();
+		}
+		POINT point = {};
+		for (auto& file : mEditor.GetEngine().GetWindow().TakeDroppedFiles(point)) { mDroppedFiles.emplace_back(std::move(file)); }
+		mDropPoint = ImVec2(float(point.x), float(point.y));
+	}
+
+	void ProjectPanel::CheckFileDropTarget(const std::string& folder)
+	{
+		if (mDroppedFiles.empty()) { return; }
+		// スクロールで隠れた項目に当たらないよう、今のウィンドウの範囲の中だけを見る
+		ImVec2 windowMin = ImGui::GetWindowPos();
+		ImVec2 windowSize = ImGui::GetWindowSize();
+		ImVec2 min = ImGui::GetItemRectMin();
+		ImVec2 max = ImGui::GetItemRectMax();
+		const ImVec2& p = mDropPoint;
+		bool inWindow = p.x >= windowMin.x && p.y >= windowMin.y && p.x < windowMin.x + windowSize.x && p.y < windowMin.y + windowSize.y;
+		if (inWindow && p.x >= min.x && p.y >= min.y && p.x < max.x && p.y < max.y) { mDropFolder = folder; }
+	}
 
 	void ProjectPanel::OnGui()
 	{
@@ -86,6 +117,12 @@ namespace rd
 			if (ImGui::Button(parts[i].c_str())) { mFolder = accum; }
 			ImGui::PopID();
 		}
+		if (AssetImporter::GetPendingCount() > 0)
+		{
+			ImGui::SameLine();
+			ImGui::AlignTextToFramePadding();
+			ImGui::TextColored(EditorStyle::kWarning, "Importing...");
+		}
 		float right = 180.0f + 90.0f + ImGui::GetStyle().ItemSpacing.x * 2.0f;
 		ImGui::SameLine(std::max(ImGui::GetCursorPosX() + 8.0f, ImGui::GetWindowContentRegionMax().x - right));
 		EditorGui::SearchField("##filter", mFilter, "Search", 180.0f);
@@ -129,6 +166,7 @@ namespace rd
 		if (path == "Assets") { flags |= ImGuiTreeNodeFlags_DefaultOpen; }
 		std::string label = "      " + GetFileName(path);
 		bool open = ImGui::TreeNodeEx(path.c_str(), flags, "%s", label.c_str());
+		CheckFileDropTarget(path);
 		ImVec2 min = ImGui::GetItemRectMin();
 		float s = EditorStyle::IconSize();
 		EditorIcons::Draw(ImGui::GetWindowDrawList(), ImVec2(min.x + ImGui::GetTreeNodeToLabelSpacing(), min.y + (ImGui::GetFrameHeight() - s) * 0.5f), s, Icon::Folder);
@@ -180,6 +218,7 @@ namespace rd
 		const float textH = ImGui::GetTextLineHeight() * 2.0f;
 		ImVec2 p = ImGui::GetCursorScreenPos();
 		ImGui::InvisibleButton("##item", ImVec2(cell, cell + textH));
+		if (e.directory) { CheckFileDropTarget(e.path); }
 		bool hovered = ImGui::IsItemHovered();
 		bool selected = e.path == mSelected;
 		ImDrawList* dl = ImGui::GetWindowDrawList();
@@ -202,7 +241,7 @@ namespace rd
 				drewThumb = true;
 			}
 		}
-		else if (icon == Icon::Model)
+		else if (icon == Icon::Model || icon == Icon::Prefab)
 		{
 			if (const GpuTexture* thumb = mThumbnails.Get(e.path))
 			{
@@ -242,6 +281,10 @@ namespace rd
 	{
 		if (!ImGui::BeginPopupContextItem("item")) { return; }
 		if (ImGui::MenuItem(e.directory ? "Open" : (e.ext == ".scene" ? "Open Scene" : "Select"))) { OpenEntry(e); }
+		if (!e.directory && Model::IsSourceExtension(e.ext) && ImGui::MenuItem("Convert to .rdmodel"))
+		{
+			AssetImporter::ImportAsync({ std::filesystem::path(ToWide(e.path)) }, mFolder);
+		}
 		if (ImGui::MenuItem("Rename")) { BeginRename(e); }
 		if (ImGui::MenuItem("Delete"))
 		{

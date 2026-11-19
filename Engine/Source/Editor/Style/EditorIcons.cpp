@@ -1,6 +1,7 @@
 #include "RdPch.h"
 #include "Editor/Style/EditorIcons.h"
 #include "Asset/Audio/AudioClip.h"
+#include "Asset/Model/Model.h"
 #include "Components/Animation/Animator.h"
 #include "Components/Audio/AudioSource.h"
 #include "Components/Effects/ParticleSystem.h"
@@ -289,7 +290,7 @@ namespace rd
 	{
 		if (directory) { return Icon::Folder; }
 		if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".bmp" || ext == ".tga" || ext == ".dds" || ext == ".hdr") { return Icon::Image; }
-		if (ext == ".obj" || ext == ".gltf" || ext == ".glb" || ext == ".fbx" || ext == ".dae") { return Icon::Model; }
+		if (Model::IsSupportedExtension(ext)) { return Icon::Model; }
 		if (AudioClip::IsSupportedExtension(ext)) { return Icon::Audio; }
 		if (ext == ".scene") { return Icon::Scene; }
 		if (ext == ".prefab") { return Icon::Prefab; }

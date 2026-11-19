@@ -8,15 +8,19 @@
 #include <memory>
 #include <vector>
 
-struct aiScene;
-struct aiNode;
-
 namespace rd
 {
-	// 3D モデル（assimp で obj / gltf / fbx などを読む。キーの末尾が "#anim" ならアニメーションだけを読む）
+	struct ModelData;
+
+	// 3D モデル（独自形式の .rdmodel と、assimp で obj / gltf / fbx などを読む。キーの末尾が "#anim" ならアニメーションだけを読む）
 	class Model final : public Asset
 	{
 	public:
+		// assimp で読む元のファイルの拡張子か（ext は小文字で "." 付き）
+		static bool IsSourceExtension(const std::string& ext);
+		// モデルとして読める拡張子か（.rdmodel を含む）
+		static bool IsSupportedExtension(const std::string& ext);
+
 		const char* GetTypeName() const override { return "Model"; }
 
 		const std::vector<SubMesh>& GetSubMeshes() const { return mSubMeshes; }
@@ -42,19 +46,8 @@ namespace rd
 		void Load() override;
 
 	private:
-		struct MeshData
-		{
-			std::vector<MeshVertex> vertices;
-			std::vector<SkinVertex> skins;
-			std::vector<uint32_t> indices;
-		};
-
 		bool LoadBuiltin();
-		void ImportSkeleton(const aiNode* node, int32_t parent);
-		void ImportAnimations(const aiScene* scene);
-		void ImportMaterials(const aiScene* scene, const std::string& path);
-		std::string ImportTexture(const aiScene* scene, const std::string& dir, const std::string& texPath, bool srgb);
-		void ImportMeshes(const aiScene* scene, const aiNode* node, const Matrix4& parentGlobal, MeshData& out);
+		void RegisterEmbeddedTextures(ModelData& data);
 		void CreateGpuBuffers(const std::vector<MeshVertex>& vertices, const std::vector<SkinVertex>& skins,
 			const std::vector<uint32_t>& indices);
 

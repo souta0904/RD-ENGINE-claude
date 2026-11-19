@@ -2,6 +2,7 @@
 #include "Platform/Window/Window.h"
 #include "Core/Util/StringUtil.h"
 #include "Platform/Input/Input.h"
+#include <shellapi.h>
 
 namespace rd
 {
@@ -118,6 +119,35 @@ namespace rd
 		Log::Info(LogCat::Platform, "Fullscreen: {}", mFullscreen ? "on" : "off");
 	}
 
+	void Window::EnableFileDrop()
+	{
+		DragAcceptFiles(mHwnd, TRUE);
+	}
+
+	std::vector<std::wstring> Window::TakeDroppedFiles(POINT& outPoint)
+	{
+		outPoint = mDropPoint;
+		return std::exchange(mDroppedFiles, {});
+	}
+
+	// WM_DROPFILES の中身（落とされたパスの一覧と位置）を取り出して、次のフレームで使えるように取っておく
+	void Window::HandleFileDrop(WPARAM dropHandle)
+	{
+		HDROP drop = reinterpret_cast<HDROP>(dropHandle);
+		// 2 番目の引数に 0xFFFFFFFF を渡すとファイルの数が返る
+		UINT count = DragQueryFileW(drop, 0xFFFFFFFF, nullptr, 0);
+		for (UINT i = 0; i < count; ++i)
+		{
+			// バッファなしで呼ぶと、終端を除いた文字数が返る
+			UINT length = DragQueryFileW(drop, i, nullptr, 0);
+			std::wstring path(size_t(length), L'\0');
+			DragQueryFileW(drop, i, path.data(), length + 1);
+			mDroppedFiles.push_back(std::move(path));
+		}
+		DragQueryPoint(drop, &mDropPoint);
+		DragFinish(drop);
+	}
+
 	// 作るときに渡した this を GWLP_USERDATA に覚えさせ、以後のメッセージをメンバ関数へ渡す
 	LRESULT CALLBACK Window::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	{
@@ -190,6 +220,9 @@ namespace rd
 			if (wParam == VK_F4 && (lParam & kAltDown)) { break; }
 			return 0;
 		case WM_SYSCHAR:
+			return 0;
+		case WM_DROPFILES:
+			HandleFileDrop(wParam);
 			return 0;
 		case WM_DESTROY:
 			PostQuitMessage(0);

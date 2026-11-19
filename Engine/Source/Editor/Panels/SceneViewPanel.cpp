@@ -1,6 +1,7 @@
 #include "RdPch.h"
 #include "Editor/Panels/SceneViewPanel.h"
 #include "Asset/AssetManager.h"
+#include "Asset/Model/Model.h"
 #include "Components/Rendering/MeshRenderer.h"
 #include "Core/Util/StringUtil.h"
 #include "Editor/Commands/ActorLifetimeCommand.h"
@@ -16,14 +17,6 @@
 
 namespace rd
 {
-	namespace
-	{
-		bool IsModelFile(const std::string& ext)
-		{
-			return ext == ".obj" || ext == ".gltf" || ext == ".glb" || ext == ".fbx" || ext == ".dae";
-		}
-	}
-
 	SceneViewPanel::SceneViewPanel(Editor& editor) : ViewPanel(editor, "Scene") {}
 
 	void SceneViewPanel::Update(float dt)
@@ -159,7 +152,7 @@ namespace rd
 		{
 			actor = scene.Instantiate(path);
 		}
-		else if (IsModelFile(ext))
+		else if (Model::IsSupportedExtension(ext))
 		{
 			actor = scene.CreateActor(GetStem(path));
 			actor->AddComponent<MeshRenderer>()->SetModel(path);
