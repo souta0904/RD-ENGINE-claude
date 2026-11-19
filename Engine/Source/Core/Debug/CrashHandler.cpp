@@ -7,14 +7,24 @@
 #include <shellapi.h>
 #include <sstream>
 
+// DbgHelp（呼び出し履歴を辿る・関数名を調べる・ダンプを書く Windows の API）のライブラリをリンクする
+// vcxproj に書かなくても、ソースの中からリンクするライブラリを指定できる MSVC の書き方
 #pragma comment(lib, "dbghelp.lib")
 
+// 全体の流れ
+//  1. Install で「落ちたときに呼ばれる関数」を Windows と C++ ランタイムに登録する（落ち方ごとに入口が違う）
+//  2. 落ちると、入口の関数（OnUnhandledException・OnAbortSignal など）が呼ばれ、
+//     落ちた瞬間のレジスタ（CONTEXT）と理由を CrashInfo にまとめる
+//  3. HandleCrash が別のスレッドで WriteReport を動かし、レポートとダンプを書く
+//  4. ダイアログを出して終了する
 namespace rd
 {
 	namespace
 	{
-		// handling: 2 回目以降のクラッシュ（処理中の abort など）は無視する
-		// symMutex: DbgHelp はスレッドセーフではない
+		// クラッシュハンドラの状態
+		//  handling: 2 回目以降のクラッシュ（処理中の abort など）は無視する
+		//  symMutex: DbgHelp はスレッドセーフではないので、使うときは必ずこれを取る
+		//  contexts: SetContext で足された「レポートに載せる情報」の名前と、その値を作る関数
 		struct CrashState
 		{
 			CrashHandler::Settings settings;
@@ -29,12 +39,18 @@ namespace rd
 			bool symInitialized = false;
 		};
 
+		// new して解放しないのはわざと。プログラムの終了処理（static 変数の破棄）が始まった後に落ちても、
+		// 壊れていない状態を使えるようにするため（終了時に OS がまとめて片付けるので漏れても困らない）
 		CrashState& State()
 		{
 			static CrashState* state = new CrashState();
 			return *state;
 		}
 
+		// 1 回のクラッシュの情報
+		//  context: 落ちた瞬間の CPU のレジスタ（Rip = 実行していた命令の場所、Rsp = スタックの場所 など）。
+		//           これがあれば、落ちたスレッドの呼び出し履歴を後から辿れる
+		//  record:  例外の種類（ExceptionCode）と追加の情報
 		struct CrashInfo
 		{
 			std::string reason;
@@ -45,6 +61,12 @@ namespace rd
 			std::string reportPath;
 		};
 
+		// シンボル（アドレス → 関数名・ファイル・行 の対応表。.pdb ファイルに入っている）を使えるようにする
+		//  重いので、最初に必要になったときに 1 回だけ行う
+		//  UNDNAME: C++ の関数名を読める形に戻す（?Foo@rd@@... → rd::Foo）
+		//  DEFERRED_LOADS: 各モジュールの .pdb を必要になるまで読まない
+		//  LOAD_LINES: ファイル名と行番号も読む
+		//  FAIL_CRITICAL_ERRORS: 見つからないときに Windows のエラーダイアログを出さない
 		void EnsureSymbols()
 		{
 			CrashState& s = State();
@@ -53,6 +75,10 @@ namespace rd
 			s.symInitialized = SymInitialize(GetCurrentProcess(), nullptr, TRUE) != FALSE;
 		}
 
+		// 命令のアドレスを「モジュール!関数名+ずれ  (ファイル:行)」の文字列にする
+		//  例: Sandbox.exe!rd::Scene::Update+0x1A  (D:\...\Scene.cpp:120)
+		//  モジュール … そのアドレスを含む exe や dll。SymGetModuleBase64 がその先頭のアドレスを返し、
+		//               先頭のアドレスはそのまま HMODULE として使える
 		std::string DescribeAddress(DWORD64 address)
 		{
 			HANDLE process = GetCurrentProcess();
@@ -66,10 +92,13 @@ namespace rd
 				}
 			}
 
+			// SYMBOL_INFO は最後のメンバ Name が可変長の配列（中身は 1 文字分しかない）。
+			// 名前を入れる場所を後ろに足した大きさのバッファを用意し、その先頭を SYMBOL_INFO として使う
 			alignas(SYMBOL_INFO) char buffer[sizeof(SYMBOL_INFO) + 512] = {};
 			auto symbol = reinterpret_cast<SYMBOL_INFO*>(buffer);
 			symbol->SizeOfStruct = sizeof(SYMBOL_INFO);
 			symbol->MaxNameLen = 511;
+			// displacement … 関数の先頭から何バイト目か（+0x1A の部分）
 			DWORD64 displacement = 0;
 			std::string text;
 			if (SymFromAddr(process, address, &displacement, symbol))
@@ -91,6 +120,12 @@ namespace rd
 			return text;
 		}
 
+		// 呼び出し履歴（コールスタック）を辿る
+		//  関数を呼ぶと、戻り先のアドレスがスタックに積まれる。StackWalk64 は context のレジスタから始めて、
+		//  その戻り先を 1 段ずつ遡る（1 回呼ぶごとに frame が 1 つ外側の関数へ進む）。
+		//  AddrPC = 実行中の命令（Rip）、AddrFrame = フレームの場所（Rbp）、AddrStack = スタックの先頭（Rsp）
+		//  context は値で受け取る（StackWalk64 が書き換えながら進むので、呼んだ側のものを壊さないように）
+		//  skip … 先頭の何段を飛ばすか（CaptureStackTrace 自身などを履歴に出さないため）
 		std::string WalkStack(HANDLE thread, CONTEXT context, int skip)
 		{
 			std::lock_guard lock(State().symMutex);
@@ -105,6 +140,7 @@ namespace rd
 
 			std::string out;
 			int index = 0;
+			// 壊れたスタックで延々と辿らないよう、64 段で打ち切る
 			for (int i = 0; i < 64; ++i)
 			{
 				if (!StackWalk64(IMAGE_FILE_MACHINE_AMD64, GetCurrentProcess(), thread, &frame, &context, nullptr,
@@ -119,6 +155,7 @@ namespace rd
 			return out;
 		}
 
+		// 例外コードを読める名前にする（0xE06D7363 は MSVC が C++ の throw に使う番号。ASCII で "msc" を含む）
 		const char* ExceptionName(DWORD code)
 		{
 			switch (code)
@@ -142,6 +179,9 @@ namespace rd
 		//  例外レコードには「投げたオブジェクト」と「型の一覧（ThrowInfo）」が入っている。
 		//  型の一覧に std::exception があれば、そのオブジェクトを std::exception として読める。
 		//  x64 では型情報はモジュールの先頭（ExceptionInformation[3]）からの相対位置で入っている。
+		//  下の構造体は、MSVC が内部で使っている形を同じ並びで書き写したもの（公開されたヘッダーにはない）。
+		//  ".?AVexception@std@@" は std::exception の型の名前を MSVC の内部の書き方にしたもの。
+		//  mdisp … 投げたオブジェクトの中で、その型（基底クラス）の部分が始まる位置
 		constexpr DWORD kCppExceptionCode = 0xE06D7363;
 		struct MsvcThrowInfo { uint32_t attributes; int32_t unwind; int32_t forwardCompat; int32_t catchableTypes; };
 		struct MsvcCatchableTypeArray { int32_t count; int32_t types[1]; };
@@ -169,6 +209,9 @@ namespace rd
 		}
 
 		// 壊れたデータを読んでもここで止まるように SEH で囲む（C++ のオブジェクトを持てないので別関数）
+		//  __try / __except は SEH 用の try / catch。不正なメモリを読んでも、ここで捕まえて false を返せる。
+		//  ただし、この中ではデストラクタを持つ変数（std::string など）を使えないので、char の配列へコピーする
+		//  _TRUNCATE … 入りきらなければ途中で切る（あふれさせない）
 		bool CopyExceptionMessage(const EXCEPTION_RECORD& record, char* out, size_t size)
 		{
 			__try
@@ -184,6 +227,7 @@ namespace rd
 			}
 		}
 
+		// ファイル名に使う日時（例: 20261119_153012）。名前順に並べると日時の順になる
 		std::string Timestamp()
 		{
 			SYSTEMTIME t;
@@ -191,6 +235,10 @@ namespace rd
 			return std::format("{:04}{:02}{:02}_{:02}{:02}{:02}", t.wYear, t.wMonth, t.wDay, t.wHour, t.wMinute, t.wSecond);
 		}
 
+		// 遊んでいた PC の情報（OS・CPU のスレッド数・メモリ・起動の引数）
+		//  GetVersionEx は互換のため古いバージョンを返すことがあるので、ntdll.dll の RtlGetVersion を直接探して呼ぶ。
+		//  GetProcAddress は dll の中の関数を名前で探して、その場所を返す
+		//  >> 20 … 2^20 = 1024 * 1024 で割るのと同じ（バイト → MB）
 		std::string SystemInfo()
 		{
 			std::string out;
@@ -225,6 +273,10 @@ namespace rd
 			std::filesystem::path dumpPath = dir / ToWide("Crash_" + stamp + ".dmp");
 			std::filesystem::path reportPath = dir / ToWide("Crash_" + stamp + ".txt");
 
+			// ミニダンプ … 落ちた瞬間のプロセスの様子（各スレッドのスタック・レジスタ・一部のメモリ）を保存したファイル
+			//  WithIndirectlyReferencedMemory: スタックから指されているメモリも入れる（ローカル変数の中身を見られる）
+			//  WithThreadInfo: スレッドの情報、WithDataSegs: グローバル変数
+			//  mei で「どのスレッドの、どの例外で落ちたか」を渡すと、VS で開いたときにその行で止まった状態になる
 			bool dumped = false;
 			if (s.settings.writeDump)
 			{
@@ -279,6 +331,7 @@ namespace rd
 				}
 			}
 			r << "\nCall stack:\n" << (stack.empty() ? "  (unavailable)\n" : stack);
+			// 落ちる直前に何が起きていたかを見るため、ログの履歴の最後の 40 件を載せる
 			r << "\nRecent log:\n";
 			std::vector<std::string> recent;
 			Log::ForEach([&](const LogRecord& rec)
@@ -297,6 +350,8 @@ namespace rd
 			Log::Flush();
 		}
 
+		// 「はい」を押すと、エクスプローラーでレポートを選んだ状態のフォルダを開く（/select, の引数）
+		//  MB_TOPMOST | MB_SETFOREGROUND: 全画面のゲームの裏に隠れないよう、一番手前に出す
 		void ShowDialog(const CrashInfo& info)
 		{
 			std::wstring text = L"申し訳ありません。エラーが起きたため終了します。\n\n" + ToWide(info.reason) +
@@ -308,6 +363,10 @@ namespace rd
 			}
 		}
 
+		// どの入口から来ても、最後はここでレポートを書いてダイアログを出す
+		//  exchange(true) は「true を書き込み、書く前の値を返す」を 1 つの操作で行う。
+		//  2 つのスレッドが同時に落ちても、最初の 1 つだけが false を受け取って先へ進める
+		//  CreateThread に渡すラムダは、キャプチャがないので普通の関数ポインタとして渡せる
 		void HandleCrash(CrashInfo& info)
 		{
 			CrashState& s = State();
@@ -324,6 +383,7 @@ namespace rd
 				WaitForSingleObject(worker, 20000);
 				CloseHandle(worker);
 			}
+			// ダイアログも別のスレッドで出す（落ちたスレッドでメッセージを処理すると、さらに落ちることがあるため）
 			if (s.settings.showDialog && !IsDebuggerPresent() && !info.reportPath.empty())
 			{
 				HANDLE dialog = CreateThread(nullptr, 0, [](void* p) -> DWORD
@@ -340,6 +400,7 @@ namespace rd
 		}
 
 		// 今の場所でクラッシュとして扱う（abort などの例外ではない終わり方）
+		//  例外の情報がないので、RtlCaptureContext で今のレジスタを取り、それを「落ちた場所」にする
 		void HandleHere(std::string reason)
 		{
 			CrashInfo info;
@@ -352,6 +413,11 @@ namespace rd
 			HandleCrash(info);
 		}
 
+		// ここからが落ち方ごとの入口
+		//
+		// 入口 1: SEH の例外が誰にも捕まえられなかったとき（null の読み書き、0 での割り算、C++ の例外を誰も catch しなかったとき）
+		//  アクセス違反なら ExceptionInformation[0] が操作（0 = 読み、1 = 書き、8 = 実行）、[1] が触ろうとしたアドレス。
+		//  アドレスが 0 に近ければ、null ポインタのメンバを触ったと分かる
 		LONG WINAPI OnUnhandledException(EXCEPTION_POINTERS* ep)
 		{
 			CrashInfo info;
@@ -376,11 +442,15 @@ namespace rd
 			return EXCEPTION_EXECUTE_HANDLER;
 		}
 
+		// 入口 2: abort() が呼ばれたとき（RD_VERIFY・Log::Fatal もここに来る）
 		void OnAbortSignal(int)
 		{
 			HandleHere("abort() was called");
 		}
 
+		// 入口 3: std::terminate が呼ばれたとき（noexcept の関数から例外が出た、など）
+		//  処理中の例外があれば、投げ直して catch することで中身（what()）を取り出せる
+		//  TerminateProcess … 後片付けをせずに、その場でプロセスを終わらせる（終了コード 3）
 		void OnTerminate()
 		{
 			std::string what = "std::terminate was called";
@@ -394,12 +464,15 @@ namespace rd
 			TerminateProcess(GetCurrentProcess(), 3);
 		}
 
+		// 入口 4: 純粋仮想関数を呼んだとき（コンストラクタやデストラクタの中から仮想関数を呼ぶと起きる）
 		void OnPureCall()
 		{
 			HandleHere("Pure virtual function call");
 			TerminateProcess(GetCurrentProcess(), 3);
 		}
 
+		// 入口 5: CRT の関数（strcpy_s など）に不正な引数を渡したとき
+		//  expression と function は Debug ビルドでしか入らない（Release では nullptr）
 		void OnInvalidParameter(const wchar_t* expression, const wchar_t* function, const wchar_t*, unsigned int, uintptr_t)
 		{
 			std::string reason = "Invalid parameter passed to a CRT function";
@@ -418,6 +491,7 @@ namespace rd
 		s.installed = true;
 		s.mainThreadId = GetCurrentThreadId();
 
+		// 落ち方ごとの入口を登録する（上の入口 1～5）
 		SetUnhandledExceptionFilter(OnUnhandledException);
 		std::set_terminate(OnTerminate);
 		std::signal(SIGABRT, OnAbortSignal);
@@ -426,6 +500,7 @@ namespace rd
 		// abort() の「Debug Error!」ダイアログや Windows のエラー報告を出さない（自前のダイアログを出すので）
 		_set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
 		// スタックオーバーフローでもハンドラが動けるよう、メインスレッドに予備のスタックを確保する
+		// （スタックを使い切った後でも、例外の処理のためにこの分だけは使える）
 		ULONG guarantee = 64 * 1024;
 		SetThreadStackGuarantee(&guarantee);
 	}
@@ -443,6 +518,7 @@ namespace rd
 		s.contexts.emplace_back(key, std::move(provider));
 	}
 
+	// skip + 1 … CaptureStackTrace 自身の 1 段も飛ばす
 	std::string CrashHandler::CaptureStackTrace(int skip)
 	{
 		CONTEXT context = {};

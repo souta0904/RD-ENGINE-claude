@@ -8,6 +8,7 @@ namespace rd
 {
 	namespace
 	{
+		// キューに入る 1 つのジョブ（実行する関数と、終わったら 1 減らすカウンタ）
 		struct Job
 		{
 			JobSystem::JobFunc func;
@@ -15,6 +16,10 @@ namespace rd
 			const char* name = "Job";
 		};
 
+		// ジョブシステムの状態
+		//  mutex と cv … キューを守るロックと、ジョブが入ったことをワーカーへ知らせる仕組み
+		//  キューは優先度ごとに 2 本。deque は先頭からも末尾からも速く出し入れできる（先に入れたものから取り出す）
+		//  mainTasks … メインスレッドで実行してほしい処理（キューとは別のロックで守る）
 		struct State
 		{
 			std::vector<std::thread> workers;
@@ -30,8 +35,11 @@ namespace rd
 			std::thread::id mainThreadId;
 		};
 
+		// Initialize で作り、Shutdown で消す（その間だけ有効）
 		State* gState = nullptr;
 
+		// ジョブを 1 つ実行して、カウンタを 1 減らす
+		// memory_order_acq_rel … このジョブが書いた結果が、カウンタの 0 を見たスレッドから必ず見えるようにする
 		void Execute(Job& job)
 		{
 			RD_PROFILE_SCOPE(job.name);
@@ -39,6 +47,8 @@ namespace rd
 			job.counter->fetch_sub(1, std::memory_order_acq_rel);
 		}
 
+		// キューから 1 つ取り出す（なければ待たずに false）。High を先に見る
+		// allowLow が false なら High だけ（Wait で手伝うときに、長い読み込みを掴んで待ちが延びないように）
 		bool TryPop(Job& out, bool allowLow)
 		{
 			std::lock_guard lock(gState->mutex);
@@ -57,14 +67,19 @@ namespace rd
 			return false;
 		}
 
+		// ワーカーが起きてよい条件（終了の合図か、ジョブがある）
 		bool HasWork()
 		{
 			return gState->quit || !gState->highQueue.empty() || !gState->lowQueue.empty();
 		}
 
+		// ワーカースレッドの中身: ジョブが来るまで眠り、来たら取り出して実行する、を終了の合図まで繰り返す
+		//  終了の合図が来ても、キューに残っているジョブは全部実行してから抜ける
+		//  ジョブの実行はロックを外してから行う（実行中も他のワーカーがキューから取れるように）
 		void WorkerMain(uint32_t index)
 		{
 			// テクスチャの読み込み（WIC）に COM が要る
+			// COM … Windows の部品の仕組み。使うスレッドごとに CoInitializeEx で準備し、終わりに CoUninitialize で片付ける
 			HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
 			SetThreadDescription(GetCurrentThread(), std::format(L"RD Worker {}", index).c_str());
 			Profiler::SetThreadName(std::format("Worker {}", index).c_str());
@@ -86,6 +101,8 @@ namespace rd
 			if (SUCCEEDED(hr)) { CoUninitialize(); }
 		}
 
+		// キューへ入れて、眠っているワーカーを 1 つ起こす
+		// notify はロックを外してから呼ぶ（起きたワーカーがすぐロックを取れるように）
 		void Push(Job job, JobPriority priority)
 		{
 			{
@@ -96,6 +113,7 @@ namespace rd
 		}
 	}
 
+	// hardware_concurrency … CPU が同時に動かせるスレッドの数（8 コア 16 スレッドなら 16）
 	void JobSystem::Initialize(uint32_t workerCount)
 	{
 		RD_ASSERT(!gState);
@@ -113,6 +131,7 @@ namespace rd
 		Log::Info(LogCat::Core, "JobSystem: {} worker threads", workerCount);
 	}
 
+	// quit を立てて全部のワーカーを起こし、残りのジョブを片付けて抜けるのを join で待つ
 	void JobSystem::Shutdown()
 	{
 		if (!gState) { return; }
@@ -147,6 +166,9 @@ namespace rd
 		handle.mCounter = std::make_shared<std::atomic<uint32_t>>(jobCount);
 
 		// 関数はすべてのジョブで共有する（ジョブごとにコピーしない）
+		// 例: count = 1000、batchSize = 64 なら、ジョブは 16 個（最後の 1 つは 960～999 の 40 個だけ）
+		// (count + batchSize - 1) / batchSize … 割り算の切り上げ
+		// 全部入れてから notify_all で全ワーカーを起こす（1 つずつ notify するより速い）
 		auto shared = std::make_shared<RangeFunc>(std::move(func));
 		{
 			std::lock_guard lock(gState->mutex);
@@ -162,6 +184,9 @@ namespace rd
 		return handle;
 	}
 
+	// ただ眠って待つと、そのスレッドの分だけ CPU が遊ぶ。待つ間も High のジョブを取って手伝う。
+	// ワーカーの中から Wait しても、自分で残りを実行できるので、全員が待ち合って止まる（デッドロック）ことがない
+	// 手伝うジョブがなければ yield（他のスレッドに CPU を譲る）してから、もう一度確かめる
 	void JobSystem::Wait(const JobHandle& handle)
 	{
 		while (!handle.IsDone())
@@ -179,6 +204,8 @@ namespace rd
 		gState->mainTasks.push_back(std::move(func));
 	}
 
+	// swap で一覧ごと取り出してから、ロックを外して実行する
+	// （実行中の処理がさらに RunOnMainThread を呼んでも固まらない。その分は次のフレームで実行される）
 	void JobSystem::ExecuteMainThreadTasks()
 	{
 		if (!gState) { return; }

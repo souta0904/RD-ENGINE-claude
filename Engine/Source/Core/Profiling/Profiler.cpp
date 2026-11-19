@@ -7,6 +7,8 @@ namespace rd
 {
 	namespace
 	{
+		// QueryPerformanceCounter … Windows で一番細かく時間を測れる時計（1 ティックはおよそ 0.1 マイクロ秒）
+		// 値そのものに意味はなく、2 つの値の差だけを使う。1 秒あたりのティック数は QueryPerformanceFrequency で分かる
 		int64_t Now()
 		{
 			LARGE_INTEGER t;
@@ -24,6 +26,8 @@ namespace rd
 		// スレッドごとの記録
 		//  開いている区間のスタックは持ち主のスレッドしか触らないのでロックしない。
 		//  閉じた区間はフレームの区切りでメインスレッドが集めるのでロックする。
+		//  区間は入れ子になる（Update の中に Physics があり、その中に Collide がある）ので、
+		//  始まった区間をスタックに積み、終わったら一番上を取り出す
 		struct OpenScope
 		{
 			const char* name;
@@ -58,8 +62,11 @@ namespace rd
 			return *state;
 		}
 
+		// thread_local … スレッドごとに別々の値を持つ変数。各スレッドが自分の ThreadBuffer を指す
+		// 実体（unique_ptr）は State().threads が持ち、スレッドが終わっても消さない（記録を後から見られるように）
 		thread_local ThreadBuffer* tBuffer = nullptr;
 
+		// 今のスレッドの記録を返す。そのスレッドで初めて呼ばれたときに作って登録する
 		ThreadBuffer& GetBuffer()
 		{
 			if (!tBuffer)
@@ -75,6 +82,7 @@ namespace rd
 			return *tBuffer;
 		}
 
+		// JSON の文字列の中では " と \ の前に \ を付ける決まり（付けないと文字列の終わりと読まれる）
 		std::string EscapeJson(std::string_view s)
 		{
 			std::string out;
@@ -87,11 +95,13 @@ namespace rd
 			return out;
 		}
 
+		// 並べ替えの順: 始まりの早い順。同時に始まったら外側（depth が小さい）を先にする
 		bool EarlierEvent(const ProfileEvent& a, const ProfileEvent& b)
 		{
 			return a.start != b.start ? a.start < b.start : a.depth < b.depth;
 		}
 
+		// 集計の途中の値（合計・最大・呼ばれた回数）
 		struct StatAccum
 		{
 			const char* name;
@@ -111,6 +121,11 @@ namespace rd
 
 	double ProfileFrame::GetMs() const { return Profiler::TicksToMs(end - start); }
 
+	// 前のフレームを締めて履歴へ入れ、新しいフレームを始める
+	//  1. 各スレッドの「閉じた区間」を集める（ワーカーの区間もここで今のフレームに入る）
+	//  2. 開始時刻の順に並べ替える
+	//  3. 履歴へ入れる（kHistory を超えたら一番古いものを捨てる）
+	//  4. 自動保存（-profile）の数を減らし、0 になったら保存する
 	void Profiler::BeginFrame()
 	{
 		ProfilerState& s = State();
@@ -156,6 +171,8 @@ namespace rd
 		GetBuffer().stack.push_back({ name, Now() });
 	}
 
+	// スタックの一番上（一番最後に始まった区間）を閉じる。depth は取り出した後のスタックの深さ
+	// 閉じた区間はメインスレッドが BeginFrame で集めるので、done へ入れるときだけロックする
 	void Profiler::EndScope()
 	{
 		ThreadBuffer& b = GetBuffer();
@@ -174,6 +191,9 @@ namespace rd
 		b.name = name;
 	}
 
+	// 数フレーム遅れて届いた GPU の結果を、計測したときのフレームに入れる
+	// 新しいフレームほど見つかりやすいので、履歴の後ろから探す（rbegin / rend は逆向きのイテレータ）
+	// GPU の時間は、一番早い始まりから一番遅い終わりまで
 	void Profiler::SubmitGpu(uint64_t cpuFrame, std::vector<GpuProfileEvent> events)
 	{
 		ProfilerState& s = State();
@@ -205,6 +225,8 @@ namespace rd
 		return names;
 	}
 
+	// ティック ÷ 1 秒あたりのティック数 = 秒。ミリ秒にするので 1000 倍する
+	// 1 秒あたりのティック数は起動中に変わらないので、最初の 1 回だけ聞いて覚えておく
 	double Profiler::TicksToMs(int64_t ticks)
 	{
 		static const int64_t frequency = QueryFrequency();
@@ -213,6 +235,9 @@ namespace rd
 
 	// フレームごとに区間名ごとの合計を出し、その平均と最大を求める
 	//  同じ文字列でも翻訳単位が違うとポインタが変わるので、ポインタではなく中身で集計する
+	//  （string_view をキーにすると、文字列をコピーせずに中身で比べられる）
+	//  1 フレームに同じ区間が何回もある（ループの中など）ので、まずフレームごとに足し、その合計で平均と最大を出す
+	//  GPU は結果が届いていないフレームがあるので、届いたフレームの数（gpuFrames）で割る
 	std::vector<ProfileStat> Profiler::ComputeStats(size_t frameCount)
 	{
 		const auto& frames = State().history;
@@ -248,6 +273,14 @@ namespace rd
 		return stats;
 	}
 
+	// Chrome のトレース形式（Trace Event Format）の JSON で保存する
+	//  { "traceEvents": [ イベント, イベント, ... ] } の形で、1 つのイベントは 1 行
+	//    "ph":"M" … メタデータ。tid（スレッドの番号）に表示する名前を付ける
+	//    "ph":"X" … 長さのある区間。ts が始まり、dur が長さ（どちらもマイクロ秒）
+	//  時刻は最初のフレームの始まり（origin）を 0 にする。GPU とフレームの帯は、
+	//  実際のスレッドと番号がぶつからない tid（10000・10001）に置く
+	//  最後の "{}" は、直前の行の末尾の , のせいで JSON が壊れないようにするための空のイベント
+	//  std::format の中で { や } を文字として書くときは {{ と }} にする
 	bool Profiler::SaveTrace(const std::string& path, size_t frameCount)
 	{
 		const auto& frames = State().history;
@@ -298,6 +331,7 @@ namespace rd
 		return bool(out);
 	}
 
+	// 履歴より多くは残せないので、kHistory で頭打ちにする
 	void Profiler::RequestCapture(size_t frameCount, std::string path)
 	{
 		ProfilerState& s = State();

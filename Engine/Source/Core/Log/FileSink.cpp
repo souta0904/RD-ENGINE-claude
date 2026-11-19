@@ -6,6 +6,8 @@ namespace rd
 {
 	namespace
 	{
+		// フルパスからファイル名だけを取り出す（ログの行を短くするため）
+		// source_location::file_name() は const char* なので、std::string を作らずにポインタを進めて探す
 		const char* FileName(const char* path)
 		{
 			const char* name = path;
@@ -16,12 +18,16 @@ namespace rd
 			return name;
 		}
 
+		// {:04} … 4 桁で、足りなければ前を 0 で埋める（2026、09 のように）
 		std::string Timestamp(const SYSTEMTIME& t)
 		{
 			return std::format("{:04}{:02}{:02}_{:02}{:02}{:02}", t.wYear, t.wMonth, t.wDay, t.wHour, t.wMinute, t.wSecond);
 		}
 
 		// 前回のログを更新日時の付いた名前で History/ へ移し、古いものから消して数を絞る
+		//  例: Logs/RdEngine.log → Logs/History/RdEngine_20261119_153012.log
+		//  付ける日時は「今」ではなく、前回のファイルを最後に書いた時刻（= 前回の終了時刻）にする
+		//  FILETIME は UTC なので、日本時間にしてから年月日に分ける
 		void MoveToHistory(const std::filesystem::path& path, uint32_t keep)
 		{
 			namespace fs = std::filesystem;
@@ -54,6 +60,8 @@ namespace rd
 		}
 	}
 
+	// std::ios::trunc … 開くときに中身を空にする（前回分は History へ移した後なので消してよい）
+	// 先頭に起動した日時とプロセスの番号、列の見出しを書いておく
 	bool FileSink::Open(const LogSettings& settings, std::string& outPath)
 	{
 		namespace fs = std::filesystem;
@@ -75,6 +83,8 @@ namespace rd
 		return true;
 	}
 
+	// 1 件を 1 行で書く。列の幅をそろえて、テキストエディタで縦に読みやすくする
+	//  {:9.3f} … 9 文字の幅で小数点以下 3 桁、{:<8} … 8 文字の幅で左寄せ、{:>6} … 6 文字の幅で右寄せ
 	void FileSink::Write(const LogRecord& r)
 	{
 		if (!mFile) { return; }
@@ -84,6 +94,8 @@ namespace rd
 			r.message, FileName(r.location.file_name()), r.location.line());
 	}
 
+	// ofstream は書いた内容をメモリに溜めてから、まとめてファイルへ書く。
+	// flush で溜めている分を今すぐ書き出す（落ちたときに最後のログが消えないように）
 	void FileSink::Flush()
 	{
 		if (mFile) { mFile.flush(); }
