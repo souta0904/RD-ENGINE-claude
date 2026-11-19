@@ -1,0 +1,1 @@
+﻿assimp v6.0.6 (OBJ / glTF / FBX, static, /MD /MDd) - Tools/BuildAssimp.ps1 で作成
