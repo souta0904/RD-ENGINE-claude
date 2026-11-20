@@ -28,7 +28,7 @@ namespace rd
 	{
 	public:
 		static constexpr const char* kName = "RD ENGINE";
-		static constexpr const char* kVersion = "2.0.0";
+		static constexpr const char* kVersion = "1.0.0";
 
 		static Engine& Get() { return *sInstance; }
 

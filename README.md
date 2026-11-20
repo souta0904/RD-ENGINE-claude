@@ -1,14 +1,22 @@
-# RD ENGINE 2.0
+# RD ENGINE 1.0
 
-`old/` の自作エンジン（DirectX 12 / Actor + Component）を、設計を整理しながら作り直したものです。
+DirectX 12 で動く自作のゲームエンジンです。Unity と同じ考え方の Actor + Component で作り、ImGui のエディタが付いています。
+`old/` の旧エンジンを、設計を整理しながら作り直しました。
 
 ## ビルドと実行
 
 1. `RdEngine.sln` を Visual Studio 2026（v145 ツールセット）で開く
-2. 構成 `Debug|x64` か `Release|x64` でビルド
-3. スタートアッププロジェクト `Sandbox` を実行（作業ディレクトリは自動でこのフォルダになります）
+2. 構成を選んでビルドする
+3. スタートアッププロジェクト `Sandbox` を実行する（作業ディレクトリは自動でこのフォルダになります）
 
-初回起動時に `Assets/Sample/Scenes/Sample.scene` が自動生成されます。
+| 構成 | 内容 |
+| --- | --- |
+| `Debug` | エディタ付き・最適化なし。`RD_DEBUG=1` |
+| `Release` | エディタ付き・最適化あり |
+| `Game` | エディタと ImGui を外したゲーム用（`RD_EDITOR=0`、Release と同じ最適化）。起動するといつもプレイ中 |
+
+出力は `Bin\<構成>\`、中間ファイルは `Intermediate\` に置きます。
+初回起動時に `Assets/Sample/Scenes/Sample.scene` が自動で作られます。
 
 ### テスト
 `Tests` プロジェクトをビルドして `Bin\Debug\Tests.exe` を実行します（失敗した数が終了コードになります）。
@@ -16,7 +24,7 @@
 Bin\Debug\Tests.exe            すべて
 Bin\Debug\Tests.exe Scene      名前に "Scene" を含むものだけ
 ```
-数学・幾何、JSON とリフレクション、シーンの更新順とコンポーネントのリスト、参照（ActorRef）、Undo/Redo、物理の形状、JobSystem、音声の読み込み、クラッシュハンドラ（自分自身をわざと落として調べる）、AI アシスタントのツールを確かめます。
+数学・幾何、JSON とリフレクション、シーンの更新順とコンポーネントのリスト、参照（ActorRef）、Undo/Redo、物理の形状、JobSystem、音声の読み込み、クラッシュハンドラ（自分自身をわざと落として調べる）、.rdmodel の読み書き、シェーダーとマテリアルのアセット、エディタの言語と状態の保存、NavMesh のギズモ、AI アシスタント（ツールと LLM ごとの変換）を確かめます。
 
 ### コマンドライン
 
@@ -37,36 +45,41 @@ Bin\Debug\Tests.exe Scene      名前に "Scene" を含むものだけ
 ```
 claude/
 ├─ RdEngine.sln
-├─ Build/Common.props        全プロジェクト共通の設定（出力先・C++20・定義）
-├─ External/                 ImGui(docking) / ImGuizmo / DirectXTex / assimp / nlohmann-json / magic_enum
+├─ Build/Common.props        全プロジェクト共通の設定（出力先・C++20・構成ごとの定義）
+├─ External/                 ImGui(docking) / ImGuizmo / DirectXTex / assimp 6.0 / nlohmann-json / magic_enum / stb_truetype
 │  └─ ThirdParty.vcxproj     ImGui と DirectXTex をまとめた静的ライブラリ
 ├─ Engine/                   エンジン本体（静的ライブラリ）
 │  └─ Source/
-│     ├─ Core/        ログ・クラッシュハンドラ・プロファイラ・アサート・JobSystem・リフレクション・JSON・時間
-│     ├─ Math/        ベクトル・行列・クォータニオン・幾何（AABB/Ray/Frustum）
-│     ├─ Platform/    ウィンドウ・入力（キーボード/マウス/XInput）・HTTPS 通信
-│     ├─ RHI/         D3D12 デバイス・デスクリプタ・テクスチャ・パイプライン・シェーダコンパイラ
-│     ├─ Asset/       非同期アセット管理・テクスチャ・モデル(assimp)・アニメーション
-│     ├─ Render/      レンダラー（PBR・影・空・パーティクル・ブルーム・トーンマップ・スプライト・デバッグ線）
-│     ├─ Scene/       Actor・Component・Transform・Scene・参照（ActorRef）・SceneSystem
-│     ├─ Components/  MeshRenderer / Animator / Camera / Lights / Sprite / Particle / AudioSource
-│     ├─ Physics/     コライダー・剛体・物理ワールド（SceneSystem として動く）
+│     ├─ Core/        ログ・クラッシュハンドラ・プロファイラ・アサート・JobSystem・リフレクション・JSON・時間・文字列とファイル
+│     ├─ Math/        ベクトル・行列・クォータニオン・色・乱数・幾何（AABB / Ray / Plane / Frustum / 交差判定）
+│     ├─ Platform/    ウィンドウ・入力（キーボード / マウス / XInput・カーソル固定）・HTTPS 通信（WinHTTP）
+│     ├─ RHI/         D3D12 デバイス・デスクリプタ・テクスチャ・パイプライン・シェーダーコンパイラ
+│     ├─ Asset/       非同期アセット管理・テクスチャ・モデル（assimp と .rdmodel）・アニメーション・音声のデコード
+│     ├─ Render/      レンダラー・描画リスト・カメラ・環境設定・マテリアル（.rdmat）と自作シェーダー（.hlsl）・デバッグ線
 │     ├─ Audio/       XAudio2
-│     ├─ Runtime/     シーン切替・プレイ状態・フレームの組み立て・組み込みコンポーネント登録
+│     ├─ Scene/       Actor・Component・Transform・Scene・参照（ActorRef / ComponentRef）・SceneSystem
+│     ├─ AI/          NavMesh と経路探索（NavigationSystem）・行動ツリー（BehaviorTree）
+│     ├─ Components/  描画 / アニメーション / ライト / エフェクト / 音 / ナビゲーション / UI のコンポーネント
+│     ├─ Physics/     コライダー・剛体・CharacterController・物理ワールド（SceneSystem として動く）
+│     ├─ Runtime/     シーン切替・プレイ状態・フレームの組み立て・画面の保存・組み込みコンポーネント登録
 │     ├─ Editor/      ImGui エディタ（Editor.cpp / EditorActions.cpp / EditorMenu.cpp が本体）
-│     │  ├─ Panels/     Viewport・Hierarchy・Inspector・Project・Console・Lighting・Stats・Profiler
+│     │  ├─ Panels/     Scene・Game・Hierarchy・Properties・Preview・Project・Log・Lighting・Stats・Profiler
 │     │  ├─ Commands/   Undo/Redo のコマンド
 │     │  ├─ Style/      色・アイコン・共通の UI 部品（見た目をそろえる）
 │     │  ├─ Inspector/  プロパティの表示（ImGuiInspector）
-│     │  ├─ Core/       ImGui の初期化・エディタカメラ・ファイルダイアログ
+│     │  ├─ Core/       ImGui の初期化・エディタカメラ・ファイルダイアログ・取り込み・プレビュー・言語・状態の保存
 │     │  └─ Assistant/  AI アシスタント（LLM ごとの変換・ツール）
-│     └─ Engine.h/.cpp サブシステムの所有とメインループ
-├─ Tools/CheckDependencies.ps1  モジュール間の依存が層の決まりを守っているか調べる
+│     └─ Engine.h/.cpp サブシステムの所有とメインループ（バージョンは Engine::kVersion）
+├─ Tools/
+│  ├─ CheckDependencies.ps1  モジュール間の依存が層の決まりを守っているか調べる
+│  └─ BuildAssimp.ps1        同梱の assimp をビルドし直す（assimp-md.lib / assimp-mdd.lib）
 ├─ Tests/                    自動テスト（自前の小さなテストフレームワーク）
 ├─ Sandbox/                  サンプルゲーム（エンジンの使い方の例）
-└─ Assets/
-   ├─ Engine/   シェーダ・フォント・アイコン
-   └─ Sample/   サンプル用のモデル・テクスチャ・音・シーン
+├─ Assets/
+│  ├─ Engine/   シェーダー・フォント・アイコン・訳の表（Localization/ja.json）
+│  └─ Sample/   サンプル用のモデル・テクスチャ・音・シェーダー・マテリアル・シーン
+├─ Logs/                     ログ・クラッシュレポート・パネルの配置（Git に入れない）
+└─ UserSettings/             エディタの状態と AI アシスタントの設定（Git に入れない）
 ```
 
 ## 設計のポイント
@@ -75,9 +88,10 @@ claude/
 下の層は上の層を `#include` しない。`Tools/CheckDependencies.ps1` で確認できる（違反があると終了コード 1）。
 
 ```
-Math / Core → Platform / RHI → Asset → Render / Audio → Scene → Components → Physics → Runtime → Editor
+Math / Core → Platform / RHI → Asset → Render / Audio → Scene → AI → Components → Physics → Runtime → Editor
 ```
-- `Scene` はコンポーネントや物理の具体的な型を知らない。物理ワールドは `SceneSystem` として `scene.GetSystem<PhysicsWorld>()` で使う。
+- `Scene` はコンポーネントや物理の具体的な型を知らない。物理ワールドや NavMesh は `SceneSystem` として `scene.GetSystem<PhysicsWorld>()` のように使う。
+- `Asset` は `Render` の型を知らない。マテリアルやシェーダーは呼ぶ側で `AssetManager::LoadNow<MaterialAsset>()` のように型を指定して読む。
 - `Runtime` はエディタを知らない。エディタは `FrameOverlay` インターフェースを実装して、カメラ・ギズモ・UI を差し込む。
 - エディタは作るときに `Engine&` を受け取り、`Engine::Get()` に頼らない。
 
@@ -85,6 +99,9 @@ Math / Core → Platform / RHI → Asset → Render / Audio → Scene → Compon
 アクターを全部回して仮想関数を呼ぶのではなく、シーンが**型ごとのリスト**と**コールバックごとのリスト**を持つ。
 - `RD_COMPONENT` が、そのコンポーネントが `Update` / `FixedUpdate` / `LateUpdate` / `OnRender` などを上書きしているかを自動で調べる。上書きしていないもの（ライトの `Update` など）は呼ばない。
 - `scene.FindComponents<T>()` は型ごとのリストから集めるので、全アクターを調べない。順番は追加した順で毎回同じ。
+
+### リフレクション
+コンポーネントは `Reflect(PropertyVisitor&)` に一度プロパティを書くだけで、JSON の保存と読み込み・プロパティ画面の表示・Undo・AI アシスタントのツールに対応する。保存は型名の文字列で行い、`ComponentRegistry` で作る。
 
 ### Undo / Redo（コマンドパターン）
 操作ごとに `EditorCommand` を作って `CommandHistory` に積む。変更した部分だけを保存する。
@@ -94,6 +111,7 @@ Math / Core → Platform / RHI → Asset → Render / Audio → Scene → Compon
 | `ActorLifetimeCommand` | アクターの作成 / 削除（子ごと。ID はそのままなので参照も復活する） |
 | `ReparentCommand` | 親子の付け替え（兄弟の順番も戻す） |
 | `SceneSettingsCommand` | 環境・重力の変更 |
+| `MaterialAssetCommand` | マテリアルのファイル（.rdmat）の値の変更 |
 | `CompositeCommand` | 複数のコマンドを 1 回の操作にまとめる |
 
 短い間隔で同じ操作が続いたら 1 つにまとめる。プレイを停止しても履歴は残る。保存した位置を覚えていて、タイトルの `*` に反映する。
@@ -103,17 +121,17 @@ Math / Core → Platform / RHI → Asset → Render / Audio → Scene → Compon
 Log::Info(LogCat::Render, "Loaded {}", path);   // カテゴリを省略すると General
 ```
 - レベル: Trace / Debug / Info / Warning / Error / Fatal。`-loglevel debug` で実行時に変更。Game ビルドでは Debug 以下をコンパイル時に除く。
-- 出力先（`LogSink`）: Visual Studio の出力ウィンドウ（Warning 以上はダブルクリックで該当行へ）、ファイル、エディタのコンソール。書き込みはログ専用スレッドで行い、Error 以上は書き出しまで待つ。
+- 出力先（`LogSink`）: Visual Studio の出力ウィンドウ（Warning 以上はダブルクリックで該当行へ）、ファイル、エディタの Log パネル。書き込みはログ専用スレッドで行い、Error 以上は書き出しまで待つ。
 - ファイル: `Logs/RdEngine.log`。前回分は `Logs/History/` に日時付きで 10 個まで残す。各行に時刻・経過秒・レベル・カテゴリ・スレッド・発生場所が付く。
 
-### クラッシュハンドラ（`Core/CrashHandler`）
+### クラッシュハンドラ（`Core/Debug/CrashHandler`）
 落ちたときに `Logs/` へ 2 つのファイルを残し、ダイアログで知らせる（デバッガ接続中はデバッガで止まる）。
 - `Crash_日時.txt`: 原因（アクセス違反なら読み書きしたアドレスも）、落ちた場所、**関数名とファイル:行付きの呼び出し履歴**、OS・メモリ・GPU・開いていたシーン・プレイ中か、直前 40 件のログ
 - `Crash_日時.dmp`: ミニダンプ。Visual Studio で開いて「ネイティブのみでデバッグ」を押すと、落ちた行で止まった状態を見られる
 - 対象: アクセス違反・ゼロ除算・スタックオーバーフロー、捕まえていない C++ 例外（`what()` の文字列も載る）、`abort()` / `RD_VERIFY` / `Log::Fatal`、純粋仮想関数の呼び出し、CRT の不正な引数
 - レポートに載せる情報は `CrashHandler::SetContext("名前", []{ return ...; })` で足せる
 
-### プロファイラ（`Core/Profiler`、エディタの Window → Profiler / F9）
+### プロファイラ（`Core/Profiling`、エディタの Window → Profiler / F9）
 ```cpp
 void Enemy::Update(float dt)
 {
@@ -126,6 +144,31 @@ RD_GPU_SCOPE("Shadow");              // CPU と GPU（タイムスタンプ）�
 - パネル: フレーム時間のグラフ（CPU の棒と GPU の線、クリックでそのフレームを止めて見る）、スレッドごとのタイムライン（Ctrl+ホイールで拡大）、区間ごとの平均 / 最大 / 回数
 - 「Save Trace」か `-profile 300` で Chrome のトレース形式に保存し、[ui.perfetto.dev](https://ui.perfetto.dev) で開ける
 - GPU の区間は PIX / RenderDoc のイベント名にもなる。`RD_PROFILER=0` で計測コードを丸ごと外せる
+
+### 自作シェーダーとマテリアル
+- **シェーダー（.hlsl）**: `Surface.hlsli` を include して `Surface` 関数（必要なら `SurfaceVertex` も）を書く。ファイルの先頭の注釈に Unity と同じ書き方で `Properties { ... }` を並べると、エンジンが変数を宣言し、マテリアルの画面で値を変えられる（Color / Float / Range / Int / Vector / 2D、`[HDR]`・`[Toggle]`）。見本は `Assets/Sample/Shaders/Stripes.hlsl`
+- **マテリアル（.rdmat）**: JSON で保存するマテリアル。いくつもの MeshRenderer が同じものを指せて、値を変えると全部の見た目が変わる。標準の陰影（PBR）のほか、Flat（面ごとの平らな陰影・影の色・リム）と Triplanar（ワールド座標で 3 方向から貼る）を選べる
+- どちらも Project パネルの「Create」で作れる。シェーダーを書き換えたら Ctrl+R で読み直す
+
+### モデル（.rdmodel）
+fbx / glTF / obj などを Project パネルへドロップすると、描画とアニメーションに使うものだけを圧縮したエンジン独自の `.rdmodel` に変換して取り込む（ワーカースレッドで変換するのでエディタは止まらない）。解析がいらないので読み込みが速い。法線は八面体の符号化、ウェイトや関節の番号は 16 ビットにして小さくしている。元のファイルは assimp でそのまま読むこともできる。
+
+### AI とナビゲーション
+- `NavMesh`: 書き出した三角形を読み、辺を共有する三角形とタイルの境目で一部が重なる辺をつなぐ。A* と funnel で曲がり角を求め、リンク（跳んで渡る道）にも対応する
+- `NavMeshSurface` / `NavMeshLink` / `NavMeshAgent`: Unity と同じ使い方のコンポーネント。エージェントはリンクの入口で止まり、`CompleteOffMeshLink` で続きを歩く
+- `bt::`（行動ツリー）: Sequence / Selector / Guard / Branch / Switch / Repeat の小さな行動ツリーを C++ で組み立てる
+
+### UI
+画面に重ねる UI（Unity の Canvas の Screen Space - Overlay にあたる）。
+- `Canvas`（Reference Resolution と Match で拡大・縮小）・`CanvasGroup`（まとめて透明に）・`RectTransform`
+- `UIImage`: Simple / Sliced（9 分割）/ Filled（横・縦）
+- `UIText`: 折り返し・Auto Size・縁取り、リッチテキスト `<color=#RRGGBB>` `<size=70%>` `<sprite name="x">`。フォントは stb_truetype でアトラスに焼く
+- UI はゲームの画面（Game ビューと `-noeditor`）にだけ描く
+
+### エディタの表示の言語と状態の保存
+- Window → Language で英語 / 日本語を切り替える。コードの文字列は英語で書き、`Tr("Save")` を通すと訳になる。訳の表は `Assets/Engine/Localization/ja.json`（エンジン）と `Assets/<ゲーム>/Localization/ja.json`（ゲームのコンポーネントの項目名など）。表にない言葉は英語のまま出る
+- 終了時に、ウィンドウの位置・開いていたシーン・選んでいたアクター・シーンビューのカメラと表示を `UserSettings/EditorSession_<exe 名>.json` に保存し、次の起動で戻す
+- パネルの配置は `Logs/editor_layout.ini`。崩れたときは Window → Reset Layout で初期配置に戻る
 
 ### AI アシスタント（エディタの Window → AI Assistant / F8）
 LLM に頼んでシーンを編集する。「赤い箱を 5 個、半径 3m の円に並べて」「選んでいるライトを暗くして」など。
@@ -144,38 +187,24 @@ LLM に頼んでシーンを編集する。「赤い箱を 5 個、半径 3m の
 
 - LLM はツールでシーンを読み書きする: `get_scene` / `get_actor` / `list_component_types` / `list_assets` / `create_actor` / `modify_actor` / `delete_actor` / `select_actor`
 - 変更は通常の編集と同じコマンドとして積むので **Ctrl+Z で戻せる**（履歴に「AI: ...」と出る）。プレイ中は変更しない
-- 設定は `UserSettings/AIAssistant.json` に保存する（API キーは保存しない。このフォルダは Git に入れない）
+- 設定は `UserSettings/AIAssistant.json` に保存する（API キーは保存しない）
 - 小さなローカルモデルは、ツールの使い方を間違えたり、依頼を取り違えたりすることがある。うまくいかないときは大きめのモデルを試す
-- 作り: 会話はどの LLM でも同じ形（`AssistantTurn`）で持ち、`Editor/Assistant/ClaudeProvider`・`LocalProvider` が LLM ごとのリクエストと返事に変換する。通信は `Platform/HttpClient`（WinHTTP）。ツールは `Editor/Assistant/AssistantTools`。どちらもテストからサーバーなしで呼べる
+- 作り: 会話はどの LLM でも同じ形（`AssistantTurn`）で持ち、`Editor/Assistant/ClaudeProvider`・`LocalProvider` が LLM ごとのリクエストと返事に変換する。通信は `Platform/Network/HttpClient`（WinHTTP）。ツールは `Editor/Assistant/AssistantTools`。どちらもテストからサーバーなしで呼べる
 
-## 旧エンジンからの主な変更
+## 機能の一覧
 
-### 設計の整理
-- **型情報を整数 enum で保存するのをやめた**: 旧版は `Actor::Type` / `Component::Type` の番号を JSON に保存していたため、enum の順番を変えると既存データが壊れた。新版は型名の文字列で保存し、`ComponentRegistry` で生成する。
-- **リフレクションの一本化**: コンポーネントは `Reflect(PropertyVisitor&)` に一度プロパティを書くだけで、JSON 保存・読み込み・インスペクタ表示・Undo に対応する（旧版は `Load` / `Save` / `UpdateForDev` を個別に手書き）。
-- **レンダラーとエディタの分離**: 旧 `Renderer` は ImGui や `gEngine` を直接触っていた。新版の Renderer は描画リスト（`RenderList`）を受け取って描くだけで、エディタのことを知らない。
-- **所有権の明確化**: Actor / Component は `unique_ptr` で Scene / Actor が所有。破棄はフレーム末に遅延実行。GPU リソースはフェンスを待ってから解放（`DeferRelease`）。
-- **アニメーション状態の分離**: 旧版は姿勢を共有の `Mesh` に書き込んでいたため、同じモデルを複数置くと全員が同じ動きになった。新版は `Animator` コンポーネントごとに姿勢を持つ。
-- **グローバル変数の削減**: `gEngine` / `gGraphicsEngine` / エディタの extern 群を整理した。エディタ・シーン切替・フレームの組み立ては必要なものを受け取る形にし、`Xxx::Get()` は描画やアセットなど、コンポーネントから使うサービスに限っている。
-
-### 見つけて直した旧版のバグ
-- `Matrix3` の行列式・逆行列の計算式の誤り（積が引き算になっていた）
-- `Matrix4::operator*` がヘッダでは非 inline、cpp では inline という不整合
-- `Mouse::GetButtonUp` / `GetButtonDown` の判定が逆
-- `Matrix4` の逆行列がアフィン変換専用だった（一般の 4x4 に対応）
-- 毎フレーム GPU の完了を待っていた（後述のフレーム多重化で解消）
-
-### パワーアップした機能
 | 分野 | 内容 |
 | --- | --- |
 | JobSystem | ワーカースレッドプール、優先度付きキュー、`ParallelFor`、待機中のスレッドもジョブを手伝う Wait、メインスレッドへの処理の戻し |
-| 非同期読み込み | テクスチャ・モデル・音声はワーカーでデコードし、次フレーム先頭で GPU へ転送。読み込み中は代替表示 |
+| 非同期読み込み | テクスチャ・モデル・音声はワーカーでデコードし、次フレーム先頭で GPU へ転送。読み込み中は代替表示。小さなファイル（マテリアル・シェーダー）は `LoadNow` でその場で読む |
 | RHI | 2 フレーム同時進行（CPU と GPU の並列化）、フレームごとの一時アップロード領域、遅延解放、フリーリスト式デスクリプタヒープ |
-| 描画 | PBR（GGX）、カスケードシャドウ（最大 4 段・1 枚のテクスチャに 2x2 で配置・PCF・テクセルスナップ・遠くで薄くする・色分け表示）、点光源/スポットライト最大 32/16 灯、法線マップ、空のグラデーション + 太陽、フォグ、HDR + ブルーム + ACES トーンマップ、視錐台カリング、インスタンシングのパーティクル、スプライトのバッチ描画 |
-| アニメーション | ジョブで並列に姿勢計算、クロスフェード、別ファイルのアニメーション流用（単位の違いを自動補正） |
-| 物理 | 剛体（質量・慣性・重力・抵抗）、球/箱/カプセル/メッシュ（BVH）の衝突、動く物体のメッシュは凸包として当たる（分離軸判定）、スイープ&プルーンの広域判定、逐次インパルス法（反発・摩擦）、Enter/Stay/Exit イベント、トリガー、レイキャスト、レイヤー |
-| オーディオ | BGM / SE のバス音量、ループ、距離減衰とパンによる 3D 定位、WAV に加えて MP3 / AAC(m4a) / FLAC / WMA（Windows の Media Foundation で展開） |
-| エディタ | ドッキング UI、Undo/Redo、移動/回転/拡縮ギズモ（Ctrl でスナップ）、クリック選択、階層のドラッグ&ドロップで親子付け、アセットブラウザからのドラッグ&ドロップ、コンポーネント追加メニュー（検索付き）、プレイ/一時停止/ステップ/停止（停止で元に戻る）、Scene / Game ビューの切り替えと縦横比、アクターのコピー&貼り付け・名前の変更、コンポーネントの並び替え・値のコピー&貼り付け、プレハブの作成と配置、Project パネル（フォルダの作成・名前変更・ごみ箱へ削除・ドラッグで移動）、コンソール（レベルごとの件数・まとめ表示・プレイ時に消去）、保存していない変更の確認、統計、シェーダのホットリロード（Ctrl+R） |
+| 描画 | PBR（GGX）、Flat の陰影、Triplanar、自作のサーフェスシェーダー、カスケードシャドウ（最大 4 段・PCF・テクセルスナップ・遠くで薄くする・色分け表示）、点光源 / スポットライト最大 32 / 16 灯（頂点ごとの計算・物ごとの数の制限も可）、法線マップ、空のグラデーション + 太陽、3 色の環境光（空・地平線・地面）、フォグ、HDR + ブルーム、トーンマップ（ACES / Neutral）、露出・コントラスト・彩度、ビネット、レトロ表示（低解像度 + ディザ）、アウトライン（壁越しに見える縁取り）、視錐台カリング、インスタンシングのパーティクル、スプライトのバッチ描画、半透明の三角形、別の描画先への描画（プレビュー・2 つのビュー） |
+| アニメーション | ジョブで並列に姿勢計算、クロスフェード、別ファイルのアニメーション流用（単位の違いを自動補正）、AnimatorController（Unity の状態遷移を JSON から動かす）、骨と同じ名前のアクターを動かす、関節の回転の上乗せ（首を向けるなど） |
+| 物理 | 剛体（質量・慣性・重力・抵抗）、球 / 箱 / カプセル / メッシュ（BVH）の衝突、動く物体のメッシュは凸包として当たる（分離軸判定）、スイープ&プルーンの広域判定、逐次インパルス法（反発・摩擦）、Enter / Stay / Exit イベント、トリガー、レイキャスト・重なりの問い合わせ、レイヤー、CharacterController（坂・段差・壁に沿って滑る） |
+| AI | NavMesh（A* + funnel・リンク）、NavMeshAgent、行動ツリー |
+| UI | Canvas・RectTransform・UIImage（Sliced / Filled）・UIText（日本語・リッチテキスト・縁取り） |
+| オーディオ | BGM / SE のバス音量、ループ、ピッチ、距離減衰とパンによる 3D 定位、WAV に加えて MP3 / AAC(m4a) / FLAC / WMA（Windows の Media Foundation で展開） |
+| エディタ | ドッキング UI、Scene と Game の 2 つのビュー（並べると両方映る）、Undo/Redo、移動 / 回転 / 拡縮ギズモ（Ctrl でスナップ）、クリック選択、階層のドラッグ&ドロップで親子付け、アセットブラウザからのドラッグ&ドロップ、エクスプローラーからのファイルの取り込み、コンポーネント追加メニュー（検索付き）、プレイ / 一時停止 / ステップ / 停止（停止で元に戻る。プレイ中にゲームが場面を切り替えても続く）、アクターのコピー&貼り付け・名前の変更、コンポーネントの並び替え・値のコピー&貼り付け、プレハブの作成と配置、Project パネル（フォルダ・マテリアル・シェーダーの作成、名前変更、ごみ箱へ削除、ドラッグで移動、モデルのサムネイル）、テクスチャとモデルのプレビュー（回転・拡大・クリップの再生）、Log パネル（レベルごとの件数・まとめ表示・プレイ時に消去）、NavMesh と物理の表示、日本語表示、終了時の状態の保存、保存していない変更の確認、統計、シェーダーのホットリロード（Ctrl+R） |
 
 ## ゲームコードの書き方
 
@@ -197,6 +226,8 @@ public:
 RD_REGISTER_COMPONENT(Spinner, "Game");// これだけでエディタの「Add Component」に出る
 ```
 
+ゲームは `Sandbox` と同じ形の exe のプロジェクトを作り、`Engine` をリンクして `main` で `rd::Engine` を作り、`Run(config)` を呼ぶ。詳しくは `Sandbox/Source/Main.cpp` を見てください。
+
 ## エディタの操作
 
 | 操作 | 内容 |
@@ -206,19 +237,40 @@ RD_REGISTER_COMPONENT(Spinner, "Game");// これだけでエディタの「Add C
 | F | 選択中のアクターへフォーカス |
 | W / E / R | 移動 / 回転 / 拡縮ギズモ |
 | Ctrl+Z / Ctrl+Y | Undo / Redo |
-| Ctrl+S / Ctrl+O | シーン保存 / 開く |
+| Ctrl+S / Ctrl+Shift+S / Ctrl+O | シーン保存 / 名前を付けて保存 / 開く |
 | Ctrl+C / Ctrl+V | コピー / 貼り付け |
 | Ctrl+D / Delete / F2 | 複製 / 削除 / 名前の変更 |
 | Ctrl+P / Ctrl+Shift+P / Ctrl+Alt+P | プレイと停止 / 一時停止 / 1 フレーム進める |
+| Ctrl+R | シェーダーの読み直し |
 | F8 / F9 | AI アシスタント / プロファイラ |
 | F11 | 全画面の切り替え |
 
 ## 座標系の規約
 左手座標系・行ベクトル（`v * M`）・行列は「先に適用するものを左」（`S * R * T`）。旧エンジンと同じ。
+クォータニオンの掛け算の順番は Unity と逆（Unity の `A * B` はこのエンジンでは `B * A`）。
+
+## 旧エンジンからの主な変更
+
+### 設計の整理
+- **型情報を整数 enum で保存するのをやめた**: 旧版は `Actor::Type` / `Component::Type` の番号を JSON に保存していたため、enum の順番を変えると既存データが壊れた。新版は型名の文字列で保存する。
+- **リフレクションの一本化**: 旧版の `Load` / `Save` / `UpdateForDev` の手書きを、`Reflect` 1 つにまとめた。
+- **レンダラーとエディタの分離**: 旧 `Renderer` は ImGui や `gEngine` を直接触っていた。新版の Renderer は描画リスト（`RenderList`）を受け取って描くだけで、エディタのことを知らない。
+- **所有権の明確化**: Actor / Component は `unique_ptr` で Scene / Actor が所有。破棄はフレーム末に遅延実行。GPU リソースはフェンスを待ってから解放（`DeferRelease`）。
+- **アニメーション状態の分離**: 旧版は姿勢を共有の `Mesh` に書き込んでいたため、同じモデルを複数置くと全員が同じ動きになった。新版は `Animator` コンポーネントごとに姿勢を持つ。
+- **グローバル変数の削減**: `gEngine` / `gGraphicsEngine` / エディタの extern 群を整理した。エディタ・シーン切替・フレームの組み立ては必要なものを受け取る形にし、`Xxx::Get()` は描画やアセットなど、コンポーネントから使うサービスに限っている。
+- **1 クラス 1 ファイル**: モジュールの中をクラスごとのファイルと役割ごとのフォルダに分けた。
+
+### 見つけて直した旧版のバグ
+- `Matrix3` の行列式・逆行列の計算式の誤り（積が引き算になっていた）
+- `Matrix4::operator*` がヘッダでは非 inline、cpp では inline という不整合
+- `Mouse::GetButtonUp` / `GetButtonDown` の判定が逆
+- `Matrix4` の逆行列がアフィン変換専用だった（一般の 4x4 に対応）
+- 毎フレーム GPU の完了を待っていた（フレーム多重化で解消）
 
 ## 既知の制限
 - 旧版のレベルファイル（`.rdlv`）と互換はない（型を番号で保存していたため）
 - 影を落とすのは最初の平行光源 1 つだけ（点光源・スポットライトの影はない）
 - 動く物体のメッシュコライダーは凸包として当たる（凹んだ形は凹みが埋まる。Unity の Convex と同じ）。凸包でないメッシュ同士は頂点の食い込みで調べるので、辺と辺だけの交差は拾えない
+- NavMesh はエンジンの中で焼かない（Unity などで作った三角形を読み込む）
+- UIImage の円形の塗りと Tiled の繰り返しは未対応
 - 音声は Ogg Vorbis に未対応（Windows 標準では読めないため）
-- パネルの配置は `Logs/editor_layout.ini` に保存する。崩れたときは Window → Reset Layout で初期配置に戻る

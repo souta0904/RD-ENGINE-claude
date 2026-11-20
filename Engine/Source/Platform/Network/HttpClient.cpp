@@ -46,7 +46,7 @@ namespace rd
 			return res;
 		}
 
-		Handle session(WinHttpOpen(L"RdEngine/2.0", WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0));
+		Handle session(WinHttpOpen(L"RdEngine/1.0", WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0));
 		if (!session) { res.error = LastError("WinHttpOpen"); return res; }
 		WinHttpSetTimeouts(session.h, timeoutMs, timeoutMs, timeoutMs, timeoutMs);
 
