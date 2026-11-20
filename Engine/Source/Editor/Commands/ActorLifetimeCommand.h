@@ -8,7 +8,7 @@ namespace rd
 {
 	// アクター（と子）の作成と削除（作成と削除は向きが逆なだけなので 1 つのクラスにする）
 	//  Created は作った直後、Deleting は消す直前に呼ぶ。中身は ID ごと JSON で覚えておく
-	class ActorLifetimeCommand final : public EditorCommand
+	class RD_API ActorLifetimeCommand final : public EditorCommand
 	{
 	public:
 		static std::unique_ptr<ActorLifetimeCommand> Created(std::string label, Scene& scene, const std::vector<Actor*>& actors);

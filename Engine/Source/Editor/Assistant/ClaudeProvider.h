@@ -5,7 +5,7 @@ namespace rd
 {
 	// Claude（Messages API）への変換（環境変数 ANTHROPIC_API_KEY か ANTHROPIC_AUTH_TOKEN を使う）
 	//  Claude が返した形をそのまま送り返して thinking を保ち、会話の先頭をキャッシュしてツールの往復を安く速くする
-	class ClaudeProvider final : public AssistantProvider
+	class RD_API ClaudeProvider final : public AssistantProvider
 	{
 	public:
 		bool BuildRequest(const std::vector<AssistantTurn>& history, const std::string& system, const Json& tools,

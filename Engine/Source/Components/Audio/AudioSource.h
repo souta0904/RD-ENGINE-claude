@@ -9,7 +9,7 @@ namespace rd
 	class AudioClip;
 
 	// 音を鳴らすコンポーネント（3D の音はアクターの位置から鳴る）
-	class AudioSource final : public Component
+	class RD_API AudioSource final : public Component
 	{
 		RD_COMPONENT(AudioSource)
 	public:

@@ -4,7 +4,7 @@
 namespace rd
 {
 	// 平行光源（Transform の前方向 +Z に光が進む。影を落とせるのは 1 つだけ）
-	class DirectionalLight final : public Component
+	class RD_API DirectionalLight final : public Component
 	{
 		RD_COMPONENT(DirectionalLight)
 	public:

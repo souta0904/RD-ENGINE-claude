@@ -17,8 +17,8 @@ namespace rd
 		virtual AssistantReply ParseResponse(const HttpResponse& response) const = 0;
 	};
 
-	std::unique_ptr<AssistantProvider> CreateAssistantProvider(AssistantProviderKind kind);
+	RD_API std::unique_ptr<AssistantProvider> CreateAssistantProvider(AssistantProviderKind kind);
 
 	// ローカルのサーバーにあるモデルの名前（つながらなければ空で、error に理由）
-	std::vector<std::string> ListLocalModels(const AssistantSettings& settings, std::string& error);
+	RD_API std::vector<std::string> ListLocalModels(const AssistantSettings& settings, std::string& error);
 }

@@ -14,7 +14,7 @@ namespace rd
 	// プロパティ（選んだアクターの名前・Transform・コンポーネントを編集する。Unity のインスペクタにあたる）
 	//  コンポーネントの見出しをドラッグして並べ替え、右クリックで削除・リセット・値のコピーと貼り付け・並べ替え
 	//  アクターを選んでいないときは、プロジェクトパネルで選んだアセットの情報を出す（絵はプレビューパネル）
-	class PropertiesPanel final : public EditorPanel
+	class RD_API PropertiesPanel final : public EditorPanel
 	{
 	public:
 		explicit PropertiesPanel(Editor& editor);

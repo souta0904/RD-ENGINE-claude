@@ -13,7 +13,7 @@ namespace rd
 	//  - kFrameCount フレーム分のコマンドアロケータを持ち、CPU と GPU を同時に動かす
 	//  - GPU が使っているかもしれないリソースは DeferRelease で、使い終わってから解放する
 	//  - どのスレッドからでも EnqueueUpload でバッファ / テクスチャのアップロードを予約できる
-	class GraphicsDevice
+	class RD_API GraphicsDevice
 	{
 	public:
 		static constexpr DXGI_FORMAT kBackBufferFormat = DXGI_FORMAT_R8G8B8A8_UNORM;

@@ -11,7 +11,7 @@ namespace rd
 	// Unity の AnimatorController の状態遷移を、書き出した JSON から動かす（同じアクターの Animator でクリップを流す）
 	//  パラメーター（Bool / Trigger / Float / Int）の条件と終了時間で、基本のレイヤーの状態を切り替える。
 	//  上のレイヤーにしかない状態（食べるなど）を Play で指定したときは、そのクリップを 1 回流してから元の状態に戻る。
-	class AnimatorController final : public Component
+	class RD_API AnimatorController final : public Component
 	{
 		RD_COMPONENT(AnimatorController)
 	public:

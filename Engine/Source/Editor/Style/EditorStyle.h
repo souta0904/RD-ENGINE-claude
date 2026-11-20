@@ -5,7 +5,7 @@ namespace rd
 {
 	// エディタの配色と寸法（すべてのパネルがここの値を使って見た目をそろえる）
 	//  Apply で ImGui のスタイルに反映する。プレイ中はメニューバーの色を変えて分かるようにする
-	class EditorStyle
+	class RD_API EditorStyle
 	{
 	public:
 		static void Apply(float dpiScale);

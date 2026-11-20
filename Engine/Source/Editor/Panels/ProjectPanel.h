@@ -12,12 +12,13 @@ namespace rd
 	//  ダブルクリックでフォルダへ入る / シーンを開く。ファイルはドラッグしてビューやプロパティへ入れられる
 	//  アクターをドロップするとプレハブを作る。右クリックでフォルダの作成・名前の変更・削除（ごみ箱へ）・エクスプローラーで表示
 	//  エクスプローラーからファイルを落とすと取り込む（フォルダの上なら そのフォルダ、それ以外は今のフォルダへ）
-	class ProjectPanel final : public EditorPanel
+	class RD_API ProjectPanel final : public EditorPanel
 	{
 	public:
 		explicit ProjectPanel(Editor& editor);
 
 		void Update(float dt) override;
+		void OnGameCodeReloaded() override { mThumbnails.ForgetPrefabs(); }
 
 		const std::string& GetCurrentFolder() const { return mFolder; }
 		const std::string& GetSelectedFile() const { return mSelected; }

@@ -14,7 +14,7 @@ namespace rd
 	};
 
 	// 剛体（物理で動くようにする。isKinematic なら物理では動かさずスクリプトで動かす）
-	class Rigidbody final : public Component
+	class RD_API Rigidbody final : public Component
 	{
 		RD_COMPONENT(Rigidbody)
 	public:

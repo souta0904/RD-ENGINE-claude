@@ -16,7 +16,7 @@ namespace rd
 		Eye, EyeOff, Plus, Search, Menu, Info, Warning, Error,
 	};
 
-	class EditorIcons
+	class RD_API EditorIcons
 	{
 	public:
 		// pos は左上、size は一辺の長さ

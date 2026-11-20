@@ -13,7 +13,7 @@ namespace rd
 	//    SaveJsonFile("x.json", json);
 	//
 	//  書くだけで値は変えないので、どの Property も false（変わっていない）を返す
-	class JsonWriter final : public PropertyVisitor
+	class RD_API JsonWriter final : public PropertyVisitor
 	{
 	public:
 		// mStack … 今書いている JSON のオブジェクトの積み重ね。BeginGroup で中へ入り、EndGroup で外へ戻る

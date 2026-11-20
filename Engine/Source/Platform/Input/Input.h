@@ -7,7 +7,7 @@ namespace rd
 	// 入力（Win32 のメッセージ・Raw Input のマウス移動量・XInput のゲームパッド）
 	//  毎フレーム NewFrame → メッセージ処理 → LatchFrame の順に呼ぶ
 	//  エディタの UI が使っている間は SetBlocked でゲーム側の入力を止める（Raw の関数は止めない）
-	class Input
+	class RD_API Input
 	{
 	public:
 		static constexpr uint32_t kMaxGamepads = 4;

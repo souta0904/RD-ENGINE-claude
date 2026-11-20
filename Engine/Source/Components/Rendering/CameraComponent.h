@@ -10,7 +10,7 @@
 namespace rd
 {
 	// カメラ（有効なものの中で priority が一番高いものがゲーム画面に使われる。fov は縦の視野角（度））
-	class CameraComponent final : public Component
+	class RD_API CameraComponent final : public Component
 	{
 		RD_COMPONENT(CameraComponent)
 	public:

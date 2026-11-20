@@ -8,10 +8,11 @@ namespace rd
 {
 	// プレビュー（プロジェクトパネルで選んだテクスチャ・モデル・プレハブの絵を出す）
 	//  アクターを選んでいるときは、そのアクターの MeshRenderer のモデルを出す
-	class PreviewPanel final : public EditorPanel
+	class RD_API PreviewPanel final : public EditorPanel
 	{
 	public:
 		explicit PreviewPanel(Editor& editor);
+		void OnGameCodeReloaded() override { mPrefabPreview.Reload(); }
 
 	protected:
 		void OnGui() override;

@@ -4,7 +4,7 @@
 namespace rd
 {
 	// 深度バッファ（シェーダーから SRV として読める）
-	class DepthTexture : public GpuTexture
+	class RD_API DepthTexture : public GpuTexture
 	{
 	public:
 		~DepthTexture();

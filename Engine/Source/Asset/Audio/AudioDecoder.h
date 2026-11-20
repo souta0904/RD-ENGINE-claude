@@ -8,7 +8,7 @@ namespace rd
 	// 音声ファイルを WAVEFORMATEX と波形データに展開する
 	//  WAV は自分で読む（ADPCM などもそのまま XAudio2 に渡せる）。それ以外は Media Foundation で 16bit PCM にする
 	//  （Ogg Vorbis は Windows の標準では読めない）。COM を初期化したスレッドで呼ぶこと
-	class AudioDecoder
+	class RD_API AudioDecoder
 	{
 	public:
 		static bool Decode(const std::string& path, std::vector<uint8_t>& format, std::vector<uint8_t>& data);

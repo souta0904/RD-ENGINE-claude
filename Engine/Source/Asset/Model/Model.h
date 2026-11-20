@@ -13,7 +13,7 @@ namespace rd
 	struct ModelData;
 
 	// 3D モデル（独自形式の .rdmodel と、assimp で obj / gltf / fbx などを読む。キーの末尾が "#anim" ならアニメーションだけを読む）
-	class Model final : public Asset
+	class RD_API Model final : public Asset
 	{
 	public:
 		// assimp で読む元のファイルの拡張子か（ext は小文字で "." 付き）

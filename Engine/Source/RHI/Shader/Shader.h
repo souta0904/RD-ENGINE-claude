@@ -10,7 +10,7 @@ namespace rd
 
 	// コンパイルするシェーダーの指定（defines は "NAME" か "NAME=VALUE"）
 	//  source が空でなければ、ファイルを読まずにその文字列をコンパイルする（path は名前と include の基準）
-	struct ShaderDesc
+	struct RD_API ShaderDesc
 	{
 		std::string path;
 		std::string entry = "main";

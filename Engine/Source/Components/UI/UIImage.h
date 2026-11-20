@@ -13,7 +13,7 @@ namespace rd
 	//  Sliced は 9 分割し、四隅は伸ばさず辺と中央だけ伸ばす（Tiled も同じに描く。繰り返しはまだない）。
 	//  Unity と同じく UV Rect は透明な余白を除いた外側、Inner UV は枠の内側。Padding・Border はスプライトのピクセル
 	//  （左・下・右・上）で、Canvas の単位にすると ÷ Pixels Per Unit
-	class UIImage final : public Component
+	class RD_API UIImage final : public Component
 	{
 		RD_COMPONENT(UIImage)
 	public:

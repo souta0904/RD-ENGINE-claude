@@ -10,7 +10,7 @@ namespace rd
 	// 音声データ
 	//  WAV（PCM / IEEE float / ADPCM）はそのまま、MP3 / AAC(m4a) / FLAC / WMA は読み込むときに PCM へ展開する
 	//  mFormat は拡張部分を含む WAVEFORMATEX
-	class AudioClip final : public Asset
+	class RD_API AudioClip final : public Asset
 	{
 	public:
 		const char* GetTypeName() const override { return "AudioClip"; }

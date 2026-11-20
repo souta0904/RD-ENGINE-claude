@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- RD ENGINE 本体（静的ライブラリ） -->
+<!-- RD ENGINE 本体（エディタ入りの構成では RdEngine.dll、Game 構成では静的ライブラリ） -->
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -20,10 +20,13 @@
     <ProjectGuid>{6A1D2F0B-3C4E-4B8A-9F11-0A1B2C3D4E02}</ProjectGuid>
     <RootNamespace>Engine</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <!-- Common.props がこれを見て RD_API を dllexport にする -->
+    <RdBuildingEngine>true</RdBuildingEngine>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Label="Configuration">
-    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <ConfigurationType Condition="'$(Configuration)'=='Game'">StaticLibrary</ConfigurationType>
+    <ConfigurationType Condition="'$(Configuration)'!='Game'">DynamicLibrary</ConfigurationType>
     <PlatformToolset>v145</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
@@ -31,7 +34,11 @@
   <ImportGroup Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
     <Import Project="..\Build\Common.props" />
+    <Import Project="..\Build\EngineLink.props" Condition="'$(RdEngineDll)'=='1'" />
   </ImportGroup>
+  <PropertyGroup>
+    <TargetName>RdEngine</TargetName>
+  </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
       <WarningLevel>Level4</WarningLevel>

@@ -9,7 +9,7 @@ namespace rd
 	//  長方形の中で折り返し、Alignment（TopLeft / Center / BottomRight など）にそろえて描く。
 	//  Auto Size なら入りきるまで小さくする（Font Size が上限）。
 	//  リッチテキストは <color=#RRGGBB>、<size=70%>、<sprite name="x">（ボタンの名前を色付きの文字で出す）が使える
-	class UIText final : public Component
+	class RD_API UIText final : public Component
 	{
 		RD_COMPONENT(UIText)
 	public:

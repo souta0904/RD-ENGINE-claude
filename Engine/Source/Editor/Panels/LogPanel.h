@@ -7,7 +7,7 @@ namespace rd
 {
 	// ログ（Unity の Console と同じく、右上のボタンで情報・警告・エラーごとに表示を切り替え、数も出す）
 	//  Collapse で同じ文のログを 1 行にまとめ、Clear on Play ならプレイを始めたときに消す
-	class LogPanel final : public EditorPanel
+	class RD_API LogPanel final : public EditorPanel
 	{
 	public:
 		explicit LogPanel(Editor& editor);

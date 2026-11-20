@@ -10,7 +10,7 @@ namespace rd
 	//  Box: center / axes / halfExtents、Sphere: center / radius、Capsule: 線分 p0-p1 と radius
 	//  Mesh: ローカルの三角形と、ローカル → ワールドの回転と移動（拡大縮小は mesh に焼き込む）
 	//        meshConvex なら凸包として扱い（動く物体）、そうでなければ三角形の面として扱う（地形など）
-	struct WorldShape
+	struct RD_API WorldShape
 	{
 		ShapeType type = ShapeType::Sphere;
 		Vector3 center;

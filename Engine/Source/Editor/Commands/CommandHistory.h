@@ -12,9 +12,13 @@ namespace rd
 	//  エディタは操作を実行した後に、その操作を表すコマンドを Push する。
 	//  コマンドは変えた部分だけを持つので、シーン全体を保存し直すより軽い。
 	//  mCursor より前が Undo できるもの、mSavedCursor は保存した時点の位置（その後に履歴が捨てられたら届かない値）
-	class CommandHistory
+	class RD_API CommandHistory
 	{
 	public:
+		CommandHistory() = default;
+		// RD_API で DLL から出すと、コピーできないメンバーのコピーまで作ろうとするので禁止しておく
+		CommandHistory(const CommandHistory&) = delete;
+		CommandHistory& operator=(const CommandHistory&) = delete;
 		// Redo の側は捨てる。直前のものとまとめられればまとめる
 		void Push(std::unique_ptr<EditorCommand> command);
 		void Clear();

@@ -7,7 +7,7 @@ namespace rd
 
 	// プロファイラ（フレームごとの棒グラフ、選んだフレームのスレッドごとのタイムライン、区間ごとの集計）
 	//  棒をクリックするとそのフレームを見られるよう記録を止める。Ctrl + ホイールでタイムラインを横に拡大する
-	class ProfilerPanel final : public EditorPanel
+	class RD_API ProfilerPanel final : public EditorPanel
 	{
 	public:
 		explicit ProfilerPanel(Editor& editor);

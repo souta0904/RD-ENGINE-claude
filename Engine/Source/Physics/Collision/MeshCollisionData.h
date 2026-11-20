@@ -9,7 +9,7 @@ namespace rd
 	// メッシュの衝突データ（メッシュのローカル座標の三角形と BVH。拡大縮小は焼き込み済み）
 	//  三角形の表（外向き）は Cross(c - a, b - a) の向き（エンジンのモデルやプリミティブと同じ巻き順）
 	//  動く物体のメッシュ用に、凸包として当てるための点と面も Build で作る（凹んだメッシュでもこの凸包で当たる）
-	class MeshCollisionData
+	class RD_API MeshCollisionData
 	{
 	public:
 		// 外向き。Dot(p, normal) <= d が内側

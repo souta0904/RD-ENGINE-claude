@@ -6,7 +6,7 @@ namespace rd
 {
 	// Win32 のファイルを開く / 保存するダイアログ（今のフォルダからの相対パスを返す。取り消したら空）
 	//  filter は L"Scene (*.scene)\0*.scene\0" の形、defaultExt は拡張子（点なし）
-	class FileDialog
+	class RD_API FileDialog
 	{
 	public:
 		static std::string Open(HWND owner, const wchar_t* filter, const wchar_t* defaultExt);

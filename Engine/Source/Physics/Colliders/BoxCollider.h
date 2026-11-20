@@ -4,7 +4,7 @@
 namespace rd
 {
 	// 箱のコライダー（回転したアクターの向きに合わせた箱）
-	class BoxCollider final : public Collider
+	class RD_API BoxCollider final : public Collider
 	{
 		RD_COMPONENT(BoxCollider)
 	public:

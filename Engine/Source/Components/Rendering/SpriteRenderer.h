@@ -9,7 +9,7 @@ namespace rd
 
 	// 2D スプライト（画面座標で描く UI 向け）
 	//  Transform の Position.xy がスクリーン座標（左上原点、ピクセル）、Rotation の Z が回転
-	class SpriteRenderer final : public Component
+	class RD_API SpriteRenderer final : public Component
 	{
 		RD_COMPONENT(SpriteRenderer)
 	public:

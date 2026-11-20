@@ -10,9 +10,13 @@ struct IXAudio2SubmixVoice;
 namespace rd
 {
 	// XAudio2 での音の再生（BGM / 効果音のバスごとの音量、ループ、簡単な 3D（距離での減衰と左右のパン））
-	class AudioSystem
+	class RD_API AudioSystem
 	{
 	public:
+		AudioSystem() = default;
+		// RD_API で DLL から出すと、コピーできないメンバーのコピーまで作ろうとするので禁止しておく
+		AudioSystem(const AudioSystem&) = delete;
+		AudioSystem& operator=(const AudioSystem&) = delete;
 		using VoiceId = uint32_t;
 		static constexpr VoiceId kInvalidVoice = 0;
 

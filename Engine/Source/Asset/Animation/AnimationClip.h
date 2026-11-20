@@ -20,7 +20,7 @@ namespace rd
 	};
 
 	// アニメーションのクリップ（duration は秒）
-	class AnimationClip
+	class RD_API AnimationClip
 	{
 	public:
 		std::string name;

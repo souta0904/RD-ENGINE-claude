@@ -7,9 +7,13 @@
 namespace rd
 {
 	// DXC のシェーダーコンパイラ（結果はキャッシュする。ClearCache でホットリロード）
-	class ShaderCompiler
+	class RD_API ShaderCompiler
 	{
 	public:
+		ShaderCompiler() = default;
+		// RD_API で DLL から出すと、コピーできないメンバーのコピーまで作ろうとするので禁止しておく
+		ShaderCompiler(const ShaderCompiler&) = delete;
+		ShaderCompiler& operator=(const ShaderCompiler&) = delete;
 		void Initialize();
 		const Shader* Compile(const ShaderDesc& desc);
 		void ClearCache();

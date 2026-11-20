@@ -7,7 +7,7 @@ namespace rd
 {
 	// 画像ファイルから読むテクスチャ（png / jpg / bmp / tga / dds / hdr）
 	//  キーの末尾が "#linear" ならリニア（法線マップなど）、それ以外は sRGB として扱う
-	class Texture final : public Asset
+	class RD_API Texture final : public Asset
 	{
 	public:
 		const char* GetTypeName() const override { return "Texture"; }

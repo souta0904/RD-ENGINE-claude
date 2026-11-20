@@ -27,7 +27,7 @@ namespace rd
 	//  床は真上へ戻すので坂で滑り落ちない）。速い移動は半径の半分ずつに分けてすり抜けを防ぐ。
 	//  形は常に縦向きのカプセル（半径は X と Z の拡大率の大きい方、高さは Y の拡大率で伸ばす）。
 	//  ほかからはカプセルのコライダーとして見えるので、レイやトリガーに当たる。
-	class CharacterController final : public Collider
+	class RD_API CharacterController final : public Collider
 	{
 		RD_COMPONENT(CharacterController)
 	public:

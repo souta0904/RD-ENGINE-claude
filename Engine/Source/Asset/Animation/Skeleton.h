@@ -30,6 +30,6 @@ namespace rd
 	};
 
 	// 関節のローカル姿勢から、ワールド行列とスキニング用の行列を求める
-	void ComputeSkinningPalette(const Skeleton& skeleton, std::span<const TransformTRS> local,
+	RD_API void ComputeSkinningPalette(const Skeleton& skeleton, std::span<const TransformTRS> local,
 		std::vector<Matrix4>& outGlobal, std::vector<Matrix4>& outPalette);
 }

@@ -14,7 +14,7 @@ namespace rd
 	//    LoadJsonFile("x.json", json);
 	//    JsonReader reader(json);
 	//    component.Reflect(reader);
-	class JsonReader final : public PropertyVisitor
+	class RD_API JsonReader final : public PropertyVisitor
 	{
 	public:
 		// mStack … 今読んでいる JSON のオブジェクトの積み重ね。BeginGroup で中へ入り、EndGroup で外へ戻る

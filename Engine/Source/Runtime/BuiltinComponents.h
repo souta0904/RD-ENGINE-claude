@@ -3,5 +3,5 @@
 namespace rd
 {
 	// エンジンの組み込みのコンポーネントを ComponentRegistry に登録する
-	void RegisterBuiltinComponents();
+	RD_API void RegisterBuiltinComponents();
 }

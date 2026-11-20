@@ -6,7 +6,7 @@ namespace rd
 {
 	// どのパネルでも同じ見た目になるよう、よく使う UI の部品をまとめたもの
 	//  パネルの上のツールバーは BeginToolbar / EndToolbar で囲み、その中にボタンや検索欄を横に並べる
-	class EditorGui
+	class RD_API EditorGui
 	{
 	public:
 		static void BeginToolbar(const char* id);

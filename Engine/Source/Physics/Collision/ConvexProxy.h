@@ -5,7 +5,7 @@
 namespace rd
 {
 	// 凸な形（箱・凸包として扱うメッシュ）を、頂点と外向きの面の集まりとして表したもの
-	class ConvexProxy
+	class RD_API ConvexProxy
 	{
 	public:
 		static ConvexProxy FromBox(const WorldShape& box);

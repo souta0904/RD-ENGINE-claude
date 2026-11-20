@@ -3,6 +3,7 @@
 #include "Asset/AssetManager.h"
 #include "Editor/Assistant/AIAssistant.h"
 #include "Editor/Core/EditorLocale.h"
+#include "Editor/Core/HotReload.h"
 #include "Editor/Panels/EditorPanel.h"
 #include "Editor/Panels/ProfilerPanel.h"
 #include "Editor/Panels/ProjectPanel.h"
@@ -28,6 +29,7 @@ namespace rd
 			if (ImGui::MenuItem(Tr("Save Scene As..."), "Ctrl+Shift+S")) { SaveScene(true); }
 			ImGui::Separator();
 			if (ImGui::MenuItem(Tr("Reload Shaders"), "Ctrl+R")) { Renderer::Get().ReloadShaders(); }
+			if (ImGui::MenuItem(Tr("Compile Game Code"), "Ctrl+Alt+F11", false, mHotReload->IsAvailable() && !mHotReload->IsCompiling())) { mHotReload->Compile(); }
 			if (ImGui::MenuItem(Tr("Unload Unused Assets")))
 			{
 				Log::Info(LogCat::Editor, "Unloaded {} assets", AssetManager::Get().CollectGarbage());
@@ -145,8 +147,35 @@ namespace rd
 			if (EditorGui::IconButton("##pause", Icon::Pause, Tr("Pause (Ctrl+Shift+P)"), mEngine.IsPaused(), playing)) { TogglePause(); }
 			ImGui::SameLine(0.0f, 2.0f);
 			if (EditorGui::IconButton("##step", Icon::Step, Tr("Step (Ctrl+Alt+P)"), false, playing)) { StepFrame(); }
+
+			if (mHotReload->IsAvailable()) { DrawCompileButton(); }
 		}
 		ImGui::End();
+	}
+
+	// ツールバーの右端: ゲームのコードのビルドと読み直し（Unreal の Compile ボタンにあたる）。左に今の状態を出す
+	void Editor::DrawCompileButton()
+	{
+		const HotReload& hot = *mHotReload;
+		const char* label = Tr(hot.IsCompiling() ? "Compiling..." : "Compile");
+		const char* status = hot.IsCompiling() ? "" : Tr(hot.GetStatusText());
+		ImGuiStyle& style = ImGui::GetStyle();
+		float buttonWidth = ImGui::GetFrameHeight() + ImGui::CalcTextSize(label).x + style.FramePadding.x * 3.0f;
+		float statusWidth = status[0] ? ImGui::CalcTextSize(status).x + style.ItemSpacing.x : 0.0f;
+		ImGui::SameLine(ImGui::GetWindowWidth() - buttonWidth - statusWidth - style.WindowPadding.x);
+		if (status[0])
+		{
+			ImVec4 color = hot.GetState() == HotReload::State::Failed ? EditorStyle::kError : ImGui::GetStyle().Colors[ImGuiCol_TextDisabled];
+			ImGui::AlignTextToFramePadding();
+			ImGui::TextColored(color, "%s", status);
+			ImGui::SameLine();
+		}
+		ImGui::BeginDisabled(hot.IsCompiling());
+		if (EditorGui::IconTextButton("##compile", Icon::Rotate, label, Tr("Build the game code and reload it without closing the editor (Ctrl+Alt+F11)")))
+		{
+			mHotReload->Compile();
+		}
+		ImGui::EndDisabled();
 	}
 
 	void Editor::DrawDialogs()
@@ -191,6 +220,7 @@ namespace rd
 			else if (shift) { TogglePause(); }
 			else { Defer([this] { TogglePlay(); }); }
 		}
+		if (ctrl && alt && pressed(ImGuiKey_F11)) { mHotReload->Compile(); }
 		if (pressed(ImGuiKey_F9)) { mProfiler->SetOpen(!mProfiler->IsOpen()); }
 		if (pressed(ImGuiKey_F8)) { mAssistant->SetOpen(!mAssistant->IsOpen()); }
 		if (pressed(ImGuiKey_Delete) && ImGui::IsWindowFocused(ImGuiFocusedFlags_AnyWindow)) { Defer([this] { DeleteSelected(); }); }

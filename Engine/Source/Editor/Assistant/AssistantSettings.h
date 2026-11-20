@@ -17,7 +17,7 @@ namespace rd
 	// AI アシスタントの設定（UserSettings/AIAssistant.json に保存する。API キーは保存しない）
 	//  localModel が空ならサーバーにある最初のモデル、contextSize は Ollama の num_ctx（ツールの説明とシーンが入る大きさ）
 	//  claudeModel は kClaudeModels の番号、claudeEffort は low / medium / high
-	struct AssistantSettings
+	struct RD_API AssistantSettings
 	{
 		AssistantProviderKind provider = AssistantProviderKind::Ollama;
 		std::string ollamaUrl = "http://localhost:11434";

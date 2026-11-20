@@ -7,7 +7,7 @@ namespace rd
 	// エディタのフライカメラ
 	//  右ドラッグ: 見回す + WASD/QE で移動（Shift で速く、ホイールで速さを変える） / 中ドラッグ: 平行移動 / ホイール: 前後
 	//  Alt + 左ドラッグ: 注視点のまわりを回る / Focus: 選んだものが収まる位置へ滑らかに動く
-	class EditorCamera
+	class RD_API EditorCamera
 	{
 	public:
 		void Update(float dt, bool hovered);

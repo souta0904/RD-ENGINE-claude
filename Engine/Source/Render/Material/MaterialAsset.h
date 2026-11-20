@@ -11,7 +11,7 @@ namespace rd
 	//  そのため受け取った時点で値がそろっていて、描画とゲームのコードがすぐ使える。
 	//
 	//  Unity の .mat は YAML で書かれていて読めないので、拡張子を分けている
-	class MaterialAsset final : public Asset
+	class RD_API MaterialAsset final : public Asset
 	{
 	public:
 		static constexpr const char* kExtension = ".rdmat";

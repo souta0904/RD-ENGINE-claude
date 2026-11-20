@@ -14,7 +14,7 @@ namespace rd
 	//    UnscaledDeltaTime  … TimeScale の影響を受けない。ポーズ中も動かしたい UI や演出に使う
 	//    FixedDeltaTime     … 物理の 1 ステップの時間（既定は 1/60 秒）。物理は毎フレームではなく、この間隔で進める
 	//    TimeScale          … 時間の速さ。0 で止まり、0.5 でスロー、2 で倍速（ヒットストップやポーズに使う）
-	class Time
+	class RD_API Time
 	{
 	public:
 		// 前のフレームからの秒数（TimeScale を掛けた値）

@@ -9,7 +9,7 @@ namespace rd
 	// ゲームの画面を出すパネル（Scene / Game）の共通部分
 	//  1 フレームにメインの描画（Renderer の結果）を使えるのは 1 つだけで、どちらが使うかは Editor が決める（primary）。
 	//  もう片方も見えていれば、自分の描画先へ別に描いてもらう（Editor::RenderExtraViews）
-	class ViewPanel : public EditorPanel
+	class RD_API ViewPanel : public EditorPanel
 	{
 	public:
 		using EditorPanel::EditorPanel;

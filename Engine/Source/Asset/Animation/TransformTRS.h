@@ -4,7 +4,7 @@
 namespace rd
 {
 	// 平行移動・回転・拡縮に分けた姿勢
-	struct TransformTRS
+	struct RD_API TransformTRS
 	{
 		Vector3 translation;
 		Quaternion rotation;

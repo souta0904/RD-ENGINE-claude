@@ -8,7 +8,7 @@ namespace rd
 	class Rigidbody;
 
 	// コライダーの基底（center はローカルのずれ）
-	class Collider : public Component
+	class RD_API Collider : public Component
 	{
 	public:
 		Vector3 center;

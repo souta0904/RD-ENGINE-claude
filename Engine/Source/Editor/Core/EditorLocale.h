@@ -20,21 +20,21 @@ namespace rd
 	{
 		enum class Language { English, Japanese };
 
-		void SetLanguage(Language language);
-		Language GetLanguage();
-		const char* GetLanguageCode(Language language); // "en" / "ja"
-		Language FromCode(std::string_view code);
+		RD_API void SetLanguage(Language language);
+		RD_API Language GetLanguage();
+		RD_API const char* GetLanguageCode(Language language); // "en" / "ja"
+		RD_API Language FromCode(std::string_view code);
 
 		// 表を読み直す（言語を選び直したとき）
-		void Reload();
+		RD_API void Reload();
 
 		// 英語の文字列の訳。"##" から後ろ（ImGui の ID の部分）は訳さずに付け直す。
 		//  返す文字列はエディタが終わるまで消えない（毎フレーム同じ文字列を探しても増えない）
-		const char* Tr(std::string_view english);
+		RD_API const char* Tr(std::string_view english);
 		// "訳###英語"（ウィンドウやタブのように、言語を変えても同じ部品として扱わせたいもの）
-		const char* TrId(std::string_view english);
+		RD_API const char* TrId(std::string_view english);
 		// 表にあるか（項目名の欄で、訳したときだけ元の名前を乗せたときに出す、などに使う）
-		bool Has(std::string_view english);
+		RD_API bool Has(std::string_view english);
 
 		// 訳した書式で std::format する（訳でも {} の数と並びは同じにする）
 		template <class... Args>
@@ -44,7 +44,7 @@ namespace rd
 		}
 
 		// 表になかった言葉を Logs/missing_<言語>.txt に書き出す（訳の書き足しに使う。終了時に呼ぶ）
-		void WriteMissing();
+		RD_API void WriteMissing();
 	}
 
 	// よく使うので短い名前も置く

@@ -6,7 +6,7 @@ namespace rd
 	class Editor;
 
 	// 本物のエディタにつなぐ AssistantToolHost
-	class EditorToolHost final : public AssistantToolHost
+	class RD_API EditorToolHost final : public AssistantToolHost
 	{
 	public:
 		explicit EditorToolHost(Editor& editor) : mEditor(editor) {}

@@ -22,8 +22,8 @@ namespace rd
 		float& operator[](int i) { return (&x)[i]; }
 		constexpr Vector2 XY() const { return { x, y }; }
 
-		Vector3& Normalize();
-		Vector3 Normalized() const;
+		RD_API Vector3& Normalize();
+		RD_API Vector3 Normalized() const;
 
 		static const Vector3 kZero;
 		static const Vector3 kOne;

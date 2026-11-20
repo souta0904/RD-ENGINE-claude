@@ -4,7 +4,7 @@
 namespace rd
 {
 	// ImGui の初期化と描画（Win32 + DX12 のバックエンド。Render は今のレンダーターゲットへ描く）
-	class ImGuiLayer
+	class RD_API ImGuiLayer
 	{
 	public:
 		void Initialize(HWND hwnd);

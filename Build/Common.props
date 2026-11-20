@@ -10,13 +10,23 @@
     <RdEditor Condition="'$(RdEditor)'==''">1</RdEditor>
     <!-- Game は Release と同じ最適化設定を使う -->
     <RdOptimized Condition="'$(Configuration)'=='Release' or '$(Configuration)'=='Game'">true</RdOptimized>
+    <!-- エディタ入りの構成では、エンジンを RdEngine.dll に、ゲームを DLL にする（ゲームのコードを読み直せるようにするため）。
+         Game 構成では今までどおり全部を 1 つの exe に静的リンクする -->
+    <RdEngineDll Condition="'$(RdEditor)'=='1'">1</RdEngineDll>
+    <RdEngineDll Condition="'$(RdEngineDll)'==''">0</RdEngineDll>
+    <!-- RD_API: エンジンの DLL から外へ出すクラスと関数に付ける印（Unreal の ENGINE_API にあたる） -->
+    <RdApiDefine Condition="'$(RdEngineDll)'=='1' and '$(RdBuildingEngine)'=='true'">RD_API=__declspec(dllexport)</RdApiDefine>
+    <RdApiDefine Condition="'$(RdEngineDll)'=='1' and '$(RdBuildingEngine)'!='true'">RD_API=__declspec(dllimport)</RdApiDefine>
+    <RdApiDefine Condition="'$(RdEngineDll)'=='0'">RD_API=</RdApiDefine>
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <ConformanceMode>true</ConformanceMode>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <PreprocessorDefinitions>NOMINMAX;WIN32_LEAN_AND_MEAN;_UNICODE;UNICODE;RD_EDITOR=$(RdEditor);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NOMINMAX;WIN32_LEAN_AND_MEAN;_UNICODE;UNICODE;RD_EDITOR=$(RdEditor);RD_ENGINE_DLL=$(RdEngineDll);$(RdApiDefine);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <!-- 4251 / 4275: DLL から出すクラスが std の型を持つ・継承するときの警告（同じコンパイラと CRT で作るので問題ない） -->
+      <DisableSpecificWarnings>4251;4275;%(DisableSpecificWarnings)</DisableSpecificWarnings>
       <AdditionalOptions>/utf-8 /Zc:__cplusplus %(AdditionalOptions)</AdditionalOptions>
       <AdditionalIncludeDirectories>$(RdRoot)External;$(RdRoot)External\assimp\include;$(RdRoot)External\DirectXTex;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>

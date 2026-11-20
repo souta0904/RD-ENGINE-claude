@@ -11,7 +11,7 @@ namespace rd
 	//  動的な Rigidbody 付きか convex: 凸包として当たる（Unity の Convex と同じ考え方）
 	//  凸包でないメッシュ同士は「頂点が相手の面より内側に入ったか」で調べるので、辺と辺だけの交差は拾えない
 	//  modelPath が空なら同じアクターの MeshRenderer のモデルを使う。mData はローカル座標（center と拡大率は焼き込み済み）
-	class MeshCollider final : public Collider
+	class RD_API MeshCollider final : public Collider
 	{
 		RD_COMPONENT(MeshCollider)
 	public:

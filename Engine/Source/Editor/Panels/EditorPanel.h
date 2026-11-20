@@ -8,7 +8,7 @@ namespace rd
 	// エディタのパネルの基底（ドッキングできるウィンドウ 1 つ）
 	//  Update は閉じていても毎フレーム呼ばれ、OnGui は開いているときだけウィンドウの中で呼ばれる。
 	//  ウィンドウの開始と終了・余白などの見た目はここでそろえる
-	class EditorPanel
+	class RD_API EditorPanel
 	{
 	public:
 		EditorPanel(Editor& editor, const char* title, bool open = true) : mEditor(editor), mTitle(title), mOpen(open) {}
@@ -25,6 +25,8 @@ namespace rd
 
 		virtual void Update(float /*dt*/) {}
 		void Draw();
+		// ゲームのコードを読み直した（プレハブのプレビューなど、ゲームのコンポーネントを持つものを作り直す）
+		virtual void OnGameCodeReloaded() {}
 
 	protected:
 		virtual void OnGui() = 0;

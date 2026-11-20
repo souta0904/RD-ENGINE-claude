@@ -8,7 +8,7 @@
 namespace rd::AssistantTools
 {
 	// Messages API の tools にそのまま渡せる定義
-	const Json& GetDefinitions();
+	RD_API const Json& GetDefinitions();
 	// ツールを実行して、結果（tool_result の content）を返す。失敗したら isError=true
-	std::string Run(AssistantToolHost& host, const std::string& name, const Json& input, bool& isError);
+	RD_API std::string Run(AssistantToolHost& host, const std::string& name, const Json& input, bool& isError);
 }

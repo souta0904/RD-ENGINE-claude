@@ -10,11 +10,11 @@
 namespace rd
 {
 	// ファイルの中身をそのまま文字列にする（改行の変換や BOM の除去はしない）
-	bool ReadTextFile(const std::string& path, std::string& out);
+	RD_API bool ReadTextFile(const std::string& path, std::string& out);
 	// 画像や音声などのバイト列を読む
-	bool ReadBinaryFile(const std::string& path, std::vector<uint8_t>& out);
+	RD_API bool ReadBinaryFile(const std::string& path, std::vector<uint8_t>& out);
 	// 上書きで書く。親のフォルダがなければ作る
-	bool WriteTextFile(const std::string& path, std::string_view text);
+	RD_API bool WriteTextFile(const std::string& path, std::string_view text);
 	// ファイルかフォルダがあるか
-	bool FileExists(const std::string& path);
+	RD_API bool FileExists(const std::string& path);
 }

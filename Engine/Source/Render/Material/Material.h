@@ -32,7 +32,7 @@ namespace rd
 	//  shaderPath に自作のシェーダー（Surface.hlsli を使う .hlsl）を入れると、そのシェーダーで描く。
 	//  シェーダーの Properties に書いた値は properties に名前で入り、画面では「Shader Properties」に並ぶ。
 	//  標準の値（Base Color など）は自作のシェーダーでも使われ、Surface 関数に渡る値のはじめになる
-	struct Material
+	struct RD_API Material
 	{
 		std::string shaderPath;
 		AssetRef<ShaderAsset> shader;

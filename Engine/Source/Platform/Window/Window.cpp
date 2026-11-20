@@ -245,7 +245,8 @@ namespace rd
 			return 0;
 		}
 		case WM_KEYDOWN:
-			if (mFullscreenHotkeys && wParam == VK_F11 && !(lParam & kRepeat))
+			// Ctrl や Alt と一緒のとき（エディタの Ctrl+Alt+F11 = ゲームのコードのビルド）は切り替えない
+			if (mFullscreenHotkeys && wParam == VK_F11 && !(lParam & kRepeat) && GetKeyState(VK_CONTROL) >= 0 && GetKeyState(VK_MENU) >= 0)
 			{
 				ToggleFullscreen();
 				return 0;

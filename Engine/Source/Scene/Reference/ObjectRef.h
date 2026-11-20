@@ -11,7 +11,7 @@ namespace rd
 	//  保存・Undo・インスペクタに対応し、エディタではヒエラルキーからのドラッグか ◎ ボタンの一覧から設定できる）。
 	//  中身は ActorId なので、相手が消えると nullptr を返す（消えたものを指したままにならない）。
 	//  複製やプレハブにしたときは、コピーした範囲の中を指す参照はコピー先へ付け替えられる。
-	class ObjectRef : public ObjectRefBase
+	class RD_API ObjectRef : public ObjectRefBase
 	{
 	public:
 		Actor* GetActor() const;

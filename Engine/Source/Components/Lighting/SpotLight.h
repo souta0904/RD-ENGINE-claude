@@ -4,7 +4,7 @@
 namespace rd
 {
 	// スポットライト（Transform の前方向を照らす。角度は度）
-	class SpotLight final : public Component
+	class RD_API SpotLight final : public Component
 	{
 		RD_COMPONENT(SpotLight)
 	public:

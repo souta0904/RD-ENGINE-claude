@@ -10,7 +10,7 @@ namespace rd
 	// 今のシーンを持ち、切り替える
 	//  LoadScene / NewScene / ReplaceScene は予約だけして、フレームの区切りの ApplyPending で差し替える
 	//  差し替える直前に BeforeSwap が呼ばれる（GPU の完了待ちや音の停止。エンジンが設定する）
-	class SceneManager
+	class RD_API SceneManager
 	{
 	public:
 		SceneManager();

@@ -12,7 +12,7 @@ namespace rd
 	// 経路探索の結果（Unity の NavMeshPath と同じ考え方）
 	//  Complete: 目的地まで行ける / Partial: 行けないので、いちばん近づける場所まで / Invalid: 経路がない
 	//  links[i] が 0 以上なら、corners[i] から corners[i + 1] へはそのリンクを跳んで渡る
-	struct NavMeshPath
+	struct RD_API NavMeshPath
 	{
 		enum class Status { Complete, Partial, Invalid };
 
@@ -28,7 +28,7 @@ namespace rd
 	//  辺の一部だけが重なるところは、同じ直線上で重なる区間を通り道にする。
 	//  リンク（離れた場所どうしを跳んで渡る道）は AddLink で足す。両端はいちばん近い三角形につなぐ。
 	//  経路は三角形の上を A* で探し、通る辺の並びを糸を張るように縮めて（funnel）曲がり角を求める。
-	class NavMesh
+	class RD_API NavMesh
 	{
 	public:
 		struct Link

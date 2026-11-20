@@ -7,7 +7,7 @@ namespace rd
 {
 	// 乱数（スレッドごとに別のエンジンを持つので、ジョブからも呼べる）
 	// Unity の Random と同じように、どこからでも Random::Range(1, 6) のように呼べる
-	class Random
+	class RD_API Random
 	{
 	public:
 		// 種を決めると、そのスレッドで同じ順番の乱数が出る（再現したいテストなどで使う）

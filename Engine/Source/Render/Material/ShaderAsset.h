@@ -7,7 +7,7 @@
 namespace rd
 {
 	// シェーダーが外に出す値 1 つ（Unity の Properties の 1 行）
-	struct ShaderProperty
+	struct RD_API ShaderProperty
 	{
 		enum class Type { Color, Float, Range, Int, Vector, Texture };
 
@@ -41,7 +41,7 @@ namespace rd
 	//  （数と色は b4 の定数バッファ、テクスチャは t5 から順に。テクスチャは 4 枚まで）。
 	//  そのためシェーダーの中では _Color や _MainTex をそのまま使える。
 	//  中身は小さいので、マテリアルと同じく読み込みはその場で済ませる
-	class ShaderAsset final : public Asset
+	class RD_API ShaderAsset final : public Asset
 	{
 	public:
 		static constexpr int kMaxTextures = 4;

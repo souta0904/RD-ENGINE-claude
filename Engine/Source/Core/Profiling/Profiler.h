@@ -11,7 +11,7 @@ namespace rd
 	//
 	//  60 FPS なら 1 フレームは約 16.6 ミリ秒。重いフレームがあったとき、どの区間が長いかを
 	//  エディタの Profiler パネルで見たり、保存して後から調べたりする
-	class Profiler
+	class RD_API Profiler
 	{
 	public:
 		// 残すフレームの数（60 FPS で 5 秒分）

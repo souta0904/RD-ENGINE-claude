@@ -20,7 +20,7 @@ namespace rd
 	//  ゲームのコードから色などを変えるときは GetMaterials() を使う。Unity の renderer.materials と同じく、
 	//  アセットを入れている枠はこのレンダラー専用の写しに切り替わるので、アセットのファイルは変わらない。
 	//  アセットそのものを変えたいときは GetSharedMaterial() を使う（Unity の sharedMaterial）。
-	class MeshRenderer final : public Component
+	class RD_API MeshRenderer final : public Component
 	{
 		RD_COMPONENT(MeshRenderer)
 	public:

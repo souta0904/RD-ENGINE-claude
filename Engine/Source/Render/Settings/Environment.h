@@ -9,7 +9,7 @@ namespace rd
 	// シーンごとの環境（環境光・空・霧・色の調整・レトロ表示・ビネット）
 	//  色の調整は Unity の Color Adjustments と同じ意味（露出は段数、コントラストと彩度は -100～100）
 	//  レトロ表示は縦 retroHeight ピクセルに落として、色を retroColorLevels 段階にディザで減らす（0 なら使わない）
-	struct Environment
+	struct RD_API Environment
 	{
 		Color ambientSky = { 0.35f, 0.42f, 0.55f, 1.0f };
 		Color ambientGround = { 0.18f, 0.16f, 0.14f, 1.0f };

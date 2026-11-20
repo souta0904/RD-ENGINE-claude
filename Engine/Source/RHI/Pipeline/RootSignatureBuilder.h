@@ -6,9 +6,13 @@
 namespace rd
 {
 	// ルートシグネチャを組み立てる（AddSrv はルート SRV。構造化バッファ用）
-	class RootSignatureBuilder
+	class RD_API RootSignatureBuilder
 	{
 	public:
+		RootSignatureBuilder() = default;
+		// RD_API で DLL から出すと、コピーできないメンバーのコピーまで作ろうとするので禁止しておく
+		RootSignatureBuilder(const RootSignatureBuilder&) = delete;
+		RootSignatureBuilder& operator=(const RootSignatureBuilder&) = delete;
 		RootSignatureBuilder& AddCbv(uint32_t reg, D3D12_SHADER_VISIBILITY vis = D3D12_SHADER_VISIBILITY_ALL);
 		RootSignatureBuilder& AddSrv(uint32_t reg, D3D12_SHADER_VISIBILITY vis = D3D12_SHADER_VISIBILITY_ALL);
 		RootSignatureBuilder& AddSrvTable(uint32_t reg, uint32_t count = 1, D3D12_SHADER_VISIBILITY vis = D3D12_SHADER_VISIBILITY_PIXEL);

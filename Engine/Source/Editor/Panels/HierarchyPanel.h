@@ -12,7 +12,7 @@ namespace rd
 	//  - シーンの行や空いている所へのドロップでルートの末尾へ。プレハブのドロップでその場に置く
 	//  - ↑↓で選択、←→で開閉、F2 で名前の変更、ダブルクリックでフォーカス、右端の目で有効 / 無効
 	//  - 検索欄に入力すると、一致したアクターだけを平らに並べる
-	class HierarchyPanel final : public EditorPanel
+	class RD_API HierarchyPanel final : public EditorPanel
 	{
 	public:
 		explicit HierarchyPanel(Editor& editor);

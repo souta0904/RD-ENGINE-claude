@@ -18,7 +18,7 @@
 namespace rd
 {
 	// 失敗をログに出す（中身は Core/Log/Log.cpp にある。Assert.h から Log.h を読み込まないようにするため）
-	void ReportAssertFailure(const char* expr, const char* file, int line, const std::string& message);
+	RD_API void ReportAssertFailure(const char* expr, const char* file, int line, const std::string& message);
 }
 
 // マクロの書き方について

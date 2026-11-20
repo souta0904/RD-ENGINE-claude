@@ -8,7 +8,7 @@ namespace rd
 
 	// プレイの状態（Play / Pause / Step）とゲーム時間の進め方
 	//  エディタではプレイを始めるときにシーンを保存しておき、止めたときにその状態へ戻す
-	class PlayController
+	class RD_API PlayController
 	{
 	public:
 		// advance: ゲームを進めるか、gameDt: TimeScale を掛けた経過時間（進めないときは 0）

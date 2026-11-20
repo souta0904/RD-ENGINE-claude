@@ -4,7 +4,7 @@
 namespace rd
 {
 	// カプセルのコライダー（height は両端の半球を含む長さ）
-	class CapsuleCollider final : public Collider
+	class RD_API CapsuleCollider final : public Collider
 	{
 		RD_COMPONENT(CapsuleCollider)
 	public:

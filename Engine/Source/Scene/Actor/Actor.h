@@ -12,7 +12,7 @@ namespace rd
 
 	// シーンの中の物体（Transform を持ち、コンポーネントで機能を足す）
 	//  破棄やコンポーネントの削除はフレームの終わりにまとめて行う
-	class Actor
+	class RD_API Actor
 	{
 	public:
 		Actor(Scene* scene, ActorId id);

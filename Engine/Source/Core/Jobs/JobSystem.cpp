@@ -28,6 +28,9 @@ namespace rd
 			std::deque<Job> highQueue;
 			std::deque<Job> lowQueue;
 			bool quit = false;
+			// キューから取り出して、まだ終わっていないジョブの数（取り出すときにロックの中で増やすので、
+			//  「キューが空で running が 0」なら本当に何も動いていない）
+			std::atomic<uint32_t> running = 0;
 
 			std::mutex mainMutex;
 			std::vector<JobSystem::JobFunc> mainTasks;
@@ -42,9 +45,12 @@ namespace rd
 		// memory_order_acq_rel … このジョブが書いた結果が、カウンタの 0 を見たスレッドから必ず見えるようにする
 		void Execute(Job& job)
 		{
-			RD_PROFILE_SCOPE(job.name);
-			job.func();
+			{
+				RD_PROFILE_SCOPE(job.name);
+				job.func();
+			}
 			job.counter->fetch_sub(1, std::memory_order_acq_rel);
+			gState->running.fetch_sub(1, std::memory_order_acq_rel);
 		}
 
 		// キューから 1 つ取り出す（なければ待たずに false）。High を先に見る
@@ -56,12 +62,14 @@ namespace rd
 			{
 				out = std::move(gState->highQueue.front());
 				gState->highQueue.pop_front();
+				gState->running.fetch_add(1, std::memory_order_acq_rel);
 				return true;
 			}
 			if (allowLow && !gState->lowQueue.empty())
 			{
 				out = std::move(gState->lowQueue.front());
 				gState->lowQueue.pop_front();
+				gState->running.fetch_add(1, std::memory_order_acq_rel);
 				return true;
 			}
 			return false;
@@ -94,6 +102,7 @@ namespace rd
 					auto& queue = !gState->highQueue.empty() ? gState->highQueue : gState->lowQueue;
 					job = std::move(queue.front());
 					queue.pop_front();
+					gState->running.fetch_add(1, std::memory_order_acq_rel);
 				}
 				Execute(job);
 			}
@@ -232,5 +241,18 @@ namespace rd
 		if (!gState) { return 0; }
 		std::lock_guard lock(gState->mutex);
 		return uint32_t(gState->highQueue.size() + gState->lowQueue.size());
+	}
+
+	// キューのジョブを手伝いながら、全部が終わるまで待つ（ゲームのコードを読み直す前に使う）
+	void JobSystem::WaitIdle()
+	{
+		if (!gState) { return; }
+		while (true)
+		{
+			Job job;
+			if (TryPop(job, true)) { Execute(job); continue; }
+			if (gState->running.load(std::memory_order_acquire) == 0) { break; }
+			std::this_thread::yield();
+		}
 	}
 }

@@ -18,7 +18,7 @@ namespace rd
 	//  - シーンの変更は普段の編集と同じコマンドとして積むので、Ctrl+Z で 1 つずつ戻せる
 	//  - 1 回の依頼でのツールの往復の数に上限を付けて、止まらなくなるのを防ぐ
 	//  実装は AIAssistant.cpp（会話と通信）と AIAssistantView.cpp（画面）
-	class AIAssistant final : public EditorPanel
+	class RD_API AIAssistant final : public EditorPanel
 	{
 	public:
 		explicit AIAssistant(Editor& editor);
@@ -34,7 +34,7 @@ namespace rd
 		ImVec2 GetDefaultSize() const override { return ImVec2(420.0f, 600.0f); }
 
 	private:
-		struct ChatEntry
+		struct RD_API ChatEntry
 		{
 			enum class Kind { User, Assistant, Tool, Error, Info } kind;
 			std::string text;

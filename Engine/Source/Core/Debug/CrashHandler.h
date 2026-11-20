@@ -14,7 +14,7 @@ namespace rd
 	//  CPU が止めた操作はこちらで届く（C++ の try / catch では捕まえられない）
 	//
 	//  ゲームを人に遊んでもらったときに落ちても、送ってもらった .txt と .dmp で原因を調べられるようにするためのもの
-	class CrashHandler
+	class RD_API CrashHandler
 	{
 	public:
 		struct Settings

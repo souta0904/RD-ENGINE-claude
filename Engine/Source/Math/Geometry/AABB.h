@@ -5,7 +5,7 @@ namespace rd
 {
 	// 軸に平行なバウンディングボックス（Axis-Aligned Bounding Box）
 	// 回転しない箱で物体を包んだもの。重なりの判定が軽いので、カリングや物理の大まかな判定に使う
-	struct AABB
+	struct RD_API AABB
 	{
 		// 初期値は「空の箱」（min が +∞、max が -∞）。Expand で点を足していくと、最初の点でちょうどその点の箱になる
 		Vector3 min = { math::kInfinity, math::kInfinity, math::kInfinity };

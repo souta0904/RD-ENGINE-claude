@@ -7,7 +7,7 @@
 namespace rd
 {
 	// HTTP / HTTPS の通信（WinHTTP）。呼んだスレッドで終わるまで待つので、ワーカースレッドから使う
-	class HttpClient
+	class RD_API HttpClient
 	{
 	public:
 		using Headers = std::vector<std::pair<std::string, std::string>>;

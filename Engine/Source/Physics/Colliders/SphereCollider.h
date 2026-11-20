@@ -4,7 +4,7 @@
 namespace rd
 {
 	// 球のコライダー（半径は一番大きい拡大率で広げる）
-	class SphereCollider final : public Collider
+	class RD_API SphereCollider final : public Collider
 	{
 		RD_COMPONENT(SphereCollider)
 	public:

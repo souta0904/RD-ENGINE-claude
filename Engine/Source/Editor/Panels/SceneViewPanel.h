@@ -11,7 +11,7 @@ namespace rd
 
 	// シーンビュー（Unity の Scene）
 	//  エディタのカメラ、ギズモでの移動・回転・拡縮、クリックで選択、アセットのドロップ
-	class SceneViewPanel final : public ViewPanel
+	class RD_API SceneViewPanel final : public ViewPanel
 	{
 	public:
 		enum class GizmoOp { Move, Rotate, Scale };

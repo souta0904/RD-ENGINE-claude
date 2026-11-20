@@ -8,7 +8,7 @@
 namespace rd
 {
 	// Win32 のウィンドウ
-	class Window
+	class RD_API Window
 	{
 	public:
 		// true を返すとそのメッセージは処理済みになる

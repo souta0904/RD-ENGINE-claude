@@ -19,30 +19,30 @@
 namespace rd
 {
 	// UTF-8 → UTF-16（Windows の W 版の API に渡すとき）
-	std::wstring ToWide(std::string_view utf8);
+	RD_API std::wstring ToWide(std::string_view utf8);
 	// UTF-16 → UTF-8（Windows の API から受け取った文字列をエンジンで使うとき）
-	std::string ToUtf8(std::wstring_view wide);
+	RD_API std::string ToUtf8(std::wstring_view wide);
 
 	// '\' を '/' に置き換える。"a/./b" や ".." はまとめず、大文字と小文字もそのまま
 	// （大文字と小文字だけが違うパスは、別のキーとして扱われるので注意）
-	std::string NormalizePath(std::string_view path);
+	RD_API std::string NormalizePath(std::string_view path);
 	// "a/b/c.png" -> "c.png"
-	std::string GetFileName(std::string_view path);
+	RD_API std::string GetFileName(std::string_view path);
 	// "a/b/c.png" -> "c"（拡張子を除いたファイル名。stem は「幹」の意味）
-	std::string GetStem(std::string_view path);
+	RD_API std::string GetStem(std::string_view path);
 	// "a/b/c.PNG" -> ".png"（比べやすいよう小文字にし、'.' も付ける）
 	// ".gitignore" のように '.' で始まる名前は、全体が拡張子として扱われる
-	std::string GetExtension(std::string_view path);
+	RD_API std::string GetExtension(std::string_view path);
 	// "a/b/c.png" -> "a/b/"（最後の '/' を残す。区切りがなければ空）
-	std::string GetDirectory(std::string_view path);
+	RD_API std::string GetDirectory(std::string_view path);
 
 	// 英字（ASCII）だけを小文字にする。日本語などはそのまま
-	std::string ToLower(std::string_view str);
+	RD_API std::string ToLower(std::string_view str);
 	// str が suffix で終わるか（例: EndsWith(path, ".png")）
-	bool EndsWith(std::string_view str, std::string_view suffix);
+	RD_API bool EndsWith(std::string_view str, std::string_view suffix);
 	// 大文字と小文字を区別せずに、text の中に pattern があるか（エディタの検索欄で使う）
-	bool ContainsNoCase(std::string_view text, std::string_view pattern);
+	RD_API bool ContainsNoCase(std::string_view text, std::string_view pattern);
 	// delimiter で区切って配列にする。"a,b,,c" -> ["a", "b", "", "c"]
 	// 区切りが続くと空の要素も入る。空の文字列を渡すと、空の要素が 1 つだけ入る
-	std::vector<std::string> Split(std::string_view str, char delimiter);
+	RD_API std::vector<std::string> Split(std::string_view str, char delimiter);
 }

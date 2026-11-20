@@ -11,7 +11,7 @@ namespace rd
 	enum class DepthMode : uint8_t { ReadWrite, ReadOnly, Disabled };
 
 	// グラフィックスパイプラインを組み立てる（よく使う既定値が入っている）
-	class PipelineBuilder
+	class RD_API PipelineBuilder
 	{
 	public:
 		PipelineBuilder();

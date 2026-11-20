@@ -18,6 +18,7 @@
 #include "Render/Material/ShaderAsset.h"
 #include "Render/Renderer/Renderer.h"
 #include "Scene/Component/ComponentRegistry.h"
+#include "Scene/Component/MissingComponent.h"
 #include "Scene/Scene.h"
 #include "Editor/Core/EditorLocale.h"
 #include <ImGui/imgui_stdlib.h>
@@ -119,6 +120,15 @@ namespace rd
 			{
 				inspector.ResetFrameState();
 				ImGui::Indent(4.0f);
+				if (dynamic_cast<MissingComponent*>(c))
+				{
+					// 型が見つからない。値は残してあるので、クラスが戻れば元に戻る
+					EditorIcons::Inline(Icon::Warning);
+					ImGui::SameLine();
+					ImGui::PushStyleColor(ImGuiCol_Text, EditorStyle::kWarning);
+					ImGui::TextWrapped("%s", Tr("The component type was not found. Its values are kept and come back when the type is registered again (for example after reloading the game code)."));
+					ImGui::PopStyleColor();
+				}
 				c->Reflect(inspector);
 				c->OnInspectorGUI();
 				ImGui::Unindent(4.0f);
@@ -138,6 +148,7 @@ namespace rd
 	bool PropertiesPanel::DrawComponentHeader(Component* c, int index, int count, bool& commit)
 	{
 		std::string label = std::string("      ") + c->GetTypeName();
+		if (dynamic_cast<MissingComponent*>(c)) { label += std::string(" (") + Tr("Missing") + ")"; }
 		bool open = ImGui::CollapsingHeader(label.c_str(), ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_AllowOverlap);
 		const ImVec2 headerMin = ImGui::GetItemRectMin(), headerMax = ImGui::GetItemRectMax();
 		float iconSize = EditorStyle::IconSize();

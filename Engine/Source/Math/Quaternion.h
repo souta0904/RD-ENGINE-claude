@@ -24,19 +24,19 @@ namespace rd
 		constexpr Quaternion(float w, float x, float y, float z) : w(w), x(x), y(y), z(z) {}
 
 		// 軸 axis のまわりに radians だけ回す
-		static Quaternion AngleAxis(const Vector3& axis, float radians);
+		RD_API static Quaternion AngleAxis(const Vector3& axis, float radians);
 		// X→Y→Z の順に適用するオイラー角（ラジアン）
-		static Quaternion FromEuler(const Vector3& radians);
+		RD_API static Quaternion FromEuler(const Vector3& radians);
 		// 回転行列から作る（拡大の入っていない行列を渡す）
-		static Quaternion FromMatrix(const Matrix4& m);
+		RD_API static Quaternion FromMatrix(const Matrix4& m);
 		// Z 軸（前）が forward を向き、Y 軸（上）ができるだけ up に近くなる回転（Unity と同じ）
-		static Quaternion LookRotation(const Vector3& forward, const Vector3& up = Vector3::kUnitY);
+		RD_API static Quaternion LookRotation(const Vector3& forward, const Vector3& up = Vector3::kUnitY);
 		// 向き from を向き to に重ねる、一番小さな回転
-		static Quaternion FromTo(const Vector3& from, const Vector3& to);
+		RD_API static Quaternion FromTo(const Vector3& from, const Vector3& to);
 
 		// オイラー角（ラジアン、X→Y→Z の順）に戻す。エディタのインスペクタで角度を表示するときに使う
 		// Y が ±90 度に近いと X と Z が区別できなくなるので、FromEuler に戻しても同じ値になるとは限らない
-		Vector3 ToEuler() const;
+		RD_API Vector3 ToEuler() const;
 
 		static const Quaternion kIdentity;
 	};
@@ -60,17 +60,17 @@ namespace rd
 	// 内積。2 つの回転がどれだけ近いかの目安（1 か -1 に近いほど同じ回転）
 	constexpr float Dot(const Quaternion& a, const Quaternion& b) { return a.w * b.w + a.x * b.x + a.y * b.y + a.z * b.z; }
 	// 長さ 1 にする。回転を何度も掛け合わせると誤差で長さがずれるので、ときどき直す
-	Quaternion Normalize(const Quaternion& q);
+	RD_API Quaternion Normalize(const Quaternion& q);
 	// 逆回転
 	inline Quaternion Inverse(const Quaternion& q) { return Conjugate(Normalize(q)); }
 
 	// ベクトル v を q で回す（行列と同じく v * q と書く）
-	Vector3 operator*(const Vector3& v, const Quaternion& q);
+	RD_API Vector3 operator*(const Vector3& v, const Quaternion& q);
 	inline Vector3 Rotate(const Vector3& v, const Quaternion& q) { return v * q; }
 
 	// 2 つの回転の間を補間する（t=0 で a、t=1 で b）
 	//   Slerp … 回る速さが一定になる（球面線形補間）。カメラの回転など見た目の速さが大事なときに使う
 	//   Nlerp … 4 成分を Lerp して正規化するだけ。速さは少し一定でないが計算が軽い。アニメーションのブレンドなどに使う
-	Quaternion Slerp(const Quaternion& a, const Quaternion& b, float t);
-	Quaternion Nlerp(const Quaternion& a, const Quaternion& b, float t);
+	RD_API Quaternion Slerp(const Quaternion& a, const Quaternion& b, float t);
+	RD_API Quaternion Nlerp(const Quaternion& a, const Quaternion& b, float t);
 }

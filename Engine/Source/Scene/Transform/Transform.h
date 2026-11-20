@@ -7,7 +7,7 @@ namespace rd
 	class Actor;
 
 	// アクターの姿勢（ローカルの値を持ち、ワールド行列は必要になったときに計算して覚えておく）
-	class Transform
+	class RD_API Transform
 	{
 	public:
 		explicit Transform(Actor* owner) : mOwner(owner) {}

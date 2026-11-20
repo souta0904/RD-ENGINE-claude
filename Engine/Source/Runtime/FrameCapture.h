@@ -8,7 +8,7 @@ namespace rd
 
 	// 自動テスト用に、指定したフレームの画面を PNG に保存する（frame < 0 なら何もしない）
 	//  BeforeRender で保存を頼み、Present の後の AfterPresent で書き出す。対象のフレームだったら true（終了の合図）
-	class FrameCapture
+	class RD_API FrameCapture
 	{
 	public:
 		void Configure(int frame, const std::string& path)

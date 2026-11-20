@@ -5,7 +5,7 @@
 namespace rd
 {
 	// シーンの設定（環境・重力）の変更
-	class SceneSettingsCommand final : public EditorCommand
+	class RD_API SceneSettingsCommand final : public EditorCommand
 	{
 	public:
 		SceneSettingsCommand(std::string label, Json before, Json after)

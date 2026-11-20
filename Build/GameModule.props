@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ゲームのプロジェクト（Sandbox など）に共通の設定。Common.props の後に読む。
+     ConfigurationType は Microsoft.Cpp.props より前に決める必要があるので、各 vcxproj に書く
+     （Game 構成は Application、それ以外は DynamicLibrary） -->
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <LocalDebuggerWorkingDirectory>$(RdRoot)</LocalDebuggerWorkingDirectory>
+    <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
+  </PropertyGroup>
+
+  <!-- エディタ入りの構成: ゲームは DLL。F5 では RdEditor.exe -game <名前> を起動する -->
+  <PropertyGroup Condition="'$(RdEngineDll)'=='1'">
+    <LocalDebuggerCommand>$(OutDir)RdEditor.exe</LocalDebuggerCommand>
+    <LocalDebuggerCommandArguments>-game $(TargetName)</LocalDebuggerCommandArguments>
+    <!-- PDB の名前をビルドごとに変えるので、前の PDB を使う差分リンクはしない -->
+    <LinkIncremental>false</LinkIncremental>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalOptions>/ignore:4099 %(AdditionalOptions)</AdditionalOptions>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup Condition="'$(RdEngineDll)'=='1'">
+    <!-- F5 で RdEditor.exe もビルドされるようにする（リンクはしない） -->
+    <ProjectReference Include="$(RdRoot)Launcher\Launcher.vcxproj">
+      <Project>{6A1D2F0B-3C4E-4B8A-9F11-0A1B2C3D4E06}</Project>
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+  </ItemGroup>
+
+  <!-- Visual Studio でデバッグしていると、デバッガが読み込んだ DLL の PDB を開いたままにするので、
+       同じ名前の PDB に書き込めずリンクが失敗する。そのときだけ <名前>-<時刻>.pdb という別の名前にする（Unreal と同じ方法）。
+       いつも別の名前にすると、コードが変わらなくても毎回リンクし直すことになるので、使われていないときは元の名前のまま。
+       使われているかは、PDB を追記で開けるか（type nul >> で 0 バイト書く）で調べる。使っていない古い PDB は消す -->
+  <Target Name="RdUniqueGamePdb" BeforeTargets="Link" Condition="'$(RdEngineDll)'=='1'">
+    <Exec Command="del /q &quot;$(OutDir)$(TargetName)-*.pdb&quot; 2&gt;nul" IgnoreExitCode="true" StandardOutputImportance="low" />
+    <Exec Command="if exist &quot;$(OutDir)$(TargetName).pdb&quot; ( (type nul &gt;&gt; &quot;$(OutDir)$(TargetName).pdb&quot;) 2&gt;nul )" IgnoreExitCode="true" StandardOutputImportance="low">
+      <Output TaskParameter="ExitCode" PropertyName="RdPdbLocked" />
+    </Exec>
+    <PropertyGroup Condition="'$(RdPdbLocked)'!='0'">
+      <RdPdbStamp>$([System.DateTime]::Now.ToString('yyyyMMddHHmmssfff'))</RdPdbStamp>
+    </PropertyGroup>
+    <ItemGroup Condition="'$(RdPdbLocked)'!='0'">
+      <Link>
+        <ProgramDatabaseFile>$(OutDir)$(TargetName)-$(RdPdbStamp).pdb</ProgramDatabaseFile>
+      </Link>
+    </ItemGroup>
+    <Message Condition="'$(RdPdbLocked)'!='0'" Importance="high" Text="$(TargetName).pdb is in use by the debugger. Writing $(TargetName)-$(RdPdbStamp).pdb instead." />
+  </Target>
+
+  <!-- Game 構成: エンジンを静的リンクした 1 つの exe -->
+  <Import Project="$(MSBuildThisFileDirectory)EngineLink.props" Condition="'$(RdEngineDll)'=='0'" />
+</Project>

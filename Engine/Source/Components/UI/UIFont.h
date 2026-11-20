@@ -13,7 +13,7 @@ namespace rd
 	// 画面の文字を描くためのフォント（TrueType / OpenType の .ttf .otf .ttc）
 	//  文字は使われたときに 1 枚の大きな画像（アトラス）へ描き足し、変わったらフレームの初めに GPU へ送り直す。
 	//  大きさは kBakeSize ピクセルで描いておき、表示するときに拡大・縮小する
-	class UIFont
+	class RD_API UIFont
 	{
 	public:
 		static constexpr float kBakeSize = 48.0f;

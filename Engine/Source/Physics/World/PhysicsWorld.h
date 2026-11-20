@@ -17,7 +17,7 @@ namespace rd
 	//  1. 力の積分 2. 大まかな判定（X 軸で並べて重なる範囲だけ調べる）3. 細かい判定
 	//  4. 逐次インパルス法で速度を解く 5. 位置の積分とめり込みの押し出し 6. 接触のイベントを送る
 	//  実装は PhysicsWorld.cpp（流れと判定・問い合わせ）/ PhysicsSolver.cpp（4 と 5）/ PhysicsEvents.cpp（6）
-	class PhysicsWorld final : public SceneSystem
+	class RD_API PhysicsWorld final : public SceneSystem
 	{
 	public:
 		PhysicsWorld();

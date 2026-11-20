@@ -6,7 +6,7 @@
 namespace rd
 {
 	// 空き番号の一覧で管理するデスクリプタヒープ（スレッドセーフ）
-	class DescriptorHeap
+	class RD_API DescriptorHeap
 	{
 	public:
 		void Create(ID3D12Device* device, D3D12_DESCRIPTOR_HEAP_TYPE type, uint32_t capacity, bool shaderVisible);

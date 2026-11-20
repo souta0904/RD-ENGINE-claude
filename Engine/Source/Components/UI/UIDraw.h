@@ -19,7 +19,7 @@ namespace rd
 	};
 
 	// 2D のアフィン変換（拡大・回転・移動）。UI の親子の Transform の Scale と Rotation の Z を重ねる
-	struct UIAffine
+	struct RD_API UIAffine
 	{
 		float a = 1.0f, b = 0.0f, c = 0.0f, d = 1.0f, tx = 0.0f, ty = 0.0f;
 
@@ -41,7 +41,7 @@ namespace rd
 	};
 
 	// Canvas が子を辿りながら描くときの情報
-	struct UIDrawContext
+	struct RD_API UIDrawContext
 	{
 		RenderList* list = nullptr;
 		float screenScale = 1.0f;  // キャンバスの 1 単位が何ピクセルか
@@ -57,5 +57,5 @@ namespace rd
 	};
 
 	// Unity の UI の色は sRGB で書かれているので、描く前にリニアへ直す
-	Color UIColorToLinear(const Color& srgb);
+	RD_API Color UIColorToLinear(const Color& srgb);
 }

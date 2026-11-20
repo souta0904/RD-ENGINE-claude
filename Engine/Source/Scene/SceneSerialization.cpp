@@ -3,6 +3,7 @@
 #include "Core/Serialization/JsonReader.h"
 #include "Core/Serialization/JsonWriter.h"
 #include "Scene/Component/ComponentRegistry.h"
+#include "Scene/Component/MissingComponent.h"
 #include "Scene/Serialization/RefFixupVisitor.h"
 
 namespace rd
@@ -11,9 +12,18 @@ namespace rd
 	{
 		constexpr int kSceneVersion = 1;
 
+		// 型が登録されていなければ、値を持ったままの MissingComponent を置く（保存し直しても値が消えない）
 		std::unique_ptr<Component> CreateComponent(const Json& cj)
 		{
-			auto comp = ComponentRegistry::Create(cj.value("Type", std::string()));
+			std::string type = cj.value("Type", std::string());
+			if (!type.empty() && !ComponentRegistry::Has(type))
+			{
+				Log::Warning(LogCat::Scene, "Missing component type: {} (its values are kept)", type);
+				auto missing = std::make_unique<MissingComponent>(type, cj);
+				missing->SetEnabled(cj.value("Enabled", true));
+				return missing;
+			}
+			auto comp = ComponentRegistry::Create(type);
 			if (!comp) { return nullptr; }
 			comp->SetEnabled(cj.value("Enabled", true));
 			JsonReader r(cj);
@@ -39,6 +49,13 @@ namespace rd
 		for (auto& c : actor->GetAllComponents())
 		{
 			if (c->mPendingDestroy) { continue; }
+			if (auto* missing = dynamic_cast<const MissingComponent*>(c.get()))
+			{
+				Json cj = missing->GetData();
+				cj["Enabled"] = missing->IsEnabled();
+				comps.push_back(std::move(cj));
+				continue;
+			}
 			Json cj = Json::object();
 			cj["Type"] = c->GetTypeName();
 			cj["Enabled"] = c->IsEnabled();
@@ -78,6 +95,7 @@ namespace rd
 		{
 			Component* c = actor->mComponents[i].get();
 			c->SetEnabled(comps[i].value("Enabled", true));
+			if (auto* missing = dynamic_cast<MissingComponent*>(c)) { missing->SetData(comps[i]); continue; }
 			JsonReader r(comps[i]);
 			c->Reflect(r);
 			c->OnValidate();

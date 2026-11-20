@@ -13,8 +13,10 @@ namespace rd
 	//  autoPlay: エディタでも起動してすぐプレイする / startScene: 起動時に開くシーン（なければ buildDefaultScene で作る）
 	//  captureFrame: 自動テスト用。このフレームの画面を保存して終わる / profileFrames: 起動からこの数のフレームのプロファイルを保存する
 	//  crashHandler: 落ちたときにレポートとダンプを残す（Logs/Crash_日時.txt / .dmp）
-	struct EngineConfig
+	struct RD_API EngineConfig
 	{
+		// ゲームの名前（エディタが読んだゲームの DLL の名前。Game 構成の exe では空）
+		std::string gameName;
 		WindowDesc window;
 #if RD_EDITOR
 		bool enableEditor = true;

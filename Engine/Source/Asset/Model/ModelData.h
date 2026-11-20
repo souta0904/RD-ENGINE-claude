@@ -24,7 +24,7 @@ namespace rd
 
 	// GPU に送る前のモデルの中身（メインスレッドや GPU に触らないので、ワーカースレッドで作れる）
 	//  fbx などからの読み込みと .rdmodel の読み書きは、すべてこの形を通す
-	struct ModelData
+	struct RD_API ModelData
 	{
 		// マテリアルのテクスチャのパスがこの文字で始まるときは、後ろの番号が embeddedTextures の位置を表す
 		static constexpr const char* kEmbeddedPrefix = "embedded:";

@@ -5,7 +5,7 @@
 namespace rd
 {
 	// 統計（FPS のグラフ、描画・システム・読み込んだアセットの数）
-	class StatsPanel final : public EditorPanel
+	class RD_API StatsPanel final : public EditorPanel
 	{
 	public:
 		explicit StatsPanel(Editor& editor);

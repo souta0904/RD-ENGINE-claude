@@ -9,7 +9,7 @@ namespace rd
 	// 画面に重ねる UI のいちばん上（Unity の Canvas の Screen Space - Overlay と CanvasScaler）
 	//  画面の大きさを Reference Resolution に合わせて拡大・縮小し（Match 0 で幅、1 で高さに合わせる）、
 	//  子の RectTransform を辿って UIImage・UIText を描く。親に Canvas があるときは親がまとめて描く
-	class Canvas final : public Component
+	class RD_API Canvas final : public Component
 	{
 		RD_COMPONENT(Canvas)
 	public:
@@ -34,7 +34,7 @@ namespace rd
 	};
 
 	// 子の UI をまとめて透明にする
-	class CanvasGroup final : public Component
+	class RD_API CanvasGroup final : public Component
 	{
 		RD_COMPONENT(CanvasGroup)
 	public:

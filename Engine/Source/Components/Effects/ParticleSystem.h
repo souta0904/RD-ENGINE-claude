@@ -15,7 +15,7 @@ namespace rd
 	// CPU のパーティクル（多いときはジョブで並列に動かす）
 	//  emissionRate は 1 秒あたりの数、burstCount は始めに一度に出す数、coneAngle は度
 	//  rotationSpeed は度/秒（向きはランダム）、emissive は HDR の明るさ（ブルームに効く）
-	class ParticleSystem final : public Component
+	class RD_API ParticleSystem final : public Component
 	{
 		RD_COMPONENT(ParticleSystem)
 	public:

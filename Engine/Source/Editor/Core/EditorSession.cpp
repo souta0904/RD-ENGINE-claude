@@ -2,6 +2,7 @@
 #include "Editor/Core/EditorSession.h"
 #include "Core/Util/FileUtil.h"
 #include "Core/Util/StringUtil.h"
+#include "Runtime/GameModule.h"
 
 namespace rd
 {
@@ -116,6 +117,8 @@ namespace rd
 
 	std::string EditorSession::GetDefaultPath()
 	{
+		// RdEditor.exe はどのゲームでも同じ exe なので、読んだゲームの名前で分ける
+		if (!GameModule::GetName().empty()) { return "UserSettings/EditorSession_" + GameModule::GetName() + ".json"; }
 		wchar_t exe[MAX_PATH] = {};
 		GetModuleFileNameW(nullptr, exe, MAX_PATH);
 		return "UserSettings/EditorSession_" + ToUtf8(std::filesystem::path(exe).stem().wstring()) + ".json";

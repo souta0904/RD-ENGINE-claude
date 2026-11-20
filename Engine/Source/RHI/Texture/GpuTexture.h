@@ -4,7 +4,7 @@
 namespace rd
 {
 	// SRV を持つ GPU のテクスチャ（RenderTexture / DepthTexture の基底）
-	class GpuTexture
+	class RD_API GpuTexture
 	{
 	public:
 		GpuTexture() = default;

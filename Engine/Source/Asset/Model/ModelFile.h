@@ -21,8 +21,8 @@ namespace rd::ModelFile
 
 	// data のマテリアルのテクスチャのパスは、書き出す先からの相対パスにしておくこと（"#linear" は付けない）
 	//  途中で失敗しても元のファイルを壊さないよう、一時ファイルに書いてから置き換える
-	bool Write(const std::string& path, const ModelData& data, std::string& error);
+	RD_API bool Write(const std::string& path, const ModelData& data, std::string& error);
 
 	// テクスチャのパスは読み込める形（.rdmodel の場所を基準にしたパス、法線マップは "#linear" 付き）にして返す
-	bool Read(const std::string& path, bool animOnly, ModelData& out, std::string& error);
+	RD_API bool Read(const std::string& path, bool animOnly, ModelData& out, std::string& error);
 }

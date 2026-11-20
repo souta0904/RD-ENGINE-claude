@@ -21,8 +21,8 @@ namespace rd
 		float& operator[](int i) { return (&x)[i]; }
 
 		// Normalize は自分自身を長さ 1 にする、Normalized は長さ 1 にしたコピーを返す（Unity と同じ）
-		Vector2& Normalize();
-		Vector2 Normalized() const;
+		RD_API Vector2& Normalize();
+		RD_API Vector2 Normalized() const;
 
 		// よく使う値。static const で宣言し、struct の定義が終わった後の下で値を入れる
 		// （struct の中ではまだ Vector2 が完成していないので、ここでは値を書けない）

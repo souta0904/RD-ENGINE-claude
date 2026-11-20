@@ -263,6 +263,13 @@ namespace rd
 		}
 	}
 
+	void PrefabView::Reload()
+	{
+		std::string path = mPath;
+		mPath.clear();
+		SetPrefab(path);
+	}
+
 	size_t PrefabView::GetActorCount() const
 	{
 		return mScene ? mScene->GetActorCount() : 0;
@@ -486,6 +493,11 @@ namespace rd
 			}
 		}
 		return e.rendered ? &e.view->GetOutput() : nullptr;
+	}
+
+	void AssetThumbnails::ForgetPrefabs()
+	{
+		std::erase_if(mEntries, [](const auto& kv) { return GetExtension(kv.first) == ".prefab"; });
 	}
 
 	void AssetThumbnails::Evict()

@@ -28,7 +28,7 @@ namespace rd
 
 	// 1 フレーム分の記録（events は開始時刻の順。gpu は数フレーム遅れて届く）
 	//  GPU は CPU より遅れて描画するので、GPU の時間が分かるのは数フレーム後になる
-	struct ProfileFrame
+	struct RD_API ProfileFrame
 	{
 		uint64_t number = 0; // フレームの番号
 		int64_t start = 0;   // フレームの始まりと終わり（ティック）

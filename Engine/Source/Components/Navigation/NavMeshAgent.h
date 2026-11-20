@@ -12,7 +12,7 @@ namespace rd
 	//  リンクの入口に着くと IsOnOffMeshLink が true になって止まる。跳ぶ動きは使う側が作り、
 	//  終わったら CompleteOffMeshLink を呼ぶと、リンクの出口から続きを歩く。
 	//  isStopped で止めても、SetDestination / SetPath で新しい経路を渡すとまた動きだす。
-	class NavMeshAgent final : public Component
+	class RD_API NavMeshAgent final : public Component
 	{
 		RD_COMPONENT(NavMeshAgent)
 	public:

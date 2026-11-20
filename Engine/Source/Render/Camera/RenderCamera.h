@@ -5,7 +5,7 @@
 namespace rd
 {
 	// 描画に使うカメラ（ビュー行列と射影行列）
-	struct RenderCamera
+	struct RD_API RenderCamera
 	{
 		Matrix4 view;
 		Matrix4 proj;

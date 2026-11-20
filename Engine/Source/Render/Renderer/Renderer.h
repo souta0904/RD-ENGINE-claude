@@ -16,7 +16,7 @@ namespace rd
 {
 	// 1 つの画面を描く先（HDR・深度・結果・ブルーム）。大きさは描くときに合わせる
 	//  メインの画面のほか、エディタのプレビューなどが自分の分を持って RenderOffscreen に渡す
-	struct RenderTargets
+	struct RD_API RenderTargets
 	{
 		static constexpr uint32_t kBloomLevels = 5;
 		RenderTexture hdr;
@@ -32,7 +32,7 @@ namespace rd
 	//  結果は GetOutput()（sRGB にした LDR）に入る。エディタは ImGui でこれを表示し、
 	//  ゲームでは BlitToBackBuffer でバックバッファへ写す。
 	//  実装は Renderer.cpp（流れ）/ RendererPipelines.cpp / RendererShadow.cpp / RendererPostProcess.cpp に分かれている
-	class Renderer
+	class RD_API Renderer
 	{
 	public:
 		static Renderer& Get() { return *sInstance; }

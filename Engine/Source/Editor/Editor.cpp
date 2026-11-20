@@ -5,6 +5,7 @@
 #include "Editor/Commands/ActorStateCommand.h"
 #include "Editor/Core/EditorLocale.h"
 #include "Editor/Core/EditorSession.h"
+#include "Editor/Core/HotReload.h"
 #include "Editor/Panels/GameViewPanel.h"
 #include "Editor/Panels/LogPanel.h"
 #include "Editor/Panels/HierarchyPanel.h"
@@ -66,6 +67,7 @@ namespace rd
 		AddPanel(std::make_unique<StatsPanel>(*this));
 		mProfiler = AddPanel(std::make_unique<ProfilerPanel>(*this));
 		mAssistant = AddPanel(std::make_unique<AIAssistant>(*this));
+		mHotReload = std::make_unique<HotReload>(*this);
 	}
 
 	Editor::~Editor() = default;
@@ -112,6 +114,12 @@ namespace rd
 		}
 		RefreshSnapshots();
 		UpdateTitle();
+	}
+
+	void Editor::OnGameCodeReloaded()
+	{
+		OnSceneChanged(true);
+		for (auto& panel : mPanels) { panel->OnGameCodeReloaded(); }
 	}
 
 	void Editor::CaptureSession(EditorSession& session) const
@@ -377,6 +385,7 @@ namespace rd
 	void Editor::Update(float dt)
 	{
 		EditorStyle::SetPlayMode(IsPlaying(), mEngine.IsPaused());
+		mHotReload->Update();
 		DrawMenuBar();
 		DrawMainToolbar();
 		ImGuiID dockId = ImGui::DockSpaceOverViewport(ImGui::GetMainViewport(), ImGuiDockNodeFlags_PassthruCentralNode);

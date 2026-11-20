@@ -5,7 +5,7 @@ namespace rd
 {
 	// ゲームビュー（Unity の Game）
 	//  シーンのメインカメラで描く。縦横比を選べ、プレイ中にフォーカスしているときだけゲームに入力が届く
-	class GameViewPanel final : public ViewPanel
+	class RD_API GameViewPanel final : public ViewPanel
 	{
 	public:
 		explicit GameViewPanel(Editor& editor);

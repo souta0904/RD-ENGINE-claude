@@ -7,7 +7,7 @@ namespace rd
 {
 	// デバッグ用の線と面（そのフレームだけ表示される。depthTest=false なら手前に重ねて描く）
 	//  面は半透明で塗るためのもの。線より先に描くので、同じ場所の線は面の上に見える
-	class DebugDraw
+	class RD_API DebugDraw
 	{
 	public:
 		struct Vertex

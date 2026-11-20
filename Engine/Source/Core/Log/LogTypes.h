@@ -22,7 +22,7 @@ namespace rd
 		Fatal,
 	};
 	// "Info" などの短い名前（ファイルや出力ウィンドウに出す）
-	const char* ToString(LogLevel level);
+	RD_API const char* ToString(LogLevel level);
 
 	// コンパイル時に消すレベル（Game ビルドでは Debug 以下を消す）
 	//  ここより軽いログは if constexpr でコードごと消えるので、製品版では書式の処理の時間もかからない

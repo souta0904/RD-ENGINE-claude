@@ -37,7 +37,7 @@ private:
 	//  OnRender   : 編集中も毎フレーム呼ばれ、描きたいものを RenderList に積む
 	//  OnEditorUpdate : 編集中だけ（プレビュー用）、OnInspectorGUI : Reflect では表せない追加の UI
 	//  OnValidate : インスペクタや Undo で値が変わった後
-	class Component
+	class RD_API Component
 	{
 	public:
 		virtual ~Component() = default;

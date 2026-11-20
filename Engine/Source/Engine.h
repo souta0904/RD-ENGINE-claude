@@ -24,7 +24,7 @@ namespace rd
 	//  シーンの切り替えは SceneManager、プレイの状態は PlayController、描画の組み立ては FrameComposer に任せる。
 	//  RD_EDITOR=0（Game 構成）ではエディタを持たず、いつもプレイ中として動く。
 	//  サブシステムは上から順に作り、Shutdown で逆の順に消す
-	class Engine
+	class RD_API Engine
 	{
 	public:
 		static constexpr const char* kName = "RD ENGINE";
@@ -53,6 +53,9 @@ namespace rd
 		// Stop でプレイ前のシーンに戻す
 		void BeginPlay();
 		void EndPlay();
+		// ビルドし直したゲームの DLL を読み直し、今のシーンを新しいコードで作り直す（ホットリロード）。
+		//  プレイ中はできない（止めてから呼ぶ）。失敗したら false で、今までのコードのまま動き続ける
+		bool ReloadGameCode(std::string& error);
 #endif
 
 		// 切り替えはフレームの区切りで行われる

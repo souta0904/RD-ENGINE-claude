@@ -24,7 +24,7 @@ namespace rd
 
 	// text は User / Assistant の本文、toolCalls は Assistant が呼んだツール、results は ToolResults
 	// raw はその LLM が返したそのままの形（同じ LLM へはこれを送り返す。Claude の thinking を保つため）
-	struct AssistantTurn
+	struct RD_API AssistantTurn
 	{
 		enum class Role { User, Assistant, ToolResults } role = Role::User;
 		std::string text;
@@ -34,7 +34,7 @@ namespace rd
 	};
 
 	// LLM の返事 1 回分（usedFallback は Claude が別のモデルに切り替えて答えたとき）
-	struct AssistantReply
+	struct RD_API AssistantReply
 	{
 		enum class Stop { EndTurn, ToolUse, MaxTokens, Refusal, Error } stop = Stop::Error;
 		AssistantTurn turn;

@@ -12,7 +12,7 @@ namespace rd
 	class AudioClip;
 
 	// アセットのキャッシュと非同期の読み込み（同じキーなら同じインスタンスを返す）
-	class AssetManager
+	class RD_API AssetManager
 	{
 	public:
 		static AssetManager& Get() { return *sInstance; }

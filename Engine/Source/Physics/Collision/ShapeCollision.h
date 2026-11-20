@@ -7,6 +7,6 @@
 namespace rd
 {
 	// 形同士の接触を調べる（接触点を out に足して、あれば true。法線は a → b）
-	bool CollideShapes(const WorldShape& a, const WorldShape& b, std::vector<ContactPoint>& out);
-	bool RaycastShape(const WorldShape& shape, const Ray& ray, float maxDist, float& outT, Vector3& outNormal);
+	RD_API bool CollideShapes(const WorldShape& a, const WorldShape& b, std::vector<ContactPoint>& out);
+	RD_API bool RaycastShape(const WorldShape& shape, const Ray& ray, float maxDist, float& outT, Vector3& outNormal);
 }

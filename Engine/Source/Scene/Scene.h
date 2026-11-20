@@ -18,9 +18,12 @@ namespace rd
 	//  コンポーネントは具体的な型ごとのリストと、上書きしたコールバックごとのリストで持つ
 	//  （全アクターを調べずに型で探せ、Update のないコンポーネントは呼ばない）
 	//  実装は Scene.cpp（アクター・更新・登録）と SceneSerialization.cpp（保存・読み込み・プレハブ）
-	class Scene
+	class RD_API Scene
 	{
 	public:
+		// RD_API で DLL から出すと、コピーできないメンバーのコピーまで作ろうとするので禁止しておく
+		Scene(const Scene&) = delete;
+		Scene& operator=(const Scene&) = delete;
 		Scene();
 		~Scene();
 

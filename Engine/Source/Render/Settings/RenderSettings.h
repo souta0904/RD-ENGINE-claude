@@ -6,7 +6,7 @@ namespace rd
 	// 描画の設定（エンジン全体）
 	//  shadowMapSize はカスケード 1 つ分（テクスチャはこの 2 倍四方）
 	//  cascadeSplitLambda は 0 で等間隔、1 で対数（カメラの近くを細かくする）
-	struct RenderSettings
+	struct RD_API RenderSettings
 	{
 		bool shadows = true;
 		uint32_t shadowMapSize = 1024;

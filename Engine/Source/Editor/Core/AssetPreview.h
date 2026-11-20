@@ -18,7 +18,7 @@ namespace rd
 
 	// プレビュー用に、何かを専用の描画先へ描くものの共通部分
 	//  カメラは描くものを包む球が収まる距離から、yaw / pitch（度）の向きで見る。zoom を小さくすると寄る
-	class PreviewView
+	class RD_API PreviewView
 	{
 	public:
 		float yaw = 210.0f;
@@ -45,7 +45,7 @@ namespace rd
 	};
 
 	// モデル 1 つだけを描く（マテリアルはモデルの既定値）。スキンメッシュはクリップを選ぶと動く
-	class ModelView final : public PreviewView
+	class RD_API ModelView final : public PreviewView
 	{
 	public:
 		// -1 ならバインドポーズ
@@ -76,13 +76,15 @@ namespace rd
 
 	// プレハブを描く（プレビュー専用の小さなシーンに置いて、そのシーンの描画物をそのまま描く）
 	//  エンジンの形式（JSON）のプレハブだけ読める。Unity のプレハブ（YAML）は読めない
-	class PrefabView final : public PreviewView
+	class RD_API PrefabView final : public PreviewView
 	{
 	public:
 		PrefabView();
 		~PrefabView() override;
 
 		void SetPrefab(const std::string& path);
+		// 同じプレハブを置き直す（ゲームのコードを読み直したとき）
+		void Reload();
 		const std::string& GetPath() const { return mPath; }
 		// 読めなかったときの理由（読めたら空）
 		const std::string& GetError() const { return mError; }
@@ -101,7 +103,7 @@ namespace rd
 
 	// マテリアル（.rdmat）を球に塗って描く（Unity のマテリアルのプレビューと同じ）
 	//  値を変えると GetVersion が増えるので、サムネイルはそれを見て描き直す
-	class MaterialView final : public PreviewView
+	class RD_API MaterialView final : public PreviewView
 	{
 	public:
 		void SetMaterial(const std::string& path);
@@ -118,7 +120,7 @@ namespace rd
 	};
 
 	// プレビューパネルのマテリアル（操作はモデルと同じ）
-	class MaterialPreviewWidget
+	class RD_API MaterialPreviewWidget
 	{
 	public:
 		void Draw(const std::string& path);
@@ -129,7 +131,7 @@ namespace rd
 
 	// プレビューパネルのモデル（残りの広さいっぱいに描く。左ドラッグで回す・ホイールで寄る・ダブルクリックで元の向き）
 	//  アニメーションがあればクリップを選んで再生できる
-	class ModelPreviewWidget
+	class RD_API ModelPreviewWidget
 	{
 	public:
 		void Draw(const std::string& path);
@@ -140,21 +142,29 @@ namespace rd
 	};
 
 	// プレビューパネルのプレハブ（操作はモデルと同じ）
-	class PrefabPreviewWidget
+	class RD_API PrefabPreviewWidget
 	{
 	public:
 		void Draw(const std::string& path);
+		void Reload() { mView.Reload(); }
 
 	private:
 		PrefabView mView;
 	};
 
 	// プロジェクトパネルのモデルとプレハブのサムネイル（1 フレームに少しずつ描いて覚えておく）
-	class AssetThumbnails
+	class RD_API AssetThumbnails
 	{
 	public:
+		AssetThumbnails() = default;
+		// RD_API で DLL から出すと、コピーできないメンバーのコピーまで作ろうとするので禁止しておく
+		AssetThumbnails(const AssetThumbnails&) = delete;
+		AssetThumbnails& operator=(const AssetThumbnails&) = delete;
+
 		// まだ描けていなければ nullptr（そのときは描く予約だけする）
 		const GpuTexture* Get(const std::string& path);
+		// プレハブのサムネイルを捨てる（次に見えたときに描き直す。ゲームのコードを読み直したとき）
+		void ForgetPrefabs();
 
 	private:
 		struct Entry
@@ -172,5 +182,5 @@ namespace rd
 	};
 
 	// テクスチャを市松模様の上に、縦横比を保って幅いっぱいに描く（マウスを乗せると拡大鏡）
-	void DrawTexturePreview(const Texture& texture, float maxHeight);
+	RD_API void DrawTexturePreview(const Texture& texture, float maxHeight);
 }

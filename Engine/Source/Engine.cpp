@@ -17,6 +17,7 @@
 #include "Core/Util/FileUtil.h"
 #include "Editor/Core/EditorSession.h"
 #include "Editor/Editor.h"
+#include "Runtime/GameModule.h"
 #endif
 
 namespace rd
@@ -272,6 +273,33 @@ namespace rd
 		SetWindowTitleSuffix("");
 		mEditor->OnSceneChanged(true);
 		Log::Info(LogCat::Core, "Stop");
+	}
+
+	// 1. 動いているジョブを待つ（古いコンポーネントを触っているかもしれない）
+	// 2. 今のシーンを JSON にしておく（保存していない変更も、選んでいるアクターの ID もそのまま残る）
+	// 3. 新しい DLL を読む。ゲームのコンポーネントの登録が新しい型に入れ替わる
+	// 4. JSON からシーンを作り直す。足した変数には初期値が入り、消したクラスは MissingComponent になる
+	//  Undo の履歴はアクターの ID と JSON で持っているので、そのまま使える
+	bool Engine::ReloadGameCode(std::string& error)
+	{
+		if (!GameModule::IsLoaded()) { error = "The game code is not a DLL in this build"; return false; }
+		if (mPlay.IsPlaying()) { error = "Stop playing before reloading the game code"; return false; }
+
+		JobSystem::WaitIdle();
+		JobSystem::ExecuteMainThreadTasks();
+		Scene& scene = mScenes.GetScene();
+		Json snapshot = scene.Serialize();
+		std::string path = scene.GetPath();
+
+		if (!GameModule::Reload(error)) { return false; }
+
+		auto fresh = std::make_unique<Scene>();
+		fresh->Deserialize(snapshot);
+		fresh->SetPath(path);
+		mScenes.SetScene(std::move(fresh));
+		if (mEditor) { mEditor->OnGameCodeReloaded(); }
+		SetWindowTitleSuffix("");
+		return true;
 	}
 
 	void Engine::SaveEditorSession()

@@ -8,7 +8,7 @@ namespace rd
 	//
 	//  例: v.Property("Speed", mSpeed, { .speed = 0.1f, .min = 0.0f, .max = 10.0f, .tooltip = "1 秒に進む距離" });
 	//  （.speed = のように名前を付けて一部だけ書ける。書かなかった項目は下の既定値になる）
-	struct PropertyMeta
+	struct RD_API PropertyMeta
 	{
 		// 表示の種類の印。1 << n で 1 つずつ別のビットに置き、| で組み合わせて使う（例: Angle | ReadOnly）
 		enum Flags : uint32_t

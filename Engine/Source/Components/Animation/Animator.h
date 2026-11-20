@@ -13,7 +13,7 @@ namespace rd
 	// スケルタルアニメーションの再生（クロスフェードできる）
 	//  姿勢の計算はジョブで並列に行い、描くときに終わるのを待つ
 	//  clipSource はアニメーションを読むファイル（空なら MeshRenderer のモデル）、clip はクリップ名（空なら最初のクリップ）
-	class Animator final : public Component
+	class RD_API Animator final : public Component
 	{
 		RD_COMPONENT(Animator)
 	public:

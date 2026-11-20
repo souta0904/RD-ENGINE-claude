@@ -10,7 +10,7 @@ namespace rd
 	// 終了時のエディタの状態（次の起動で同じ画面に戻すために UserSettings/ へ保存する）
 	//  ここはファイルとの読み書きだけを受け持つ。集めて反映するのは Engine と Editor の役目。
 	//  手で書き換えられたり古い形式だったりしても起動できるよう、読めないファイルは無かったものとして扱う
-	struct EditorSession
+	struct RD_API EditorSession
 	{
 		// ウィンドウ
 		bool hasWindow = false;

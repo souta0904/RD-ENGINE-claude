@@ -27,7 +27,7 @@ namespace rd
 	//        for (uint32_t i = begin; i < end; ++i) { Update(particles[i]); }
 	//    });
 	//    JobSystem::Wait(h);
-	class JobSystem
+	class RD_API JobSystem
 	{
 	public:
 		using JobFunc = std::function<void()>;
@@ -56,5 +56,7 @@ namespace rd
 		static bool IsMainThread();
 		// キューで待っているジョブの数
 		static uint32_t GetPendingCount();
+		// 待っているジョブも実行中のジョブも、全部が終わるまで待つ（メインスレッドも手伝う）
+		static void WaitIdle();
 	};
 }

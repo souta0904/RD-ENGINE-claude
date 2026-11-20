@@ -8,7 +8,7 @@ namespace rd
 	// 読み込んだ ObjectRef をシーンに結び付け、ID を付け替えるビジター（参照以外は何もしない）
 	//  remap なら、一緒に作ったアクター（idMap にある古い ID）を指す参照を新しい ID へ付け替える。
 	//  それ以外を指す参照は keepExternal なら残し（複製）、そうでなければ外す（プレハブ）。
-	class RefFixupVisitor final : public PropertyVisitor
+	class RD_API RefFixupVisitor final : public PropertyVisitor
 	{
 	public:
 		RefFixupVisitor(Scene* scene, const std::unordered_map<ActorId, Actor*>& idMap, bool remap, bool keepExternal)

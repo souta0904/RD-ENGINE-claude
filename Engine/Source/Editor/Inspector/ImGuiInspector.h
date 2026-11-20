@@ -8,7 +8,7 @@ namespace rd
 	// Reflect で並べたプロパティを ImGui の部品として表示・編集するビジター
 	//  Undo のために、このフレームで値が変わったか（AnyChanged）と編集が確定したか（AnyCommitted）を記録する
 	//  editor は参照の欄の候補の一覧と、ダブルクリックでの選択に使う
-	class ImGuiInspector final : public PropertyVisitor
+	class RD_API ImGuiInspector final : public PropertyVisitor
 	{
 	public:
 		explicit ImGuiInspector(Editor* editor = nullptr) : mEditor(editor) {}

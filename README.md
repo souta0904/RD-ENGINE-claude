@@ -7,7 +7,7 @@ DirectX 12 で動く自作のゲームエンジンです。Unity と同じ考え
 
 1. `RdEngine.sln` を Visual Studio 2026（v145 ツールセット）で開く
 2. 構成を選んでビルドする
-3. スタートアッププロジェクト `Sandbox` を実行する（作業ディレクトリは自動でこのフォルダになります）
+3. スタートアッププロジェクト `Sandbox` を実行する（F5 で `RdEditor.exe -game Sandbox` が起動します。作業ディレクトリは自動でこのフォルダになります）
 
 | 構成 | 内容 |
 | --- | --- |
@@ -15,6 +15,15 @@ DirectX 12 で動く自作のゲームエンジンです。Unity と同じ考え
 | `Release` | エディタ付き・最適化あり |
 | `Game` | エディタと ImGui を外したゲーム用（`RD_EDITOR=0`、Release と同じ最適化）。起動するといつもプレイ中 |
 
+エディタ付きの構成（Debug / Release）と Game 構成では、できるものが違います（Unreal と同じ形）。
+
+| | Debug / Release | Game |
+| --- | --- | --- |
+| エンジン | `RdEngine.dll` | 静的ライブラリ（exe に入る） |
+| ゲーム（Sandbox など） | `Sandbox.dll` | `Sandbox.exe` |
+| 起動する exe | `RdEditor.exe -game Sandbox`（どのゲームでも共通） | `Sandbox.exe` |
+
+ゲームを DLL にしているのは、エディタを開いたままゲームのコードを読み直せるようにするためです（後述の「ゲームのコードの読み直し」）。
 出力は `Bin\<構成>\`、中間ファイルは `Intermediate\` に置きます。
 初回起動時に `Assets/Sample/Scenes/Sample.scene` が自動で作られます。
 
@@ -24,12 +33,13 @@ DirectX 12 で動く自作のゲームエンジンです。Unity と同じ考え
 Bin\Debug\Tests.exe            すべて
 Bin\Debug\Tests.exe Scene      名前に "Scene" を含むものだけ
 ```
-数学・幾何、JSON とリフレクション、シーンの更新順とコンポーネントのリスト、参照（ActorRef）、Undo/Redo、物理の形状、JobSystem、音声の読み込み、クラッシュハンドラ（自分自身をわざと落として調べる）、.rdmodel の読み書き、シェーダーとマテリアルのアセット、エディタの言語と状態の保存、NavMesh のギズモ、AI アシスタント（ツールと LLM ごとの変換）を確かめます。
+数学・幾何、JSON とリフレクション、シーンの更新順とコンポーネントのリスト、参照（ActorRef）、Undo/Redo、物理の形状、JobSystem、音声の読み込み、クラッシュハンドラ（自分自身をわざと落として調べる）、.rdmodel の読み書き、シェーダーとマテリアルのアセット、エディタの言語と状態の保存、NavMesh のギズモ、ホットリロード（コンポーネントの登録の入れ替えと Missing Component）、AI アシスタント（ツールと LLM ごとの変換）を確かめます。
 
 ### コマンドライン
 
 | 引数 | 内容 |
 | --- | --- |
+| `-game <名前>` | RdEditor.exe で開くゲーム（`<名前>.dll` を読む）。RdEditor.exe では必ず指定する |
 | `-noeditor` | エディタなしでゲームとして起動 |
 | `-play` | エディタでも起動直後にプレイ開始 |
 | `-scene <path>` | 開くシーン |
@@ -45,10 +55,13 @@ Bin\Debug\Tests.exe Scene      名前に "Scene" を含むものだけ
 ```
 claude/
 ├─ RdEngine.sln
-├─ Build/Common.props        全プロジェクト共通の設定（出力先・C++20・構成ごとの定義）
+├─ Build/
+│  ├─ Common.props          全プロジェクト共通の設定（出力先・C++20・構成ごとの定義・RD_API）
+│  ├─ EngineLink.props      エンジンが使うライブラリのリンクと DXC のコピー
+│  └─ GameModule.props      ゲームのプロジェクト共通の設定（DLL / exe の切り替え・F5 の起動・PDB の名前）
 ├─ External/                 ImGui(docking) / ImGuizmo / DirectXTex / assimp 6.0 / nlohmann-json / magic_enum / stb_truetype
 │  └─ ThirdParty.vcxproj     ImGui と DirectXTex をまとめた静的ライブラリ
-├─ Engine/                   エンジン本体（静的ライブラリ）
+├─ Engine/                   エンジン本体（Debug / Release では RdEngine.dll、Game では静的ライブラリ）
 │  └─ Source/
 │     ├─ Core/        ログ・クラッシュハンドラ・プロファイラ・アサート・JobSystem・リフレクション・JSON・時間・文字列とファイル
 │     ├─ Math/        ベクトル・行列・クォータニオン・色・乱数・幾何（AABB / Ray / Plane / Frustum / 交差判定）
@@ -61,15 +74,17 @@ claude/
 │     ├─ AI/          NavMesh と経路探索（NavigationSystem）・行動ツリー（BehaviorTree）
 │     ├─ Components/  描画 / アニメーション / ライト / エフェクト / 音 / ナビゲーション / UI のコンポーネント
 │     ├─ Physics/     コライダー・剛体・CharacterController・物理ワールド（SceneSystem として動く）
-│     ├─ Runtime/     シーン切替・プレイ状態・フレームの組み立て・画面の保存・組み込みコンポーネント登録
+│     ├─ Runtime/     シーン切替・プレイ状態・フレームの組み立て・画面の保存・組み込みコンポーネント登録・ゲームの DLL（GameModule）
 │     ├─ Editor/      ImGui エディタ（Editor.cpp / EditorActions.cpp / EditorMenu.cpp が本体）
 │     │  ├─ Panels/     Scene・Game・Hierarchy・Properties・Preview・Project・Log・Lighting・Stats・Profiler
 │     │  ├─ Commands/   Undo/Redo のコマンド
 │     │  ├─ Style/      色・アイコン・共通の UI 部品（見た目をそろえる）
 │     │  ├─ Inspector/  プロパティの表示（ImGuiInspector）
-│     │  ├─ Core/       ImGui の初期化・エディタカメラ・ファイルダイアログ・取り込み・プレビュー・言語・状態の保存
+│     │  ├─ Core/       ImGui の初期化・エディタカメラ・ファイルダイアログ・取り込み・プレビュー・言語・状態の保存・ホットリロード
 │     │  └─ Assistant/  AI アシスタント（LLM ごとの変換・ツール）
-│     └─ Engine.h/.cpp サブシステムの所有とメインループ（バージョンは Engine::kVersion）
+│     ├─ Engine.h/.cpp サブシステムの所有とメインループ（バージョンは Engine::kVersion）
+│     └─ GameLauncher.h/.cpp  ゲームの起動（RD_GAME_MAIN・RdEditor.exe の入口）
+├─ Launcher/                 RdEditor.exe（エディタの起動用。Debug / Release だけ）
 ├─ Tools/
 │  ├─ CheckDependencies.ps1  モジュール間の依存が層の決まりを守っているか調べる
 │  └─ BuildAssimp.ps1        同梱の assimp をビルドし直す（assimp-md.lib / assimp-mdd.lib）
@@ -84,6 +99,27 @@ claude/
 
 ## 設計のポイント
 
+### ゲームのコードの読み直し（ホットリロード）
+エディタを開いたまま、ゲームのコードを書き換えて読み直せます（Unreal のホットリロードと同じ考え方）。関数の中身だけでなく、変数の追加、新しいクラスやファイルの追加にも対応します。
+
+1. エディタを開いたまま、Visual Studio でゲームのコード（Sandbox など）を書き換える
+2. エディタのツールバー右上の **Compile**（または **Ctrl+Alt+F11**、ファイル → ゲームのコードをコンパイル）を押す。
+   Visual Studio でビルドしてもよい（できた DLL が新しくなったことにエディタが気づく）
+3. エディタが新しいコードを読み直し、シーンを作り直す。シーン・プロパティの値・選んでいるもの・Undo の履歴・保存していない変更はそのまま残る
+
+- ビルドの出力とエラーは Log パネルに出る。失敗したら今までのコードのまま動き続ける
+- **プレイ中は読み直さず**、止めたときに読み直す
+- Visual Studio でデバッグ中（F5）は、Visual Studio がビルドさせてくれないので、エディタの Compile を使う。ブレークポイントは新しいコードでも効く
+- 足した変数には初期値が入り、消した変数の値は捨てる。**クラスを消したり名前を変えたりしたコンポーネントは `MissingComponent` になり、値を持ったまま残る**（Unity の Missing Script と同じ）。保存しても値は消えず、クラスが戻れば元に戻る
+- ゲームの DLL の `static` 変数・グローバル変数は、読み直すと初期値に戻る。残したい値はコンポーネントに持たせる
+- エンジン（`Engine/`）のコードを変えたときは、エディタを閉じてからビルドする
+
+作り（`Runtime/GameModule`・`Engine::ReloadGameCode`・`Editor/Core/HotReload`）:
+- ビルドの出力（`Bin\Debug\Sandbox.dll`）は読み込まずに、`Bin\Debug\HotReload\` へコピーしたものを読む。読み込み中の DLL は上書きできないため
+- 読み直すときは、ジョブを待ってからシーンを JSON にし、ゲームのコンポーネントの登録を外してから新しい DLL を読み（中の `RD_REGISTER_COMPONENT` が登録し直す）、JSON からシーンを作り直す
+- 古い DLL は外さずに残す（古いコードを指した文字列や関数がどこかに残っていても落ちないように）
+- デバッガが PDB を開いたままだとリンクできないので、そのときだけ PDB を `Sandbox-<時刻>.pdb` という別の名前で作る（`Build/GameModule.props`）
+
 ### モジュールの層
 下の層は上の層を `#include` しない。`Tools/CheckDependencies.ps1` で確認できる（違反があると終了コード 1）。
 
@@ -94,6 +130,8 @@ Math / Core → Platform / RHI → Asset → Render / Audio → Scene → AI →
 - `Asset` は `Render` の型を知らない。マテリアルやシェーダーは呼ぶ側で `AssetManager::LoadNow<MaterialAsset>()` のように型を指定して読む。
 - `Runtime` はエディタを知らない。エディタは `FrameOverlay` インターフェースを実装して、カメラ・ギズモ・UI を差し込む。
 - エディタは作るときに `Engine&` を受け取り、`Engine::Get()` に頼らない。
+- エンジンの外（ゲームとテスト）から使うクラスと関数には `RD_API` を付ける（Unreal の `ENGINE_API` にあたる）。Debug / Release では DLL から出す印になり、Game 構成では何もしない。付け忘れるとゲームのリンクで「未解決の外部シンボル」になる。
+  `Vector3` などの数学の型は、定数をヘッダの中で定義しているので、クラスではなく .cpp に本体がある関数にだけ付ける。
 
 ### コンポーネントの更新
 アクターを全部回して仮想関数を呼ぶのではなく、シーンが**型ごとのリスト**と**コールバックごとのリスト**を持つ。
@@ -204,7 +242,7 @@ LLM に頼んでシーンを編集する。「赤い箱を 5 個、半径 3m の
 | AI | NavMesh（A* + funnel・リンク）、NavMeshAgent、行動ツリー |
 | UI | Canvas・RectTransform・UIImage（Sliced / Filled）・UIText（日本語・リッチテキスト・縁取り） |
 | オーディオ | BGM / SE のバス音量、ループ、ピッチ、距離減衰とパンによる 3D 定位、WAV に加えて MP3 / AAC(m4a) / FLAC / WMA（Windows の Media Foundation で展開） |
-| エディタ | ドッキング UI、Scene と Game の 2 つのビュー（並べると両方映る）、Undo/Redo、移動 / 回転 / 拡縮ギズモ（Ctrl でスナップ）、クリック選択、階層のドラッグ&ドロップで親子付け、アセットブラウザからのドラッグ&ドロップ、エクスプローラーからのファイルの取り込み、コンポーネント追加メニュー（検索付き）、プレイ / 一時停止 / ステップ / 停止（停止で元に戻る。プレイ中にゲームが場面を切り替えても続く）、アクターのコピー&貼り付け・名前の変更、コンポーネントの並び替え・値のコピー&貼り付け、プレハブの作成と配置、Project パネル（フォルダ・マテリアル・シェーダーの作成、名前変更、ごみ箱へ削除、ドラッグで移動、モデルのサムネイル）、テクスチャとモデルのプレビュー（回転・拡大・クリップの再生）、Log パネル（レベルごとの件数・まとめ表示・プレイ時に消去）、NavMesh と物理の表示、日本語表示、終了時の状態の保存、保存していない変更の確認、統計、シェーダーのホットリロード（Ctrl+R） |
+| エディタ | ゲームのコードのホットリロード（Compile / Ctrl+Alt+F11）、ドッキング UI、Scene と Game の 2 つのビュー（並べると両方映る）、Undo/Redo、移動 / 回転 / 拡縮ギズモ（Ctrl でスナップ）、クリック選択、階層のドラッグ&ドロップで親子付け、アセットブラウザからのドラッグ&ドロップ、エクスプローラーからのファイルの取り込み、コンポーネント追加メニュー（検索付き）、プレイ / 一時停止 / ステップ / 停止（停止で元に戻る。プレイ中にゲームが場面を切り替えても続く）、アクターのコピー&貼り付け・名前の変更、コンポーネントの並び替え・値のコピー&貼り付け、プレハブの作成と配置、Project パネル（フォルダ・マテリアル・シェーダーの作成、名前変更、ごみ箱へ削除、ドラッグで移動、モデルのサムネイル）、テクスチャとモデルのプレビュー（回転・拡大・クリップの再生）、Log パネル（レベルごとの件数・まとめ表示・プレイ時に消去）、NavMesh と物理の表示、日本語表示、終了時の状態の保存、保存していない変更の確認、統計、シェーダーのホットリロード（Ctrl+R） |
 
 ## ゲームコードの書き方
 
@@ -226,7 +264,22 @@ public:
 RD_REGISTER_COMPONENT(Spinner, "Game");// これだけでエディタの「Add Component」に出る
 ```
 
-ゲームは `Sandbox` と同じ形の exe のプロジェクトを作り、`Engine` をリンクして `main` で `rd::Engine` を作り、`Run(config)` を呼ぶ。詳しくは `Sandbox/Source/Main.cpp` を見てください。
+起動の設定は関数 1 つに書いて `RD_GAME_MAIN` に渡す（`Sandbox/Source/Main.cpp`）。`wWinMain` は書かない。
+```cpp
+#include "GameLauncher.h"
+
+static void ConfigureGame(rd::EngineConfig& config)
+{
+    config.window.title = "My Game";
+    config.startScene = "Assets/MyGame/Scenes/Main.scene";
+}
+RD_GAME_MAIN(ConfigureGame)
+```
+
+新しいゲームのプロジェクトを作るときは、`Sandbox/Sandbox.vcxproj` を写して名前を変える。大事なのは次の 3 つ:
+- `ConfigurationType` を Game 構成は `Application`、それ以外は `DynamicLibrary` にする
+- `Build/Common.props` の後に `Build/GameModule.props` を読む
+- フォルダ名・プロジェクト名・DLL の名前をそろえる（`MyGame/MyGame.vcxproj` → `MyGame.dll`。エディタの Compile はこの名前でプロジェクトを探す）
 
 ## エディタの操作
 
@@ -242,6 +295,7 @@ RD_REGISTER_COMPONENT(Spinner, "Game");// これだけでエディタの「Add C
 | Ctrl+D / Delete / F2 | 複製 / 削除 / 名前の変更 |
 | Ctrl+P / Ctrl+Shift+P / Ctrl+Alt+P | プレイと停止 / 一時停止 / 1 フレーム進める |
 | Ctrl+R | シェーダーの読み直し |
+| Ctrl+Alt+F11 | ゲームのコードをビルドして読み直す |
 | F8 / F9 | AI アシスタント / プロファイラ |
 | F11 | 全画面の切り替え |
 
@@ -274,3 +328,4 @@ RD_REGISTER_COMPONENT(Spinner, "Game");// これだけでエディタの「Add C
 - NavMesh はエンジンの中で焼かない（Unity などで作った三角形を読み込む）
 - UIImage の円形の塗りと Tiled の繰り返しは未対応
 - 音声は Ogg Vorbis に未対応（Windows 標準では読めないため）
+- ゲームのコードの読み直しはプレイ中にはしない（止めたときに読み直す）。エンジンのコードは読み直せない（エディタの再起動が必要）

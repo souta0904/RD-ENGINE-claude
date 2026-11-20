@@ -25,6 +25,7 @@ namespace rd
 	class ProjectPanel;
 	class SceneViewPanel;
 	class GameViewPanel;
+	class HotReload;
 	class ViewPanel;
 	class Scene;
 	class StatsPanel;
@@ -33,7 +34,7 @@ namespace rd
 	//  パネルは EditorPanel の派生として別のクラスにし、ここは選択・Undo・シーンとアクターの操作・メニューを受け持つ。
 	//  エンジンは作るときに渡される（グローバルの Engine::Get() には頼らない）。
 	//  実装は Editor.cpp（全体）/ EditorActions.cpp（アクターとシーンの操作）/ EditorMenu.cpp（メニュー・ツールバー・ショートカット）
-	class Editor final : public FrameOverlay
+	class RD_API Editor final : public FrameOverlay
 	{
 	public:
 		explicit Editor(Engine& engine);
@@ -47,6 +48,9 @@ namespace rd
 		void Update(float dt);
 		// シーンが差し替わった（keepSelection ならプレイを止めて戻ったので選択と履歴を残す）
 		void OnSceneChanged(bool keepSelection = false);
+		// ゲームのコードを読み直して、シーンを作り直した（選択と履歴は残す）
+		void OnGameCodeReloaded();
+		HotReload& GetHotReload() { return *mHotReload; }
 
 		// 次の起動のために今の状態を session へ書き出す（session.scene は呼ぶ側が先に入れておく）
 		void CaptureSession(EditorSession& session) const;
@@ -136,6 +140,7 @@ namespace rd
 		void DrawMenuBar();
 		void DrawLanguageMenu();
 		void DrawMainToolbar();
+		void DrawCompileButton();
 		void DrawDialogs();
 		void HandleShortcuts();
 
@@ -161,6 +166,7 @@ namespace rd
 		LogPanel* mLog = nullptr;
 		AIAssistant* mAssistant = nullptr;
 		ProfilerPanel* mProfiler = nullptr;
+		std::unique_ptr<HotReload> mHotReload;
 
 		bool mFirstLayout = true;
 		bool mSelectDefaultTabs = false;

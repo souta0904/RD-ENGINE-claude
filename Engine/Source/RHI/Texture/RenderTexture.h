@@ -17,7 +17,7 @@ namespace rd
 	};
 
 	// カラーのレンダーターゲット
-	class RenderTexture : public GpuTexture
+	class RD_API RenderTexture : public GpuTexture
 	{
 	public:
 		~RenderTexture();

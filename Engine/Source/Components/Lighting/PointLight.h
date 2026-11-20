@@ -4,7 +4,7 @@
 namespace rd
 {
 	// 点光源（range までで弱まって消える）
-	class PointLight final : public Component
+	class RD_API PointLight final : public Component
 	{
 		RD_COMPONENT(PointLight)
 	public:
