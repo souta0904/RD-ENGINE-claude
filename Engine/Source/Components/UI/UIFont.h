@@ -32,6 +32,9 @@ namespace rd
 		// 文字にパスを指定しないときに使うフォント（ゲームの最初に設定する）
 		static void SetDefaultPath(const std::string& path) { sDefaultPath = path; }
 		static const std::string& GetDefaultPath() { return sDefaultPath; }
+		// 読んだフォントを全部手放す（エンジンの終了時、GPU を片付ける前に呼ぶ。
+		//  エンジンは DLL なので、static のまま終了を待つと D3D12 より後に消えて、解放漏れと報告される）
+		static void ReleaseAll();
 
 		bool IsValid() const { return mValid; }
 		const Glyph& GetGlyph(char32_t c);

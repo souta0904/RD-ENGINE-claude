@@ -32,6 +32,17 @@ namespace rd
 		}
 	}
 
+	// 読み込んだコンポーネントの Awake を呼ぶ。Awake の中で同じアクターにコンポーネントを足すことがある
+	//  （足したものは AddComponent の中で Awake される）ので、一覧を回しながらではなく、先に写した一覧で呼ぶ。
+	//  一覧を回しながら足すと、一覧の入れ物が作り直されて、回している途中の場所が壊れる
+	void Scene::AwakeComponents(Actor* actor)
+	{
+		std::vector<Component*> loaded;
+		loaded.reserve(actor->mComponents.size());
+		for (auto& c : actor->mComponents) { loaded.push_back(c.get()); }
+		for (Component* c : loaded) { c->Awake(); }
+	}
+
 	Json Scene::SerializeActorState(const Actor* actor) const
 	{
 		Json j = Json::object();
@@ -125,7 +136,7 @@ namespace rd
 			comp->Reflect(fixup);
 			actor->AddComponent(std::move(comp), false);
 		}
-		for (auto& c : actor->mComponents) { c->Awake(); }
+		AwakeComponents(actor);
 	}
 
 	Json Scene::SerializeSettings() const
@@ -235,10 +246,7 @@ namespace rd
 			for (auto& c : actor->mComponents) { c->Reflect(fixup); }
 		}
 
-		for (auto& [actor, jp] : created)
-		{
-			for (auto& c : actor->mComponents) { c->Awake(); }
-		}
+		for (auto& [actor, jp] : created) { AwakeComponents(actor); }
 		return roots;
 	}
 

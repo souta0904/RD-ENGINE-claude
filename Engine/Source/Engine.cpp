@@ -4,6 +4,7 @@
 #include "Audio/AudioSystem.h"
 #include "Runtime/BuiltinComponents.h"
 #include "Components/Rendering/CameraComponent.h"
+#include "Components/UI/UIFont.h"
 #include "Core/Debug/CrashHandler.h"
 #include "Core/Jobs/JobSystem.h"
 #include "Core/Profiling/ProfileScope.h"
@@ -183,6 +184,7 @@ namespace rd
 #if RD_EDITOR
 		if (mEditor) { mEditor->Shutdown(); mEditor.reset(); }
 #endif
+		UIFont::ReleaseAll();
 		if (mAudio) { mAudio->Shutdown(); mAudio.reset(); }
 		if (mRenderer) { mRenderer->Shutdown(); mRenderer.reset(); }
 		if (mAssets) { mAssets->Shutdown(); mAssets.reset(); }

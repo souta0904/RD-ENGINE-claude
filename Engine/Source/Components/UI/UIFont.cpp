@@ -34,6 +34,11 @@ namespace rd
 		return it->second.get();
 	}
 
+	void UIFont::ReleaseAll()
+	{
+		Fonts().clear();
+	}
+
 	UIFont::UIFont(const std::string& path)
 	{
 		std::ifstream file(ToWide(path), std::ios::binary);

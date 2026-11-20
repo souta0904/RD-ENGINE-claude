@@ -140,6 +140,7 @@ namespace rd
 		void Clear();
 		bool ApplyComponentValues(Actor* actor, const Json& comps);
 		void RebuildComponents(Actor* actor, const Json& comps);
+		void AwakeComponents(Actor* actor);
 
 		void RegisterComponent(Component* component);
 		void UnregisterComponents(const std::vector<Component*>& components);
