@@ -28,6 +28,8 @@ namespace rd
 					if (level == ToLower(ToString(LogLevel(l))) || (level == "warning" && l == int(LogLevel::Warning))) { log.minLevel = LogLevel(l); }
 				}
 			}
+			// 同じ PC で 2 つ動かすとき（通信の確認など）にログが混ざらないよう、ファイルの名前を変える
+			else if (arg == "-logfile" && i + 1 < argc) { log.fileName = ToUtf8(argv[++i]); }
 			else if (arg == "-nocrashdialog") { crash.showDialog = false; }
 			else if (arg == "-capture" && i + 1 < argc)
 			{

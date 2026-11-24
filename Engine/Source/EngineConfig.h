@@ -40,7 +40,7 @@ namespace rd
 		CrashHandler::Settings crash;
 
 		// コマンドラインを反映する（-novsync -fullscreen -windowed -capture <frame> <path> -scene <path>
-		//  -loglevel trace|debug|info|warn|error -profile <frames> [path] -nocrashdialog）
+		//  -loglevel trace|debug|info|warn|error -logfile <name> -profile <frames> [path] -nocrashdialog）
 		//  エディタ入りのビルドでは -noeditor -play も使える
 		void ParseCommandLine();
 	};
