@@ -290,9 +290,22 @@ namespace rd
 		if (flat) { flags |= ImGuiTreeNodeFlags_NoTreePushOnOpen; }
 		if (selected) { flags |= ImGuiTreeNodeFlags_Selected; }
 		// フォーカスがないときの選択は灰色（Unity と同じ）
-		if (selected) { ImGui::PushStyleColor(ImGuiCol_Header, mFocused ? EditorStyle::kAccentDim : EditorStyle::kHeaderBg); }
+		//  選んでいる行は差し色を薄く敷き、左端に差し色の細い帯を付ける
+		if (selected)
+		{
+			ImGui::PushStyleColor(ImGuiCol_Header, mFocused ? EditorStyle::kSelection : EditorStyle::kHeaderBg);
+			ImGui::PushStyleColor(ImGuiCol_HeaderHovered, mFocused ? EditorStyle::kSelection : EditorStyle::kHover);
+		}
 		const bool open = ImGui::TreeNodeEx("##node", flags, "") && !flat;
-		if (selected) { ImGui::PopStyleColor(); }
+		if (selected)
+		{
+			ImGui::PopStyleColor(2);
+			if (mFocused)
+			{
+				float bar = std::max(2.0f, IM_ROUND(ImGui::GetFontSize() * 0.18f));
+				window->DrawList->AddRectFilled(row.Min, ImVec2(row.Min.x + bar, row.Max.y), ImGui::ColorConvertFloat4ToU32(EditorStyle::kAccent));
+			}
+		}
 		const bool treeOpen = open && hasChildren;
 
 		if (selected && mReveal) { ImGui::ScrollToItem(ImGuiScrollFlags_KeepVisibleCenterY); }

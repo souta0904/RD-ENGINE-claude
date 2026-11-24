@@ -10,6 +10,7 @@
 #include "RHI/Device/GraphicsDevice.h"
 #include "Scene/Scene.h"
 #include "Editor/Core/EditorLocale.h"
+#include "Editor/Style/EditorGui.h"
 
 namespace rd
 {
@@ -46,7 +47,7 @@ namespace rd
 			ImGui::TextUnformatted(EditorLocale::Format("Dynamic upload: {:.1f} KB/frame", double(device.GetDynamicBytesUsed()) / 1024.0).c_str());
 			ImGui::TextUnformatted(EditorLocale::Format("Descriptors: {} / {}", device.GetSrvHeap().GetUsedCount(), device.GetSrvHeap().GetCapacity()).c_str());
 			bool vsync = device.GetVSync();
-			if (ImGui::Checkbox("VSync", &vsync)) { device.SetVSync(vsync); }
+			if (EditorGui::Checkbox("VSync", &vsync)) { device.SetVSync(vsync); }
 		}
 		if (ImGui::CollapsingHeader(TrId("Systems"), ImGuiTreeNodeFlags_DefaultOpen))
 		{

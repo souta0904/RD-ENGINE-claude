@@ -11,14 +11,18 @@ namespace rd
 	public:
 		static void BeginToolbar(const char* id);
 		static void EndToolbar();
-		// アイコンだけのボタン（active なら押された状態で表示）
-		static bool IconButton(const char* id, Icon icon, const char* tooltip, bool active = false, bool enabled = true);
+		// アイコンだけのボタン（active なら押された状態で表示）。ふだんは背景なしで、マウスを乗せると背景が出る。
+		//  activeColor を渡すと、押された状態をその色で表す（再生中の緑など）
+		static bool IconButton(const char* id, Icon icon, const char* tooltip, bool active = false, bool enabled = true,
+			const ImVec4* activeColor = nullptr);
 		// アイコンと文字のボタン
 		static bool IconTextButton(const char* id, Icon icon, const char* label, const char* tooltip = nullptr);
 		// 文字のボタン（active なら押された状態で表示）
 		static bool ToggleButton(const char* label, bool active);
 		// width <= 0 なら残りの幅いっぱい
 		static bool SearchField(const char* id, std::string& text, const char* hint = "Search", float width = 0.0f);
+		// チェックボックス。オンのときは箱に差し色を薄く敷き、差し色のチェックを描く（どのパネルでもこれを使う）
+		static bool Checkbox(const char* label, bool* value);
 		// 縦の区切り（ツールバーの中のまとまりを分ける）
 		static void ToolbarSeparator();
 		// 何も表示するものがないときの案内

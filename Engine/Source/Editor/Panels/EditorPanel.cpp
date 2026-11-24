@@ -1,6 +1,7 @@
 #include "RdPch.h"
 #include "Editor/Panels/EditorPanel.h"
 #include "Editor/Core/EditorLocale.h"
+#include "Editor/Style/EditorStyle.h"
 
 namespace rd
 {
@@ -12,7 +13,11 @@ namespace rd
 		// 見出しは訳、ID は英語の名前（言語を変えてもドッキングの配置が保たれる）
 		bool visible = ImGui::Begin(TrId(mTitle), &mOpen, GetWindowFlags());
 		if (!HasPadding()) { ImGui::PopStyleVar(); }
-		if (visible) { OnGui(); }
+		if (visible)
+		{
+			EditorStyle::DrawTabHighlight();
+			OnGui();
+		}
 		ImGui::End();
 	}
 }

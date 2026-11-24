@@ -87,13 +87,13 @@ namespace rd
 
 	void SceneViewPanel::DrawToolbar()
 	{
-		ImGui::Checkbox(Tr("Grid"), &showGrid);
+		EditorGui::Checkbox(Tr("Grid"), &showGrid);
 		ImGui::SameLine();
-		ImGui::Checkbox(Tr("Gizmos"), &showGizmos);
+		EditorGui::Checkbox(Tr("Gizmos"), &showGizmos);
 		ImGui::SameLine();
-		ImGui::Checkbox(Tr("Physics"), &showPhysics);
+		EditorGui::Checkbox(Tr("Physics"), &showPhysics);
 		ImGui::SameLine();
-		ImGui::Checkbox(Tr("NavMesh"), &showNavMesh);
+		EditorGui::Checkbox(Tr("NavMesh"), &showNavMesh);
 		if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", Tr("Always show the NavMesh (it is also shown while a NavMeshSurface is selected)")); }
 		EditorGui::ToolbarSeparator();
 		ImGui::AlignTextToFramePadding();

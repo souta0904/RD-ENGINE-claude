@@ -82,7 +82,7 @@ namespace rd
 		EditorIcons::Inline(EditorIcons::ForActor(actor));
 		ImGui::SameLine();
 		bool active = actor->IsActiveSelf();
-		if (ImGui::Checkbox("##active", &active)) { actor->SetActive(active); commit = true; }
+		if (EditorGui::Checkbox("##active", &active)) { actor->SetActive(active); commit = true; }
 		ImGui::SameLine();
 		std::string name = actor->GetName();
 		ImGui::SetNextItemWidth(-1.0f);
@@ -190,9 +190,16 @@ namespace rd
 		}
 		DrawComponentMenu(c, index, count);
 
-		ImGui::SameLine(ImGui::GetContentRegionAvail().x - 4.0f);
+		// 有効 / 無効のチェックは見出しの中に収まるよう少し小さくし、右端で上下の真ん中に置く
+		ImGuiStyle& style = ImGui::GetStyle();
+		ImVec2 padding(style.FramePadding.x, style.FramePadding.y * 0.4f);
+		float boxSize = ImGui::GetFontSize() + padding.y * 2.0f;
+		ImGui::SameLine();
+		ImGui::SetCursorScreenPos(ImVec2(headerMax.x - boxSize - style.FramePadding.x, headerMin.y + (headerMax.y - headerMin.y - boxSize) * 0.5f));
+		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, padding);
 		bool enabled = c->IsEnabled();
-		if (ImGui::Checkbox("##enabled", &enabled)) { c->SetEnabled(enabled); commit = true; }
+		if (EditorGui::Checkbox("##enabled", &enabled)) { c->SetEnabled(enabled); commit = true; }
+		ImGui::PopStyleVar();
 		return open;
 	}
 

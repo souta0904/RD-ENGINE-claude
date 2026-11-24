@@ -56,11 +56,11 @@ namespace rd
 		EditorGui::BeginToolbar("toolbar");
 		if (ImGui::Button(Tr("Clear"))) { Logger::Clear(); }
 		ImGui::SameLine();
-		ImGui::Checkbox(Tr("Collapse"), &mCollapse);
+		EditorGui::Checkbox(Tr("Collapse"), &mCollapse);
 		ImGui::SameLine();
-		ImGui::Checkbox(Tr("Clear on Play"), &mClearOnPlay);
+		EditorGui::Checkbox(Tr("Clear on Play"), &mClearOnPlay);
 		ImGui::SameLine();
-		ImGui::Checkbox(Tr("Debug"), &mShowDebug);
+		EditorGui::Checkbox(Tr("Debug"), &mShowDebug);
 		EditorGui::ToolbarSeparator();
 		float right = 220.0f + 3.0f * 64.0f;
 		ImGui::SameLine(std::max(ImGui::GetCursorPosX(), ImGui::GetWindowContentRegionMax().x - right));

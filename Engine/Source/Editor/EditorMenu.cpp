@@ -21,6 +21,7 @@ namespace rd
 	void Editor::DrawMenuBar()
 	{
 		if (!ImGui::BeginMainMenuBar()) { return; }
+		EditorStyle::DrawLogo();
 		if (ImGui::BeginMenu(Tr("File")))
 		{
 			if (ImGui::MenuItem(Tr("New Scene"))) { NewScene(); }
@@ -120,7 +121,8 @@ namespace rd
 		ImGuiStyle& style = ImGui::GetStyle();
 		float height = ImGui::GetFrameHeight() + style.WindowPadding.y * 2.0f;
 		ImGuiWindowFlags flags = ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoScrollWithMouse;
-		ImGui::PushStyleColor(ImGuiCol_WindowBg, EditorStyle::kToolbarBg);
+		// メニューバーと同じ一番奥の色にして、上の帯をひと続きに見せる
+		ImGui::PushStyleColor(ImGuiCol_WindowBg, EditorStyle::kBaseBg);
 		bool open = ImGui::BeginViewportSideBar("##MainToolbar", ImGui::GetMainViewport(), ImGuiDir_Up, height, flags);
 		ImGui::PopStyleColor();
 		if (open)
@@ -139,13 +141,24 @@ namespace rd
 				view.SetGizmoLocal(!local);
 			}
 
-			float buttons = ImGui::GetFrameHeight() * 3.0f + 4.0f;
+			// Play / Pause / Step は真ん中に、少し明るい台に乗せてまとめる
+			float gap = 2.0f;
+			float buttons = ImGui::GetFrameHeight() * 3.0f + gap * 2.0f;
 			ImGui::SameLine((ImGui::GetWindowWidth() - buttons) * 0.5f);
+			{
+				ImVec2 p = ImGui::GetCursorScreenPos();
+				float pad = ImGui::GetFontSize() * 0.2f;
+				ImGui::GetWindowDrawList()->AddRectFilled(ImVec2(p.x - pad, p.y - pad), ImVec2(p.x + buttons + pad, p.y + ImGui::GetFrameHeight() + pad),
+					ImGui::ColorConvertFloat4ToU32(EditorStyle::kWindowBg));
+			}
 			bool playing = IsPlaying();
-			if (EditorGui::IconButton("##play", Icon::Play, Tr(playing ? "Stop (Ctrl+P)" : "Play (Ctrl+P)"), playing)) { Defer([this] { TogglePlay(); }); }
-			ImGui::SameLine(0.0f, 2.0f);
-			if (EditorGui::IconButton("##pause", Icon::Pause, Tr("Pause (Ctrl+Shift+P)"), mEngine.IsPaused(), playing)) { TogglePause(); }
-			ImGui::SameLine(0.0f, 2.0f);
+			if (EditorGui::IconButton("##play", Icon::Play, Tr(playing ? "Stop (Ctrl+P)" : "Play (Ctrl+P)"), playing, true, &EditorStyle::kPlay))
+			{
+				Defer([this] { TogglePlay(); });
+			}
+			ImGui::SameLine(0.0f, gap);
+			if (EditorGui::IconButton("##pause", Icon::Pause, Tr("Pause (Ctrl+Shift+P)"), mEngine.IsPaused(), playing, &EditorStyle::kWarning)) { TogglePause(); }
+			ImGui::SameLine(0.0f, gap);
 			if (EditorGui::IconButton("##step", Icon::Step, Tr("Step (Ctrl+Alt+P)"), false, playing)) { StepFrame(); }
 
 			if (mHotReload->IsAvailable()) { DrawCompileButton(); }

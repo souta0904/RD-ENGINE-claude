@@ -4,6 +4,7 @@
 #include "Editor/Core/EditorLocale.h"
 #include "Editor/Editor.h"
 #include "Editor/Panels/ProjectPanel.h"
+#include "Editor/Style/EditorGui.h"
 #include "Editor/Style/EditorStyle.h"
 #include "Render/Material/MaterialAsset.h"
 #include "Render/Material/ShaderAsset.h"
@@ -12,6 +13,7 @@
 #include "Scene/Reference/ComponentRef.h"
 #include "Scene/Scene.h"
 #include <ImGui/imgui.h>
+#include <ImGui/imgui_internal.h>
 #include <ImGui/imgui_stdlib.h>
 #include <unordered_map>
 
@@ -22,6 +24,39 @@ namespace rd
 		ImGuiSliderFlags SliderFlags(const PropertyMeta& meta)
 		{
 			return meta.min < meta.max ? ImGuiSliderFlags_AlwaysClamp : ImGuiSliderFlags_None;
+		}
+
+		// X / Y / Z / W の欄を横に並べ、それぞれの左端に軸の色（赤・緑・青・灰）の細い帯を付ける。
+		//  ギズモの矢印と同じ色なので、どの欄がどの軸か読まずに分かる。
+		//  BeginGroup / EndGroup で囲むので、離したときの確定（IsItemDeactivatedAfterEdit）は DragFloat3 と同じように働く
+		bool DragAxes(const char* id, float* values, int count, float speed, float min, float max, const char* format, ImGuiSliderFlags flags)
+		{
+			static constexpr ImVec4 kAxisColors[4] = {
+				{ 0.92f, 0.36f, 0.38f, 1.0f },
+				{ 0.48f, 0.82f, 0.36f, 1.0f },
+				{ 0.36f, 0.58f, 1.00f, 1.0f },
+				{ 0.60f, 0.62f, 0.68f, 1.0f },
+			};
+			bool changed = false;
+			ImGui::BeginGroup();
+			ImGui::PushID(id);
+			ImGui::PushMultiItemsWidths(count, ImGui::CalcItemWidth());
+			float barWidth = std::max(2.0f, IM_ROUND(ImGui::GetFontSize() * 0.2f));
+			float rounding = ImGui::GetStyle().FrameRounding;
+			for (int i = 0; i < count; ++i)
+			{
+				ImGui::PushID(i);
+				if (i > 0) { ImGui::SameLine(0.0f, ImGui::GetStyle().ItemInnerSpacing.x); }
+				changed |= ImGui::DragFloat("##c", &values[i], speed, min, max, format, flags);
+				ImVec2 a = ImGui::GetItemRectMin(), b = ImGui::GetItemRectMax();
+				ImGui::GetWindowDrawList()->AddRectFilled(a, ImVec2(a.x + barWidth, b.y), ImGui::ColorConvertFloat4ToU32(kAxisColors[i]), rounding,
+					ImDrawFlags_RoundCornersLeft);
+				ImGui::PopID();
+				ImGui::PopItemWidth();
+			}
+			ImGui::PopID();
+			ImGui::EndGroup();
+			return changed;
 		}
 
 		// クォータニオンをオイラー角で編集すると値が飛びやすいので、最後に表示した角度を覚えておく
@@ -90,7 +125,7 @@ namespace rd
 		ImGui::PushID(name);
 		Label(name, meta);
 		ImGui::BeginDisabled(meta.flags & PropertyMeta::ReadOnly);
-		bool changed = Track(ImGui::Checkbox("##v", &value), true);
+		bool changed = Track(EditorGui::Checkbox("##v", &value), true);
 		ImGui::EndDisabled();
 		ImGui::PopID();
 		return changed;
@@ -146,7 +181,7 @@ namespace rd
 	{
 		ImGui::PushID(name);
 		Label(name, meta);
-		bool changed = Track(ImGui::DragFloat2("##v", value.Data(), meta.speed, meta.min, meta.max, "%.3f", SliderFlags(meta)));
+		bool changed = Track(DragAxes("##v", value.Data(), 2, meta.speed, meta.min, meta.max, "%.3f", SliderFlags(meta)));
 		ImGui::PopID();
 		return changed;
 	}
@@ -155,7 +190,7 @@ namespace rd
 	{
 		ImGui::PushID(name);
 		Label(name, meta);
-		bool changed = Track(ImGui::DragFloat3("##v", value.Data(), meta.speed, meta.min, meta.max, "%.3f", SliderFlags(meta)));
+		bool changed = Track(DragAxes("##v", value.Data(), 3, meta.speed, meta.min, meta.max, "%.3f", SliderFlags(meta)));
 		ImGui::PopID();
 		return changed;
 	}
@@ -164,7 +199,7 @@ namespace rd
 	{
 		ImGui::PushID(name);
 		Label(name, meta);
-		bool changed = Track(ImGui::DragFloat4("##v", value.Data(), meta.speed, meta.min, meta.max, "%.3f", SliderFlags(meta)));
+		bool changed = Track(DragAxes("##v", value.Data(), 4, meta.speed, meta.min, meta.max, "%.3f", SliderFlags(meta)));
 		ImGui::PopID();
 		return changed;
 	}
@@ -180,7 +215,7 @@ namespace rd
 			cache.degrees = Vector3(math::ToDegrees(e.x), math::ToDegrees(e.y), math::ToDegrees(e.z));
 			cache.q = value;
 		}
-		bool changed = ImGui::DragFloat3("##v", cache.degrees.Data(), meta.speed, 0.0f, 0.0f, "%.1f");
+		bool changed = DragAxes("##v", cache.degrees.Data(), 3, meta.speed, 0.0f, 0.0f, "%.1f", ImGuiSliderFlags_None);
 		if (changed)
 		{
 			value = Quaternion::FromEuler(Vector3(math::ToRadians(cache.degrees.x), math::ToRadians(cache.degrees.y), math::ToRadians(cache.degrees.z)));

@@ -26,33 +26,46 @@ namespace rd
 		ImGui::Dummy(ImVec2(0.0f, ImGui::GetStyle().WindowPadding.y));
 	}
 
+	namespace
+	{
+		// 押された状態のボタンの色: 差し色を薄く敷く（塗りつぶすより軽く見える）。PopStyleColor(3) で戻す
+		void PushActiveColors(const ImVec4& color)
+		{
+			ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(color.x, color.y, color.z, 0.22f));
+			ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(color.x, color.y, color.z, 0.32f));
+			ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(color.x, color.y, color.z, 0.42f));
+		}
+
+		// ふだんのアイコンボタン: 背景なし、マウスを乗せたときだけ背景を出す。PopStyleColor(3) で戻す
+		void PushFlatColors()
+		{
+			ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
+			ImGui::PushStyleColor(ImGuiCol_ButtonHovered, EditorStyle::kHover);
+			ImGui::PushStyleColor(ImGuiCol_ButtonActive, EditorStyle::kHeaderBg);
+		}
+	}
+
 	bool EditorGui::ToggleButton(const char* label, bool active)
 	{
-		if (active)
-		{
-			ImGui::PushStyleColor(ImGuiCol_Button, EditorStyle::kAccentDim);
-			ImGui::PushStyleColor(ImGuiCol_ButtonHovered, EditorStyle::kAccentDim);
-		}
+		if (active) { PushActiveColors(EditorStyle::kAccent); }
 		bool pressed = ImGui::Button(label);
-		if (active) { ImGui::PopStyleColor(2); }
+		if (active) { ImGui::PopStyleColor(3); }
 		return pressed;
 	}
 
-	bool EditorGui::IconButton(const char* id, Icon icon, const char* tooltip, bool active, bool enabled)
+	bool EditorGui::IconButton(const char* id, Icon icon, const char* tooltip, bool active, bool enabled, const ImVec4* activeColor)
 	{
 		float h = ImGui::GetFrameHeight();
 		ImVec2 pos = ImGui::GetCursorScreenPos();
 		ImGui::BeginDisabled(!enabled);
-		if (active)
-		{
-			ImGui::PushStyleColor(ImGuiCol_Button, EditorStyle::kAccentDim);
-			ImGui::PushStyleColor(ImGuiCol_ButtonHovered, EditorStyle::kAccentDim);
-		}
+		if (active) { PushActiveColors(activeColor ? *activeColor : EditorStyle::kAccent); }
+		else { PushFlatColors(); }
 		bool pressed = ImGui::Button(id, ImVec2(h, h));
-		if (active) { ImGui::PopStyleColor(2); }
-		float iconSize = h * 0.62f;
+		ImGui::PopStyleColor(3);
+		float iconSize = h * 0.6f;
 		float pad = (h - iconSize) * 0.5f;
 		ImU32 color = EditorIcons::DefaultColor(icon);
+		if (active && activeColor) { color = ImGui::ColorConvertFloat4ToU32(*activeColor); }
 		if (!enabled) { color = ImGui::GetColorU32(ImGuiCol_TextDisabled); }
 		EditorIcons::Draw(ImGui::GetWindowDrawList(), ImVec2(pos.x + pad, pos.y + pad), iconSize, icon, color);
 		ImGui::EndDisabled();
@@ -87,11 +100,27 @@ namespace rd
 		ImVec2 pos = ImGui::GetCursorScreenPos();
 		ImGui::SetNextItemWidth(w);
 		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(h * 0.95f, ImGui::GetStyle().FramePadding.y));
-		ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, h * 0.5f);
 		bool changed = ImGui::InputTextWithHint(id, hint, &text);
-		ImGui::PopStyleVar(2);
+		ImGui::PopStyleVar();
 		EditorIcons::Draw(ImGui::GetWindowDrawList(), ImVec2(pos.x + h * 0.25f, pos.y + (h - iconSize) * 0.5f), iconSize, Icon::Search,
 			ImGui::GetColorU32(ImGuiCol_TextDisabled));
+		return changed;
+	}
+
+	bool EditorGui::Checkbox(const char* label, bool* value)
+	{
+		bool on = *value;
+		// 箱は差し色を薄く敷き、チェックだけはっきりした差し色にする（塗りつぶすと強すぎるため）
+		if (on)
+		{
+			const ImVec4& a = EditorStyle::kAccent;
+			ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(a.x, a.y, a.z, 0.18f));
+			ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4(a.x, a.y, a.z, 0.28f));
+			ImGui::PushStyleColor(ImGuiCol_FrameBgActive, ImVec4(a.x, a.y, a.z, 0.38f));
+			ImGui::PushStyleColor(ImGuiCol_CheckMark, EditorStyle::kAccentHover);
+		}
+		bool changed = ImGui::Checkbox(label, value);
+		if (on) { ImGui::PopStyleColor(4); }
 		return changed;
 	}
 
@@ -133,9 +162,14 @@ namespace rd
 			for (int i = 0; i < buttonCount; ++i)
 			{
 				if (i > 0) { ImGui::SameLine(); }
-				if (i == 0) { ImGui::PushStyleColor(ImGuiCol_Button, EditorStyle::kAccentDim); }
-				bool pressed = ImGui::Button(buttons[i], ImVec2(110.0f, 0.0f));
-				if (i == 0) { ImGui::PopStyleColor(); }
+				// 最初のボタン（おすすめの答え）だけ差し色で塗る
+				if (i == 0)
+				{
+					ImGui::PushStyleColor(ImGuiCol_Button, EditorStyle::kAccent);
+					ImGui::PushStyleColor(ImGuiCol_ButtonHovered, EditorStyle::kAccentHover);
+				}
+				bool pressed = ImGui::Button(buttons[i], ImVec2(ImGui::GetFontSize() * 7.0f, 0.0f));
+				if (i == 0) { ImGui::PopStyleColor(2); }
 				if (pressed)
 				{
 					choice = i;

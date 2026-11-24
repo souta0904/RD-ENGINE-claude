@@ -76,6 +76,7 @@ namespace rd
 	{
 		std::filesystem::create_directories("Logs");
 		mImGui.Initialize(mEngine.GetWindow().GetHandle());
+		EditorStyle::ApplyDarkTitleBar(mEngine.GetWindow().GetHandle());
 		mEngine.GetWindow().EnableFileDrop();
 		ImGui::GetIO().IniFilename = kLayoutFile;
 		// 前回の配置が保存されていればそれを使う（既定の配置の版が古ければ作り直す）
