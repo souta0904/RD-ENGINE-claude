@@ -1,5 +1,5 @@
 #include "RdPch.h"
-#include "Core/Log/Log.h"
+#include "Core/Log/Logger.h"
 #include "Core/Log/DebuggerSink.h"
 #include "Core/Log/FileSink.h"
 #include <chrono>
@@ -131,7 +131,7 @@ namespace rd
 		}
 	}
 
-	void Log::Initialize(const LogSettings& settings)
+	void Logger::Initialize(const LogSettings& settings)
 	{
 		LogState& s = State();
 		s.minLevel = settings.minLevel;
@@ -148,12 +148,12 @@ namespace rd
 		}
 		AddSink(file);
 		// exit や main の終わりでも Shutdown が呼ばれるようにする（残ったログを書き切ってからスレッドを止める）
-		std::atexit([] { Log::Shutdown(); });
+		std::atexit([] { Logger::Shutdown(); });
 	}
 
 	// stop を立ててログ専用スレッドを起こし、キューが空になって終わるのを join で待つ
 	// 2 回呼ばれても大丈夫なように、すでに stop なら何もしない
-	void Log::Shutdown()
+	void Logger::Shutdown()
 	{
 		LogState& s = State();
 		{
@@ -169,7 +169,7 @@ namespace rd
 
 	// 呼んだ時点までに足されたログ（target 件目まで）が書き終わるのを待つ
 	// 待っている間に他のスレッドが足したログまでは待たない（いつまでも終わらなくなるため）
-	void Log::Flush()
+	void Logger::Flush()
 	{
 		LogState& s = State();
 		std::unique_lock lock(s.queueMutex);
@@ -179,13 +179,13 @@ namespace rd
 		s.drainedCv.wait_for(lock, std::chrono::seconds(2), [&] { return s.written >= target; });
 	}
 
-	void Log::SetLevel(LogLevel level) { State().minLevel = level; }
-	LogLevel Log::GetLevel() { return State().minLevel; }
+	void Logger::SetLevel(LogLevel level) { State().minLevel = level; }
+	LogLevel Logger::GetLevel() { return State().minLevel; }
 	// memory_order_relaxed … 他の値との順番を気にしない一番軽い読み方。
 	// レベルが変わった直後の数件が古いレベルで判定されても困らないので、これで十分
-	bool Log::IsEnabled(LogLevel level) { return level >= kLogCompileLevel && level >= State().minLevel.load(std::memory_order_relaxed); }
+	bool Logger::IsEnabled(LogLevel level) { return level >= kLogCompileLevel && level >= State().minLevel.load(std::memory_order_relaxed); }
 
-	void Log::AddSink(std::shared_ptr<LogSink> sink)
+	void Logger::AddSink(std::shared_ptr<LogSink> sink)
 	{
 		LogState& s = State();
 		std::lock_guard lock(s.sinkMutex);
@@ -193,19 +193,19 @@ namespace rd
 	}
 
 	// remove で消す要素を後ろへ寄せ、erase でまとめて消す（vector から値で消すときの決まった書き方）
-	void Log::RemoveSink(const std::shared_ptr<LogSink>& sink)
+	void Logger::RemoveSink(const std::shared_ptr<LogSink>& sink)
 	{
 		LogState& s = State();
 		std::lock_guard lock(s.sinkMutex);
 		s.sinks.erase(std::remove(s.sinks.begin(), s.sinks.end(), sink), s.sinks.end());
 	}
 
-	const std::string& Log::GetFilePath() { return State().filePath; }
+	const std::string& Logger::GetFilePath() { return State().filePath; }
 
 	// 1 件のログを作り、履歴とキューへ入れる
 	//  時刻はここ（出したスレッド）で取る。ログ専用スレッドで取ると、書くのが遅れた分だけずれるため
 	//  message は値で受け取って move する（呼んだ側で作った文字列を、コピーせずに LogRecord へ移せる）
-	void Log::Write(LogLevel level, LogCategory category, const std::source_location& location, std::string message)
+	void Logger::Write(LogLevel level, LogCategory category, const std::source_location& location, std::string message)
 	{
 		LogState& s = State();
 		LogRecord r;
@@ -255,21 +255,21 @@ namespace rd
 	}
 
 	// Fatal の後: ログを書き切ってから終了する（abort はクラッシュハンドラが受け取る）
-	void Log::Abort()
+	void Logger::Abort()
 	{
 		Flush();
 		if (IsDebuggerPresent()) { __debugbreak(); }
 		std::abort();
 	}
 
-	void Log::ForEach(const std::function<void(const LogRecord&)>& func)
+	void Logger::ForEach(const std::function<void(const LogRecord&)>& func)
 	{
 		LogState& s = State();
 		std::lock_guard lock(s.historyMutex);
 		for (const auto& r : s.history) { func(r); }
 	}
 
-	void Log::Clear()
+	void Logger::Clear()
 	{
 		LogState& s = State();
 		std::lock_guard lock(s.historyMutex);
@@ -277,13 +277,13 @@ namespace rd
 		++s.historyVersion;
 	}
 
-	uint64_t Log::GetVersion() { return State().historyVersion; }
+	uint64_t Logger::GetVersion() { return State().historyVersion; }
 
-	// Assert.h で宣言だけしている関数の中身（Assert.h から Log.h を読み込まずに済むよう、ここに置く）
+	// Assert.h で宣言だけしている関数の中身（Assert.h から Logger.h を読み込まずに済むよう、ここに置く）
 	// 場所は RD_ASSERT を書いた file と line をメッセージに入れる（location はこの関数の場所になってしまうため）
 	void ReportAssertFailure(const char* expr, const char* file, int line, const std::string& message)
 	{
-		Log::Write(LogLevel::Error, LogCat::Core, std::source_location::current(),
+		Logger::Write(LogLevel::Error, LogCat::Core, std::source_location::current(),
 			std::format("Assertion failed: {} ({}:{}) {}", expr, file, line, message));
 	}
 }

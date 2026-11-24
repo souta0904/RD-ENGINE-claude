@@ -37,7 +37,7 @@ namespace rd
 	void LogPanel::Update(float)
 	{
 		bool playing = mEditor.IsPlaying();
-		if (playing && !mWasPlaying && mClearOnPlay) { Log::Clear(); }
+		if (playing && !mWasPlaying && mClearOnPlay) { Logger::Clear(); }
 		mWasPlaying = playing;
 	}
 
@@ -54,7 +54,7 @@ namespace rd
 	void LogPanel::DrawToolbar(int infoCount, int warnCount, int errorCount)
 	{
 		EditorGui::BeginToolbar("toolbar");
-		if (ImGui::Button(Tr("Clear"))) { Log::Clear(); }
+		if (ImGui::Button(Tr("Clear"))) { Logger::Clear(); }
 		ImGui::SameLine();
 		ImGui::Checkbox(Tr("Collapse"), &mCollapse);
 		ImGui::SameLine();
@@ -80,7 +80,7 @@ namespace rd
 		int infoCount = 0, warnCount = 0, errorCount = 0;
 		std::vector<LogLine> lines;
 		std::vector<LogRecord> copies;
-		Log::ForEach([&](const LogRecord& r)
+		Logger::ForEach([&](const LogRecord& r)
 			{
 				if (r.level >= LogLevel::Error) { ++errorCount; }
 				else if (r.level == LogLevel::Warning) { ++warnCount; }
@@ -134,9 +134,9 @@ namespace rd
 		}
 		if (lines.empty()) { EditorGui::EmptyHint(Tr("No messages.")); }
 		// 新しいログが来たら一番下へ
-		if (Log::GetVersion() != mVersion)
+		if (Logger::GetVersion() != mVersion)
 		{
-			mVersion = Log::GetVersion();
+			mVersion = Logger::GetVersion();
 			ImGui::SetScrollHereY(1.0f);
 		}
 		ImGui::EndChild();

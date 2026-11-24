@@ -21,10 +21,10 @@ namespace rd
 		// 保存した直後は、保存した時点を残すためにまとめない
 		if (mCursor > 0 && mSavedCursor != mCursor && mCommands[mCursor - 1]->MergeWith(*command))
 		{
-			Log::Debug(LogCat::Editor, "Merged: {}", command->GetLabel());
+			Logger::Debug(LogCat::Editor, "Merged: {}", command->GetLabel());
 			return;
 		}
-		Log::Debug(LogCat::Editor, "Command: {}", command->GetLabel());
+		Logger::Debug(LogCat::Editor, "Command: {}", command->GetLabel());
 		mCommands.push_back(std::move(command));
 		if (mCommands.size() > kMaxCommands)
 		{
@@ -59,7 +59,7 @@ namespace rd
 		if (!CanUndo()) { return 0; }
 		EditorCommand& c = *mCommands[--mCursor];
 		c.Undo(scene);
-		Log::Info(LogCat::Editor, "Undo: {}", c.GetLabel());
+		Logger::Info(LogCat::Editor, "Undo: {}", c.GetLabel());
 		return c.GetSelection();
 	}
 
@@ -68,7 +68,7 @@ namespace rd
 		if (!CanRedo()) { return 0; }
 		EditorCommand& c = *mCommands[mCursor++];
 		c.Redo(scene);
-		Log::Info(LogCat::Editor, "Redo: {}", c.GetLabel());
+		Logger::Info(LogCat::Editor, "Redo: {}", c.GetLabel());
 		return c.GetSelection();
 	}
 

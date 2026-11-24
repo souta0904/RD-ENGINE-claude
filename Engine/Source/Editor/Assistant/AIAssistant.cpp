@@ -143,7 +143,7 @@ How to work:
 			return;
 		}
 		mRequest = request;
-		Log::Debug(LogCat::Editor, "AI request: {} turns, {} bytes", mHistory.size(), http.body.size());
+		Logger::Debug(LogCat::Editor, "AI request: {} turns, {} bytes", mHistory.size(), http.body.size());
 
 		bool local = mSettings.IsLocal();
 		std::thread([request, http = std::move(http), local]
@@ -193,7 +193,7 @@ How to work:
 		mScrollToBottom = true;
 		if (!reply.error.empty())
 		{
-			Log::Warning(LogCat::Editor, "AI request failed: {}", reply.error);
+			Logger::Warning(LogCat::Editor, "AI request failed: {}", reply.error);
 			mChat.push_back({ ChatEntry::Kind::Error, reply.error });
 			RollbackToCleanState();
 			return;

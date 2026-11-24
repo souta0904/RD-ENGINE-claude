@@ -46,7 +46,7 @@ namespace rd
 					return true;
 				}
 			}
-			Log::Warning(LogCat::Core, "JSON: unknown enum value '{}' for '{}'", str, name);
+			Logger::Warning(LogCat::Core, "JSON: unknown enum value '{}' for '{}'", str, name);
 			return false;
 		}
 		if (it->is_number_integer())

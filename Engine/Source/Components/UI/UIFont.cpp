@@ -44,7 +44,7 @@ namespace rd
 		std::ifstream file(ToWide(path), std::ios::binary);
 		if (!file)
 		{
-			Log::Error(LogCat::Asset, "Failed to open font: {}", path);
+			Logger::Error(LogCat::Asset, "Failed to open font: {}", path);
 			return;
 		}
 		mFile.assign(std::istreambuf_iterator<char>(file), {});
@@ -52,7 +52,7 @@ namespace rd
 		int offset = stbtt_GetFontOffsetForIndex(mFile.data(), 0);
 		if (offset < 0 || !stbtt_InitFont(info.get(), mFile.data(), offset))
 		{
-			Log::Error(LogCat::Asset, "Failed to read font: {}", path);
+			Logger::Error(LogCat::Asset, "Failed to read font: {}", path);
 			return;
 		}
 		mInfo = info;

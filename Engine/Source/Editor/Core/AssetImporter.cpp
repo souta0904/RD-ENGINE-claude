@@ -92,7 +92,7 @@ namespace rd
 			fs::copy_file(source, target, ec);
 			if (ec)
 			{
-				Log::Error(LogCat::Editor, "Failed to copy {}: {}", ToText(source), ec.message());
+				Logger::Error(LogCat::Editor, "Failed to copy {}: {}", ToText(source), ec.message());
 				return {};
 			}
 			return target;
@@ -118,7 +118,7 @@ namespace rd
 				image.pixels = pixels.data();
 				if (FAILED(DirectX::SaveToTGAFile(image, DirectX::TGA_FLAGS_NONE, target.c_str())))
 				{
-					Log::Error(LogCat::Editor, "Failed to write texture {}", ToText(target));
+					Logger::Error(LogCat::Editor, "Failed to write texture {}", ToText(target));
 					return {};
 				}
 				return target;
@@ -145,7 +145,7 @@ namespace rd
 			file.write(reinterpret_cast<const char*>(texture.data.data()), std::streamsize(texture.data.size()));
 			if (!file.good())
 			{
-				Log::Error(LogCat::Editor, "Failed to write texture {}", ToText(target));
+				Logger::Error(LogCat::Editor, "Failed to write texture {}", ToText(target));
 				return {};
 			}
 			return target;
@@ -177,7 +177,7 @@ namespace rd
 						std::error_code ec;
 						std::wstring key = CanonicalKey(original);
 						if (auto it = copied.find(key); it != copied.end()) { file = it->second; }
-						else if (!fs::exists(original, ec)) { Log::Warning(LogCat::Editor, "Texture not found: {}", name); }
+						else if (!fs::exists(original, ec)) { Logger::Warning(LogCat::Editor, "Texture not found: {}", name); }
 						else if (IsInsideFolder(original, L"Assets")) { file = original; }
 						else
 						{
@@ -210,7 +210,7 @@ namespace rd
 			std::string error;
 			if (!ModelImporter::Import(ToText(source), false, data, error))
 			{
-				Log::Error(LogCat::Editor, "Failed to import {}: {}", ToText(source), error);
+				Logger::Error(LogCat::Editor, "Failed to import {}: {}", ToText(source), error);
 				return false;
 			}
 			PrepareTextures(data, source, folder, copied);
@@ -218,13 +218,13 @@ namespace rd
 			fs::path target = UniquePath(folder, source.stem().wstring(), ToWide(ModelFile::kExtension));
 			if (!ModelFile::Write(ToText(target), data, error))
 			{
-				Log::Error(LogCat::Editor, "Failed to write {}: {}", ToText(target), error);
+				Logger::Error(LogCat::Editor, "Failed to write {}: {}", ToText(target), error);
 				return false;
 			}
 			std::error_code ec;
 			auto before = fs::file_size(source, ec);
 			auto after = fs::file_size(target, ec);
-			Log::Info(LogCat::Editor, "Converted {} -> {} ({} -> {})", ToText(source.filename()), ToText(target), FormatSize(before), FormatSize(after));
+			Logger::Info(LogCat::Editor, "Converted {} -> {} ({} -> {})", ToText(source.filename()), ToText(target), FormatSize(before), FormatSize(after));
 			return true;
 		}
 
@@ -239,7 +239,7 @@ namespace rd
 			}
 			if (IsInsideFolder(folder, source))
 			{
-				Log::Warning(LogCat::Editor, "Cannot import {} into itself", ToText(source));
+				Logger::Warning(LogCat::Editor, "Cannot import {} into itself", ToText(source));
 				return;
 			}
 			std::vector<fs::path> children;
@@ -248,7 +248,7 @@ namespace rd
 			fs::create_directories(target, ec);
 			if (ec)
 			{
-				Log::Error(LogCat::Editor, "Failed to create {}: {}", ToText(target), ec.message());
+				Logger::Error(LogCat::Editor, "Failed to create {}: {}", ToText(target), ec.message());
 				return;
 			}
 			for (const auto& child : children) { CollectItems(child, target, items); }
@@ -279,7 +279,7 @@ namespace rd
 			fs::path target = CopyIntoFolder(item.source, item.folder);
 			if (target.empty()) { continue; }
 			copied.emplace(CanonicalKey(item.source), target);
-			Log::Info(LogCat::Editor, "Imported {}", ToText(target));
+			Logger::Info(LogCat::Editor, "Imported {}", ToText(target));
 			++imported;
 		}
 		for (const auto& item : items)
@@ -295,7 +295,7 @@ namespace rd
 		JobSystem::Schedule([sources = std::move(sources), folder = std::move(folder)]
 			{
 				try { Import(sources, folder); }
-				catch (const std::exception& e) { Log::Error(LogCat::Editor, "Import failed: {}", e.what()); }
+				catch (const std::exception& e) { Logger::Error(LogCat::Editor, "Import failed: {}", e.what()); }
 				--sPending;
 			}, JobPriority::Low, "Asset Import");
 	}

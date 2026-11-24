@@ -28,7 +28,7 @@ namespace rd
 		}
 		catch (const std::exception& e)
 		{
-			Log::Warning(LogCat::Editor, "Ignoring editor session '{}': {}", path, e.what());
+			Logger::Warning(LogCat::Editor, "Ignoring editor session '{}': {}", path, e.what());
 			return false;
 		}
 	}

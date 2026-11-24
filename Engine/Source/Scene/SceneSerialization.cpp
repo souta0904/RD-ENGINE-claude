@@ -18,7 +18,7 @@ namespace rd
 			std::string type = cj.value("Type", std::string());
 			if (!type.empty() && !ComponentRegistry::Has(type))
 			{
-				Log::Warning(LogCat::Scene, "Missing component type: {} (its values are kept)", type);
+				Logger::Warning(LogCat::Scene, "Missing component type: {} (its values are kept)", type);
 				auto missing = std::make_unique<MissingComponent>(type, cj);
 				missing->SetEnabled(cj.value("Enabled", true));
 				return missing;
@@ -277,11 +277,11 @@ namespace rd
 	{
 		if (!SaveJsonFile(path, Serialize()))
 		{
-			Log::Error(LogCat::Scene, "Failed to save scene: {}", path);
+			Logger::Error(LogCat::Scene, "Failed to save scene: {}", path);
 			return false;
 		}
 		mPath = path;
-		Log::Info(LogCat::Scene, "Saved scene: {}", path);
+		Logger::Info(LogCat::Scene, "Saved scene: {}", path);
 		return true;
 	}
 
@@ -290,12 +290,12 @@ namespace rd
 		Json json;
 		if (!LoadJsonFile(path, json))
 		{
-			Log::Error(LogCat::Scene, "Failed to load scene: {}", path);
+			Logger::Error(LogCat::Scene, "Failed to load scene: {}", path);
 			return false;
 		}
 		Deserialize(json);
 		mPath = path;
-		Log::Info(LogCat::Scene, "Loaded scene: {} ({} actors)", path, mActors.size());
+		Logger::Info(LogCat::Scene, "Loaded scene: {} ({} actors)", path, mActors.size());
 		return true;
 	}
 
@@ -305,7 +305,7 @@ namespace rd
 		Json json;
 		if (!LoadJsonFile(prefabPath, json))
 		{
-			Log::Error(LogCat::Scene, "Prefab not found: {}", prefabPath);
+			Logger::Error(LogCat::Scene, "Prefab not found: {}", prefabPath);
 			return nullptr;
 		}
 		auto roots = DeserializeActors(json.value("Actors", Json::array()), true, parent, false);

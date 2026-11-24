@@ -139,7 +139,7 @@ namespace rd
 		}
 		catch (const std::exception& e)
 		{
-			Log::Error(LogCat::Asset, "Exception while loading '{}': {}", asset->GetPath(), e.what());
+			Logger::Error(LogCat::Asset, "Exception while loading '{}': {}", asset->GetPath(), e.what());
 			asset->SetState(AssetState::Failed);
 		}
 		--mLoadingCount;

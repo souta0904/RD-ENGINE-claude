@@ -51,7 +51,7 @@ namespace rd
 			if (auto shader = std::dynamic_pointer_cast<ShaderAsset>(asset)) { shader->Reload(); }
 		}
 		CreatePipelines();
-		Log::Info(LogCat::Render, "Shaders reloaded");
+		Logger::Info(LogCat::Render, "Shaders reloaded");
 	}
 
 	void Renderer::EnsureTargets(uint32_t width, uint32_t height)

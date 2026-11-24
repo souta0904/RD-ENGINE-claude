@@ -77,7 +77,7 @@ namespace rd
 		if (ImGui::Button(Tr("Save Trace")))
 		{
 			std::string path = TraceFileName();
-			if (Profiler::SaveTrace(path)) { Log::Info(LogCat::Editor, "Profile saved: {} (open in ui.perfetto.dev)", path); }
+			if (Profiler::SaveTrace(path)) { Logger::Info(LogCat::Editor, "Profile saved: {} (open in ui.perfetto.dev)", path); }
 		}
 		if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", Tr("Chrome trace format. Open in ui.perfetto.dev or chrome://tracing")); }
 		EditorGui::ToolbarSeparator();

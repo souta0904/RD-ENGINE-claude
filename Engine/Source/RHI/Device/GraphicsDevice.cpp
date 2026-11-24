@@ -19,9 +19,9 @@ namespace rd
 			std::string_view text = desc;
 			while (!text.empty() && (text.back() == '\n' || text.back() == '\r')) { text.remove_suffix(1); }
 			// 終了時の生存オブジェクトの一覧（デバイス自身が必ず出る）はデバッグ扱いにする
-			if (id == D3D12_MESSAGE_ID_LIVE_DEVICE || id == D3D12_MESSAGE_ID_LIVE_OBJECT_SUMMARY) { Log::Debug(LogCat::RHI, "D3D12: {}", text); }
-			else if (severity <= D3D12_MESSAGE_SEVERITY_ERROR) { Log::Error(LogCat::RHI, "D3D12: {}", text); }
-			else if (severity == D3D12_MESSAGE_SEVERITY_WARNING) { Log::Warning(LogCat::RHI, "D3D12: {}", text); }
+			if (id == D3D12_MESSAGE_ID_LIVE_DEVICE || id == D3D12_MESSAGE_ID_LIVE_OBJECT_SUMMARY) { Logger::Debug(LogCat::RHI, "D3D12: {}", text); }
+			else if (severity <= D3D12_MESSAGE_SEVERITY_ERROR) { Logger::Error(LogCat::RHI, "D3D12: {}", text); }
+			else if (severity == D3D12_MESSAGE_SEVERITY_WARNING) { Logger::Warning(LogCat::RHI, "D3D12: {}", text); }
 		}
 	}
 
@@ -129,7 +129,7 @@ namespace rd
 			}
 		}
 		RD_VERIFY(mDevice, "No D3D12 capable GPU found");
-		Log::Info(LogCat::RHI, "GPU: {}", mAdapterName);
+		Logger::Info(LogCat::RHI, "GPU: {}", mAdapterName);
 
 		BOOL tearing = FALSE;
 		if (SUCCEEDED(mFactory->CheckFeatureSupport(DXGI_FEATURE_PRESENT_ALLOW_TEARING, &tearing, sizeof(tearing))))

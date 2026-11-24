@@ -27,7 +27,7 @@ namespace rd
 	{
 		if (parent == this || (parent && parent->IsDescendantOf(this)))
 		{
-			Log::Warning(LogCat::Scene, "Cannot parent '{}' to its own descendant", mName);
+			Logger::Warning(LogCat::Scene, "Cannot parent '{}' to its own descendant", mName);
 			return;
 		}
 		Matrix4 world = mTransform.GetWorldMatrix();

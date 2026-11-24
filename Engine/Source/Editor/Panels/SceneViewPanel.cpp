@@ -193,7 +193,7 @@ namespace rd
 		MeshRenderer* target = PickRenderer(ray, sub);
 		if (!target)
 		{
-			Log::Warning(LogCat::Editor, "Drop the material onto a model to assign it");
+			Logger::Warning(LogCat::Editor, "Drop the material onto a model to assign it");
 			return;
 		}
 		size_t slot = 0;
@@ -324,7 +324,7 @@ namespace rd
 		}
 		if (!CanPlace(path))
 		{
-			Log::Warning(LogCat::Editor, "Cannot drop '{}' into the scene view", path);
+			Logger::Warning(LogCat::Editor, "Cannot drop '{}' into the scene view", path);
 			return;
 		}
 

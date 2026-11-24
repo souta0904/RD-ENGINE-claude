@@ -62,9 +62,9 @@ namespace rd
 		void LogBuildLine(const std::string& line)
 		{
 			if (line.find_first_not_of(" \t") == std::string::npos) { return; }
-			if (line.find(": error ") != std::string::npos || line.find(": fatal error ") != std::string::npos) { Log::Error(LogCat::Editor, "{}", line); }
-			else if (line.find(": warning ") != std::string::npos) { Log::Warning(LogCat::Editor, "{}", line); }
-			else { Log::Info(LogCat::Editor, "{}", line); }
+			if (line.find(": error ") != std::string::npos || line.find(": fatal error ") != std::string::npos) { Logger::Error(LogCat::Editor, "{}", line); }
+			else if (line.find(": warning ") != std::string::npos) { Logger::Warning(LogCat::Editor, "{}", line); }
+			else { Logger::Info(LogCat::Editor, "{}", line); }
 		}
 
 		// MSBuild の出力を UTF-8 にする。出力先がパイプのとき MSBuild は UTF-8 で書くが、
@@ -117,7 +117,7 @@ namespace rd
 		std::wstring msbuild = FindMSBuild();
 		if (msbuild.empty())
 		{
-			Log::Error(LogCat::Editor, "MSBuild was not found. Install Visual Studio with the C++ workload.");
+			Logger::Error(LogCat::Editor, "MSBuild was not found. Install Visual Studio with the C++ workload.");
 			mState = State::Failed;
 			return;
 		}
@@ -125,7 +125,7 @@ namespace rd
 		fs::path project = fs::absolute(fs::path(ToWide(name)) / (ToWide(name) + L".vcxproj"));
 		if (!fs::exists(project))
 		{
-			Log::Error(LogCat::Editor, "Game project not found: {}", ToUtf8(project.wstring()));
+			Logger::Error(LogCat::Editor, "Game project not found: {}", ToUtf8(project.wstring()));
 			mState = State::Failed;
 			return;
 		}
@@ -138,7 +138,7 @@ namespace rd
 			msbuild, project.wstring(), configuration);
 
 		if (mThread.joinable()) { mThread.join(); }
-		Log::Info(LogCat::Editor, "Compiling {} ({})...", name, ToUtf8(configuration));
+		Logger::Info(LogCat::Editor, "Compiling {} ({})...", name, ToUtf8(configuration));
 		mState = State::Compiling;
 		mCompiling = true;
 		mThread = std::thread([this, command] { RunBuild(command); });
@@ -196,7 +196,7 @@ namespace rd
 			}
 			else
 			{
-				Log::Error(LogCat::Editor, "Failed to start MSBuild (error {})", GetLastError());
+				Logger::Error(LogCat::Editor, "Failed to start MSBuild (error {})", GetLastError());
 			}
 			CloseHandle(readPipe);
 		}
@@ -214,13 +214,13 @@ namespace rd
 			mThread.join();
 			if (mExitCode != 0)
 			{
-				Log::Error(LogCat::Editor, "Compile failed. The editor keeps running the previous game code.");
+				Logger::Error(LogCat::Editor, "Compile failed. The editor keeps running the previous game code.");
 				mState = State::Failed;
 			}
 			else if (!GameModule::HasNewerBuild())
 			{
 				// コードが変わっていなければリンクされず、DLL もそのまま
-				Log::Info(LogCat::Editor, "Compile finished. No changes to reload.");
+				Logger::Info(LogCat::Editor, "Compile finished. No changes to reload.");
 				mState = State::Idle;
 			}
 		}
@@ -242,7 +242,7 @@ namespace rd
 		{
 			if (!mToldWaitingForStop)
 			{
-				Log::Info(LogCat::Editor, "The game code was rebuilt. It will be reloaded when you stop playing.");
+				Logger::Info(LogCat::Editor, "The game code was rebuilt. It will be reloaded when you stop playing.");
 				mToldWaitingForStop = true;
 			}
 			return;
@@ -262,12 +262,12 @@ namespace rd
 				Timer timer;
 				if (mEditor.GetEngine().ReloadGameCode(error))
 				{
-					Log::Info(LogCat::Editor, "Reloaded the game code ({} reloads, {:.0f} ms)", GameModule::GetReloadCount(), timer.GetTotalSeconds() * 1000.0);
+					Logger::Info(LogCat::Editor, "Reloaded the game code ({} reloads, {:.0f} ms)", GameModule::GetReloadCount(), timer.GetTotalSeconds() * 1000.0);
 					mState = State::Succeeded;
 				}
 				else
 				{
-					Log::Error(LogCat::Editor, "Hot reload failed: {}", error);
+					Logger::Error(LogCat::Editor, "Hot reload failed: {}", error);
 					mFailedBuildTime = builtTime;
 					mState = State::Failed;
 				}

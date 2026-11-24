@@ -19,7 +19,7 @@ namespace rd
 	{
 		bool Fail(const std::string& path, const char* what, HRESULT hr)
 		{
-			Log::Error(LogCat::Audio, "Failed to decode audio ({} 0x{:08X}): {}", what, uint32_t(hr), path);
+			Logger::Error(LogCat::Audio, "Failed to decode audio ({} 0x{:08X}): {}", what, uint32_t(hr), path);
 			return false;
 		}
 	}
@@ -31,7 +31,7 @@ namespace rd
 		std::vector<uint8_t> file;
 		if (!ReadBinaryFile(path, file))
 		{
-			Log::Error(LogCat::Audio, "Audio file not found: {}", path);
+			Logger::Error(LogCat::Audio, "Audio file not found: {}", path);
 			return false;
 		}
 		return IsWav(file) ? DecodeWav(path, file, format, data) : DecodeWithMediaFoundation(path, format, data);
@@ -69,7 +69,7 @@ namespace rd
 		}
 		if (format.empty() || data.empty())
 		{
-			Log::Error(LogCat::Audio, "Invalid WAV file: {}", path);
+			Logger::Error(LogCat::Audio, "Invalid WAV file: {}", path);
 			return false;
 		}
 		return true;
@@ -80,7 +80,7 @@ namespace rd
 	{
 		if (FAILED(MFStartup(MF_VERSION, MFSTARTUP_LITE)))
 		{
-			Log::Error(LogCat::Audio, "Media Foundation is not available: {}", path);
+			Logger::Error(LogCat::Audio, "Media Foundation is not available: {}", path);
 			return false;
 		}
 		bool ok = ReadWithMediaFoundation(path, format, data);

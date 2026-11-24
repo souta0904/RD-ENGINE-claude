@@ -137,7 +137,7 @@ namespace rd
 		{
 			gState->workers.emplace_back(WorkerMain, i);
 		}
-		Log::Info(LogCat::Core, "JobSystem: {} worker threads", workerCount);
+		Logger::Info(LogCat::Core, "JobSystem: {} worker threads", workerCount);
 	}
 
 	// quit を立てて全部のワーカーを起こし、残りのジョブを片付けて抜けるのを join で待つ

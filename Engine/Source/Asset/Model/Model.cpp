@@ -53,7 +53,7 @@ namespace rd
 			: ModelImporter::Import(path, animOnly, data, error);
 		if (!loaded)
 		{
-			Log::Error(LogCat::Asset, "Failed to load model '{}': {}", path, error);
+			Logger::Error(LogCat::Asset, "Failed to load model '{}': {}", path, error);
 			SetState(AssetState::Failed);
 			return;
 		}
@@ -82,7 +82,7 @@ namespace rd
 		mCollisionIndices = data.indices;
 
 		CreateGpuBuffers(data.vertices, mHasSkinning ? data.skins : std::vector<SkinVertex>{}, data.indices);
-		Log::Info(LogCat::Asset, "Loaded model: {} ({} meshes, {} verts, {} clips)", path, mSubMeshes.size(), data.vertices.size(), mClips.size());
+		Logger::Info(LogCat::Asset, "Loaded model: {} ({} meshes, {} verts, {} clips)", path, mSubMeshes.size(), data.vertices.size(), mClips.size());
 	}
 
 	// 埋め込みのテクスチャを AssetManager に登録し、マテリアルのパスを登録したキーへ置き換える
@@ -121,7 +121,7 @@ namespace rd
 		else if (mPath == "Engine/Capsule") { Primitives::Capsule(v, i); }
 		else
 		{
-			Log::Error(LogCat::Asset, "Unknown built-in model: {}", mPath);
+			Logger::Error(LogCat::Asset, "Unknown built-in model: {}", mPath);
 			return false;
 		}
 		BuildFromData(std::move(v), std::move(i));

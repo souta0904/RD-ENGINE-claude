@@ -32,7 +32,7 @@ namespace rd
 			if (ImGui::MenuItem(Tr("Compile Game Code"), "Ctrl+Alt+F11", false, mHotReload->IsAvailable() && !mHotReload->IsCompiling())) { mHotReload->Compile(); }
 			if (ImGui::MenuItem(Tr("Unload Unused Assets")))
 			{
-				Log::Info(LogCat::Editor, "Unloaded {} assets", AssetManager::Get().CollectGarbage());
+				Logger::Info(LogCat::Editor, "Unloaded {} assets", AssetManager::Get().CollectGarbage());
 			}
 			ImGui::Separator();
 			if (ImGui::MenuItem(Tr("Exit"))) { RequestQuit(); }

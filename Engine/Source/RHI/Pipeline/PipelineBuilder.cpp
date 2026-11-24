@@ -134,7 +134,7 @@ namespace rd
 	{
 		if (!mValid || !mDesc.pRootSignature)
 		{
-			Log::Error(LogCat::RHI, "Pipeline build skipped (invalid shader or root signature)");
+			Logger::Error(LogCat::RHI, "Pipeline build skipped (invalid shader or root signature)");
 			return nullptr;
 		}
 		// ビルダーがコピーされていても正しく指すよう、ここでポインタを付け直す
@@ -143,7 +143,7 @@ namespace rd
 		HRESULT hr = device->CreateGraphicsPipelineState(&mDesc, IID_PPV_ARGS(&pso));
 		if (FAILED(hr))
 		{
-			Log::Error(LogCat::RHI, "CreateGraphicsPipelineState failed (0x{:08X})", uint32_t(hr));
+			Logger::Error(LogCat::RHI, "CreateGraphicsPipelineState failed (0x{:08X})", uint32_t(hr));
 			return nullptr;
 		}
 		SetDebugName(pso.Get(), name);

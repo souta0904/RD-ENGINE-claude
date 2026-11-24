@@ -1,5 +1,5 @@
 #pragma once
-#include "Core/Log/Log.h"
+#include "Core/Log/Logger.h"
 #include "Core/Reflection/PropertyVisitor.h"
 #include "Core/Serialization/Json.h"
 
@@ -63,7 +63,7 @@ namespace rd
 			}
 			catch (const std::exception& e)
 			{
-				Log::Warning(LogCat::Core, "JSON: failed to read '{}': {}", name, e.what());
+				Logger::Warning(LogCat::Core, "JSON: failed to read '{}': {}", name, e.what());
 				return false;
 			}
 		}

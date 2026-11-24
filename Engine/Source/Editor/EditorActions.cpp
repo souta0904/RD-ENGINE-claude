@@ -179,10 +179,10 @@ namespace rd
 		for (int n = 1; FileExists(path); ++n) { path = std::format("{}/{} {}.prefab", dir, stem, n); }
 		if (!Scene::SavePrefab(actor, path))
 		{
-			Log::Error(LogCat::Editor, "Failed to save prefab: {}", path);
+			Logger::Error(LogCat::Editor, "Failed to save prefab: {}", path);
 			return {};
 		}
-		Log::Info(LogCat::Editor, "Saved prefab: {}", path);
+		Logger::Info(LogCat::Editor, "Saved prefab: {}", path);
 		return path;
 	}
 
@@ -239,7 +239,7 @@ namespace rd
 	{
 		if (IsPlaying())
 		{
-			Log::Warning(LogCat::Editor, "Stop play mode before saving");
+			Logger::Warning(LogCat::Editor, "Stop play mode before saving");
 			return false;
 		}
 		Scene& scene = mEngine.GetScene();

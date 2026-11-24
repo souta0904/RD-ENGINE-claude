@@ -1,5 +1,5 @@
 #include "TestFramework.h"
-#include "Core/Log/Log.h"
+#include "Core/Log/Logger.h"
 #include <Windows.h>
 #include <cstdio>
 #include <string>
@@ -20,7 +20,7 @@ int main(int argc, char** argv)
 
 	SetConsoleOutputCP(CP_UTF8);
 	// テスト中の警告などは出さない（失敗の表示が埋もれないように）
-	rd::Log::SetLevel(rd::LogLevel::Fatal);
+	rd::Logger::SetLevel(rd::LogLevel::Fatal);
 
 	std::string filter = argc > 1 ? argv[1] : "";
 	int passed = 0, failed = 0, checks = 0;
@@ -58,6 +58,6 @@ int main(int argc, char** argv)
 		}
 	}
 	std::printf("\n%d passed, %d failed (%d checks)\n", passed, failed, checks);
-	rd::Log::Shutdown();
+	rd::Logger::Shutdown();
 	return failed;
 }

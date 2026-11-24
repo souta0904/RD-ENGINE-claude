@@ -28,7 +28,7 @@ namespace rd
 		auto asset = std::filesystem::exists(ToWide(mPath), ec) ? AssetManager::Get().LoadNow<MaterialAsset>(mPath) : nullptr;
 		if (!asset || !asset->IsReady())
 		{
-			Log::Warning(LogCat::Editor, "Material no longer exists: {}", mPath);
+			Logger::Warning(LogCat::Editor, "Material no longer exists: {}", mPath);
 			return;
 		}
 		asset->FromJson(values);

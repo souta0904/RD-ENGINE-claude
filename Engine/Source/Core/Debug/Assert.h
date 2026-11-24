@@ -17,7 +17,7 @@
 // どちらも、ファイルが見つからないなど起こりうる失敗には使わない（それはログを出して処理を続ける）
 namespace rd
 {
-	// 失敗をログに出す（中身は Core/Log/Log.cpp にある。Assert.h から Log.h を読み込まないようにするため）
+	// 失敗をログに出す（中身は Core/Log/Logger.cpp にある。Assert.h から Logger.h を読み込まないようにするため）
 	RD_API void ReportAssertFailure(const char* expr, const char* file, int line, const std::string& message);
 }
 

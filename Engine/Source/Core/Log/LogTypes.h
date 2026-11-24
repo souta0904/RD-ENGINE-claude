@@ -43,7 +43,7 @@ namespace rd
 	{
 		const char* name;
 	};
-	// エンジンの決まったカテゴリ（Log::Info(LogCat::Render, ...) のように使う）
+	// エンジンの決まったカテゴリ（Logger::Info(LogCat::Render, ...) のように使う）
 	//  inline constexpr … ヘッダーに書いても、どの .cpp から見ても 1 つの同じ定数になる
 	namespace LogCat
 	{
@@ -79,6 +79,6 @@ namespace rd
 		std::string directory = "Logs";
 		std::string fileName = "RdEngine.log";
 		uint32_t keepHistory = 10;
-		LogLevel minLevel = LogLevel::Debug; // これより軽いログは出さない（実行中に Log::SetLevel で変えられる）
+		LogLevel minLevel = LogLevel::Debug; // これより軽いログは出さない（実行中に Logger::SetLevel で変えられる）
 	};
 }

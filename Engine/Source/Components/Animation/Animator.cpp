@@ -47,7 +47,7 @@ namespace rd
 		if (!model || !model->IsReady()) { return nullptr; }
 		mResolvedSkeleton = model->GetSkeleton();
 		auto result = model->FindClip(name);
-		if (!result && !name.empty()) { Log::Warning(LogCat::Scene, "Animator: clip '{}' not found in {}", name, model->GetPath()); }
+		if (!result && !name.empty()) { Logger::Warning(LogCat::Scene, "Animator: clip '{}' not found in {}", name, model->GetPath()); }
 		return result;
 	}
 
@@ -145,7 +145,7 @@ namespace rd
 		}
 		// 親から順に書くので関節の順に並べる
 		std::sort(mBoneActors.begin(), mBoneActors.end(), [](auto& x, auto& y) { return x.joint < y.joint; });
-		Log::Debug(LogCat::Scene, "Animator: {} bone actors bound on '{}'", mBoneActors.size(), GetActor()->GetName());
+		Logger::Debug(LogCat::Scene, "Animator: {} bone actors bound on '{}'", mBoneActors.size(), GetActor()->GetName());
 	}
 
 	void Animator::WriteBoneActors()

@@ -238,12 +238,12 @@ namespace rd
 		if (mId == 0) { mId = gNextShaderId++; }
 		if (!ReadTextFile(mPath, mSource))
 		{
-			Log::Error(LogCat::Asset, "Failed to load shader: {}", mPath);
+			Logger::Error(LogCat::Asset, "Failed to load shader: {}", mPath);
 			SetState(AssetState::Failed);
 			return;
 		}
 		ParseProperties(mSource, mProperties, mErrors);
-		for (const auto& e : mErrors) { Log::Error(LogCat::Asset, "Shader properties ({}): {}", mPath, e); }
+		for (const auto& e : mErrors) { Logger::Error(LogCat::Asset, "Shader properties ({}): {}", mPath, e); }
 		mPrelude = BuildPrelude(mProperties, mPath);
 		SetState(AssetState::Ready);
 	}

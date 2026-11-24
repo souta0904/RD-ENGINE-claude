@@ -35,12 +35,12 @@ namespace rd
 			std::error_code ec;
 			if (fs::exists(ToWide(target), ec))
 			{
-				Log::Warning(LogCat::Editor, "Cannot move: {} already exists", target);
+				Logger::Warning(LogCat::Editor, "Cannot move: {} already exists", target);
 				return;
 			}
 			fs::rename(ToWide(path), ToWide(target), ec);
-			if (ec) { Log::Error(LogCat::Editor, "Failed to move {}: {}", path, ec.message()); }
-			else { Log::Info(LogCat::Editor, "Moved {} -> {}", path, target); }
+			if (ec) { Logger::Error(LogCat::Editor, "Failed to move {}: {}", path, ec.message()); }
+			else { Logger::Info(LogCat::Editor, "Moved {} -> {}", path, target); }
 		}
 	}
 
@@ -354,7 +354,7 @@ namespace rd
 		std::string path = std::format("{}/New Material{}", mFolder, MaterialAsset::kExtension);
 		for (int n = 1; fs::exists(ToWide(path)); ++n) { path = std::format("{}/New Material {}{}", mFolder, n, MaterialAsset::kExtension); }
 		if (!MaterialAsset::CreateFile(path)) { return; }
-		Log::Info(LogCat::Editor, "Created material: {}", path);
+		Logger::Info(LogCat::Editor, "Created material: {}", path);
 		mSelected = path;
 		mEditor.Select(nullptr);
 		BeginRename({ GetFileName(path), path, MaterialAsset::kExtension, false });
@@ -366,7 +366,7 @@ namespace rd
 		std::string path = std::format("{}/New Shader.hlsl", mFolder);
 		for (int n = 1; fs::exists(ToWide(path)); ++n) { path = std::format("{}/New Shader {}.hlsl", mFolder, n); }
 		if (!ShaderAsset::CreateFile(path)) { return; }
-		Log::Info(LogCat::Editor, "Created shader: {}", path);
+		Logger::Info(LogCat::Editor, "Created shader: {}", path);
 		mSelected = path;
 		mEditor.Select(nullptr);
 		BeginRename({ GetFileName(path), path, ".hlsl", false });
@@ -407,7 +407,7 @@ namespace rd
 				if (!mRenameBuffer.empty() && target != mRenamePath && !fs::exists(ToWide(target), ec))
 				{
 					fs::rename(ToWide(mRenamePath), ToWide(target), ec);
-					if (ec) { Log::Error(LogCat::Editor, "Failed to rename {}: {}", mRenamePath, ec.message()); }
+					if (ec) { Logger::Error(LogCat::Editor, "Failed to rename {}: {}", mRenamePath, ec.message()); }
 					else if (mSelected == mRenamePath) { mSelected = target; }
 				}
 				ImGui::CloseCurrentPopup();
@@ -425,11 +425,11 @@ namespace rd
 		{
 			if (FileDialog::MoveToRecycleBin(mDeletePath))
 			{
-				Log::Info(LogCat::Editor, "Moved to the Recycle Bin: {}", mDeletePath);
+				Logger::Info(LogCat::Editor, "Moved to the Recycle Bin: {}", mDeletePath);
 				if (IsInside(mSelected, mDeletePath)) { mSelected.clear(); }
 				if (IsInside(mFolder, mDeletePath)) { mFolder = GetDirectory(mDeletePath); mFolder.pop_back(); }
 			}
-			else { Log::Error(LogCat::Editor, "Failed to delete {}", mDeletePath); }
+			else { Logger::Error(LogCat::Editor, "Failed to delete {}", mDeletePath); }
 		}
 	}
 }

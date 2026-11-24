@@ -154,7 +154,7 @@ namespace rd
 				// GPU の結果は数フレーム遅れて届くので、最後の数フレームは GPU が空になる
 				if (SaveTrace(s.capturePath))
 				{
-					Log::Info(LogCat::Core, "Profile saved: {} (open in ui.perfetto.dev or chrome://tracing)", s.capturePath);
+					Logger::Info(LogCat::Core, "Profile saved: {} (open in ui.perfetto.dev or chrome://tracing)", s.capturePath);
 				}
 			}
 		}
@@ -291,7 +291,7 @@ namespace rd
 		std::ofstream out(p, std::ios::trunc);
 		if (!out)
 		{
-			Log::Error(LogCat::Core, "Failed to write profile: {}", path);
+			Logger::Error(LogCat::Core, "Failed to write profile: {}", path);
 			return false;
 		}
 

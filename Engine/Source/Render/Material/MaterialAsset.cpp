@@ -48,7 +48,7 @@ namespace rd
 	{
 		if (!SaveJsonFile(mPath, ToJson()))
 		{
-			Log::Error(LogCat::Asset, "Failed to save material: {}", mPath);
+			Logger::Error(LogCat::Asset, "Failed to save material: {}", mPath);
 			return false;
 		}
 		return true;
@@ -59,7 +59,7 @@ namespace rd
 		Json json;
 		if (!LoadJsonFile(mPath, json))
 		{
-			Log::Error(LogCat::Asset, "Failed to load material: {}", mPath);
+			Logger::Error(LogCat::Asset, "Failed to load material: {}", mPath);
 			SetState(AssetState::Failed);
 			return;
 		}

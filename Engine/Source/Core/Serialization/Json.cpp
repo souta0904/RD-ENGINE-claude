@@ -48,7 +48,7 @@ namespace rd
 		}
 		catch (const std::exception& e)
 		{
-			Log::Error(LogCat::Core, "Failed to parse JSON '{}': {}", path, e.what());
+			Logger::Error(LogCat::Core, "Failed to parse JSON '{}': {}", path, e.what());
 			return false;
 		}
 	}

@@ -4,7 +4,7 @@
 #include "Audio/AudioSystem.h"
 #include "Components/Animation/Animator.h"
 #include "Components/Rendering/CameraComponent.h"
-#include "Core/Log/Log.h"
+#include "Core/Log/Logger.h"
 #include "Physics/Colliders/BoxCollider.h"
 #include "Physics/Colliders/SphereCollider.h"
 #include "Physics/Colliders/CapsuleCollider.h"
@@ -173,7 +173,7 @@ namespace sample
 		if (other->GetActor()->GetTag() != "Player") { return; }
 		AudioSystem::Get().Play(AssetManager::Get().LoadAudio(sound));
 		++sCollected;
-		Log::Info(LogCat::Game, "Collected {} item(s)", sCollected);
+		Logger::Info(LogCat::Game, "Collected {} item(s)", sCollected);
 		GetActor()->Destroy();
 	}
 

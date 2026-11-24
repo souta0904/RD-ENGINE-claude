@@ -47,7 +47,7 @@ namespace rd
 		ComPtr<IDxcBlobEncoding> source;
 		if (desc.source.empty() && FAILED(mUtils->LoadFile(wpath.c_str(), nullptr, &source)))
 		{
-			Log::Error(LogCat::RHI, "Shader not found: {}", desc.path);
+			Logger::Error(LogCat::RHI, "Shader not found: {}", desc.path);
 			return mCache.emplace(key, std::move(shader)).first->second.get();
 		}
 
@@ -90,8 +90,8 @@ namespace rd
 			result->GetStatus(&hr);
 			if (errors && errors->GetStringLength() > 0)
 			{
-				if (FAILED(hr)) { Log::Error(LogCat::RHI, "Shader compile error ({}):\n{}", desc.path, errors->GetStringPointer()); }
-				else { Log::Warning(LogCat::RHI, "Shader warning ({}):\n{}", desc.path, errors->GetStringPointer()); }
+				if (FAILED(hr)) { Logger::Error(LogCat::RHI, "Shader compile error ({}):\n{}", desc.path, errors->GetStringPointer()); }
+				else { Logger::Warning(LogCat::RHI, "Shader warning ({}):\n{}", desc.path, errors->GetStringPointer()); }
 			}
 			if (SUCCEEDED(hr))
 			{
@@ -100,7 +100,7 @@ namespace rd
 		}
 		if (shader->blob)
 		{
-			Log::Debug(LogCat::RHI, "Compiled shader: {} [{}]", desc.path, desc.entry);
+			Logger::Debug(LogCat::RHI, "Compiled shader: {} [{}]", desc.path, desc.entry);
 		}
 		return mCache.emplace(key, std::move(shader)).first->second.get();
 	}

@@ -156,7 +156,7 @@ Math / Core → Platform / RHI → Asset → Render / Audio → Scene → AI →
 
 ### ログ
 ```cpp
-Log::Info(LogCat::Render, "Loaded {}", path);   // カテゴリを省略すると General
+Logger::Info(LogCat::Render, "Loaded {}", path);   // カテゴリを省略すると General
 ```
 - レベル: Trace / Debug / Info / Warning / Error / Fatal。`-loglevel debug` で実行時に変更。Game ビルドでは Debug 以下をコンパイル時に除く。
 - 出力先（`LogSink`）: Visual Studio の出力ウィンドウ（Warning 以上はダブルクリックで該当行へ）、ファイル、エディタの Log パネル。書き込みはログ専用スレッドで行い、Error 以上は書き出しまで待つ。
@@ -166,7 +166,7 @@ Log::Info(LogCat::Render, "Loaded {}", path);   // カテゴリを省略する�
 落ちたときに `Logs/` へ 2 つのファイルを残し、ダイアログで知らせる（デバッガ接続中はデバッガで止まる）。
 - `Crash_日時.txt`: 原因（アクセス違反なら読み書きしたアドレスも）、落ちた場所、**関数名とファイル:行付きの呼び出し履歴**、OS・メモリ・GPU・開いていたシーン・プレイ中か、直前 40 件のログ
 - `Crash_日時.dmp`: ミニダンプ。Visual Studio で開いて「ネイティブのみでデバッグ」を押すと、落ちた行で止まった状態を見られる
-- 対象: アクセス違反・ゼロ除算・スタックオーバーフロー、捕まえていない C++ 例外（`what()` の文字列も載る）、`abort()` / `RD_VERIFY` / `Log::Fatal`、純粋仮想関数の呼び出し、CRT の不正な引数
+- 対象: アクセス違反・ゼロ除算・スタックオーバーフロー、捕まえていない C++ 例外（`what()` の文字列も載る）、`abort()` / `RD_VERIFY` / `Logger::Fatal`、純粋仮想関数の呼び出し、CRT の不正な引数
 - レポートに載せる情報は `CrashHandler::SetContext("名前", []{ return ...; })` で足せる
 
 ### プロファイラ（`Core/Profiling`、エディタの Window → Profiler / F9）

@@ -334,7 +334,7 @@ namespace rd
 			// 落ちる直前に何が起きていたかを見るため、ログの履歴の最後の 40 件を載せる
 			r << "\nRecent log:\n";
 			std::vector<std::string> recent;
-			Log::ForEach([&](const LogRecord& rec)
+			Logger::ForEach([&](const LogRecord& rec)
 				{
 					recent.push_back(std::format("  {:9.3f} {:<5} [{}] {}", rec.time, ToString(rec.level), rec.category, rec.message));
 				});
@@ -345,9 +345,9 @@ namespace rd
 			std::ofstream(reportPath, std::ios::trunc) << r.str();
 			info.reportPath = ToUtf8(reportPath.wstring());
 
-			Log::Write(LogLevel::Fatal, LogCat::Core, std::source_location::current(),
+			Logger::Write(LogLevel::Fatal, LogCat::Core, std::source_location::current(),
 				std::format("CRASH: {} at {}\nCall stack:\n{}Report: {}", info.reason, where, stack, info.reportPath));
-			Log::Flush();
+			Logger::Flush();
 		}
 
 		// 「はい」を押すと、エクスプローラーでレポートを選んだ状態のフォルダを開く（/select, の引数）
@@ -442,7 +442,7 @@ namespace rd
 			return EXCEPTION_EXECUTE_HANDLER;
 		}
 
-		// 入口 2: abort() が呼ばれたとき（RD_VERIFY・Log::Fatal もここに来る）
+		// 入口 2: abort() が呼ばれたとき（RD_VERIFY・Logger::Fatal もここに来る）
 		void OnAbortSignal(int)
 		{
 			HandleHere("abort() was called");

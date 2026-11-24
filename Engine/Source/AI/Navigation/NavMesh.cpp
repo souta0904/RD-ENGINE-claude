@@ -43,7 +43,7 @@ namespace rd
 		Json json;
 		if (!LoadJsonFile(path, json))
 		{
-			Log::Error(LogCat::Scene, "NavMesh: failed to load {}", path);
+			Logger::Error(LogCat::Scene, "NavMesh: failed to load {}", path);
 			return false;
 		}
 		std::vector<Vector3> vertices;
@@ -58,7 +58,7 @@ namespace rd
 		for (const auto& a : json.value("Areas", Json::array())) { areas.push_back(a.get<int>()); }
 
 		Build(vertices, indices, areas);
-		Log::Info(LogCat::Scene, "NavMesh: loaded {} ({} vertices, {} triangles)", path, mVertices.size(), mTris.size());
+		Logger::Info(LogCat::Scene, "NavMesh: loaded {} ({} vertices, {} triangles)", path, mVertices.size(), mTris.size());
 		return !mTris.empty();
 	}
 

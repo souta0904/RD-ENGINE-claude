@@ -9,7 +9,7 @@
 
 namespace rd
 {
-	// フォーマット文字列と呼び出し位置をまとめて受け取る（Log::Info("x={}", x) の "x={}" の部分）
+	// フォーマット文字列と呼び出し位置をまとめて受け取る（Logger::Info("x={}", x) の "x={}" の部分）
 	//
 	//  なぜこんな型が要るのか
 	//    ログに「どのファイルの何行目で出したか」を載せたい。source_location::current() を既定引数に書くと、
@@ -35,13 +35,13 @@ namespace rd
 	using LogFormatOf = LogFormat<std::type_identity_t<Args>...>;
 
 	// スレッドセーフなロガー（どのスレッドから呼んでもよい）
-	//  Log::Info(LogCat::Render, "Loaded {}", path);  カテゴリを省略すると General
+	//  Logger::Info(LogCat::Render, "Loaded {}", path);  カテゴリを省略すると General
 	//  書き出しはログ専用スレッドで行うので、呼んだ側はほとんど待たない（Error 以上は書き出しまで待つ）
 	//
 	//  なぜ専用スレッドで書くのか
 	//    ファイルへの書き込みは遅い（数十マイクロ秒～）。ゲームのメインスレッドで毎回待つと、
 	//    ログが多いフレームでカクつく。キューに入れるだけにして、書くのは別のスレッドに任せる
-	class RD_API Log
+	class RD_API Logger
 	{
 	public:
 		// ファイルへの出力を始める（それまでのログは履歴に残っているので、ファイルの先頭にまとめて書かれる）

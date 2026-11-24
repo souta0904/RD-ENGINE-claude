@@ -31,4 +31,4 @@
 #include <nlohmann/json.hpp>
 
 #include "Core/Debug/Assert.h"
-#include "Core/Log/Log.h"
+#include "Core/Log/Logger.h"

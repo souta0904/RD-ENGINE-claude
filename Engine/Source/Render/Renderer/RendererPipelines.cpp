@@ -214,7 +214,7 @@ namespace rd
 			ps = CompileShaderSource(custom->GetPath(), source, "PSMain", ShaderStage::Pixel, defines);
 			if (!vs || !vs->IsValid() || !ps || !ps->IsValid())
 			{
-				Log::Error(LogCat::Render, "Shader '{}' failed to compile; drawing with the standard shader instead", custom->GetPath());
+				Logger::Error(LogCat::Render, "Shader '{}' failed to compile; drawing with the standard shader instead", custom->GetPath());
 				ID3D12PipelineState* fallback = GetMeshPipeline(skinned, blend, doubleSided, shadow, nullptr);
 				mMeshPipelines[key] = fallback;
 				return fallback;

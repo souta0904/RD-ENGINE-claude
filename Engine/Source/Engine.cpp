@@ -73,7 +73,7 @@ namespace rd
 
 	bool Engine::Initialize()
 	{
-		Log::Initialize(mConfig.log);
+		Logger::Initialize(mConfig.log);
 		if (mConfig.crashHandler)
 		{
 			CrashHandler::Settings crash = mConfig.crash;
@@ -88,8 +88,8 @@ namespace rd
 		CoInitializeEx(nullptr, COINIT_MULTITHREADED);
 		Profiler::SetThreadName("Main");
 		if (mConfig.profileFrames > 0) { Profiler::RequestCapture(mConfig.profileFrames, mConfig.profilePath); }
-		Log::Info(LogCat::Core, "{} {}{}", kName, kVersion, RD_EDITOR ? "" : " (Game)");
-		Log::Debug(LogCat::Core, "Log file: {}", Log::GetFilePath());
+		Logger::Info(LogCat::Core, "{} {}{}", kName, kVersion, RD_EDITOR ? "" : " (Game)");
+		Logger::Debug(LogCat::Core, "Log file: {}", Logger::GetFilePath());
 
 		JobSystem::Initialize();
 
@@ -192,8 +192,8 @@ namespace rd
 		if (mDevice) { mDevice->Shutdown(); mDevice.reset(); }
 		mWindow.Destroy();
 		CoUninitialize();
-		Log::Info(LogCat::Core, "Shutdown complete");
-		Log::Shutdown();
+		Logger::Info(LogCat::Core, "Shutdown complete");
+		Logger::Shutdown();
 	}
 
 	void Engine::Frame(float dt)
@@ -244,7 +244,7 @@ namespace rd
 
 		if (mCapture.AfterPresent(*mRenderer, mFrameCount))
 		{
-			Log::Info(LogCat::Core, "Capture finished, quitting");
+			Logger::Info(LogCat::Core, "Capture finished, quitting");
 			Quit();
 		}
 		++mFrameCount;
@@ -264,7 +264,7 @@ namespace rd
 	void Engine::BeginPlay()
 	{
 		if (!mPlay.Begin(mScenes.GetScene())) { return; }
-		Log::Info(LogCat::Core, "Play");
+		Logger::Info(LogCat::Core, "Play");
 	}
 
 	void Engine::EndPlay()
@@ -274,7 +274,7 @@ namespace rd
 		mScenes.SetScene(mPlay.End());
 		SetWindowTitleSuffix("");
 		mEditor->OnSceneChanged(true);
-		Log::Info(LogCat::Core, "Stop");
+		Logger::Info(LogCat::Core, "Stop");
 	}
 
 	// 1. 動いているジョブを待つ（古いコンポーネントを触っているかもしれない）
@@ -313,7 +313,7 @@ namespace rd
 		// プレイ中に閉じたら、ゲームが切り替えた場面ではなく、編集していたシーンを次に開く
 		session.scene = mPlay.IsPlaying() ? mPlay.GetSnapshotPath() : mScenes.GetScene().GetPath();
 		mEditor->CaptureSession(session);
-		if (!session.Save(EditorSession::GetDefaultPath())) { Log::Warning(LogCat::Editor, "Failed to save the editor session"); }
+		if (!session.Save(EditorSession::GetDefaultPath())) { Logger::Warning(LogCat::Editor, "Failed to save the editor session"); }
 	}
 #endif
 

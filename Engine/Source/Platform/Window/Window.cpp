@@ -43,7 +43,7 @@ namespace rd
 			nullptr, nullptr, hinst, this);
 		if (!mHwnd)
 		{
-			Log::Error(LogCat::Platform, "Failed to create window");
+			Logger::Error(LogCat::Platform, "Failed to create window");
 			return false;
 		}
 		// 保存された場所を使う。そこにモニタがなければ（外したなど）画面の外に出てしまうので、既定の場所で開く
@@ -130,7 +130,7 @@ namespace rd
 			SetWindowPos(mHwnd, nullptr, 0, 0, 0, 0,
 				SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER);
 		}
-		Log::Info(LogCat::Platform, "Fullscreen: {}", mFullscreen ? "on" : "off");
+		Logger::Info(LogCat::Platform, "Fullscreen: {}", mFullscreen ? "on" : "off");
 	}
 
 	WindowPlacement Window::GetPlacement()

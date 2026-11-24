@@ -55,7 +55,7 @@ namespace rd
 		HRESULT hr = D3D12SerializeVersionedRootSignature(&desc, &blob, &error);
 		if (FAILED(hr))
 		{
-			Log::Error(LogCat::RHI, "Root signature error: {}", error ? static_cast<const char*>(error->GetBufferPointer()) : "unknown");
+			Logger::Error(LogCat::RHI, "Root signature error: {}", error ? static_cast<const char*>(error->GetBufferPointer()) : "unknown");
 			return nullptr;
 		}
 		ComPtr<ID3D12RootSignature> rs;

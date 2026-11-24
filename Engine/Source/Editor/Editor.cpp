@@ -249,10 +249,10 @@ namespace rd
 		Json before = scene.SerializeActorState(actor);
 		if (!renderer.SetSharedMaterial(slot, path))
 		{
-			Log::Warning(LogCat::Editor, "{} has no material slot {} (is the model loaded?)", actor->GetName(), slot);
+			Logger::Warning(LogCat::Editor, "{} has no material slot {} (is the model loaded?)", actor->GetName(), slot);
 			return false;
 		}
-		Log::Info(LogCat::Editor, "Assigned {} to {} (slot {})", path, actor->GetName(), slot);
+		Logger::Info(LogCat::Editor, "Assigned {} to {} (slot {})", path, actor->GetName(), slot);
 		Json after = scene.SerializeActorState(actor);
 		if (after != before)
 		{
