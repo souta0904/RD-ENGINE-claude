@@ -3,6 +3,7 @@
 #include "Core/Time/Time.h"
 #include "Editor/Editor.h"
 #include "Editor/Inspector/ImGuiInspector.h"
+#include "Editor/Style/EditorGui.h"
 #include "Physics/World/PhysicsWorld.h"
 #include "Render/Renderer/Renderer.h"
 #include "Scene/Scene.h"
@@ -15,18 +16,18 @@ namespace rd
 	void LightingPanel::OnGui()
 	{
 		ImGuiInspector inspector(&mEditor);
-		if (ImGui::CollapsingHeader(TrId("Renderer"), ImGuiTreeNodeFlags_DefaultOpen))
+		if (EditorGui::CollapsingHeader(TrId("Renderer"), ImGuiTreeNodeFlags_DefaultOpen))
 		{
 			Renderer::Get().GetSettings().Reflect(inspector);
 		}
 		inspector.ResetFrameState();
 
 		Scene& scene = mEditor.GetScene();
-		if (ImGui::CollapsingHeader(TrId("Environment (Scene)"), ImGuiTreeNodeFlags_DefaultOpen))
+		if (EditorGui::CollapsingHeader(TrId("Environment (Scene)"), ImGuiTreeNodeFlags_DefaultOpen))
 		{
 			scene.GetEnvironment().Reflect(inspector);
 		}
-		if (ImGui::CollapsingHeader(TrId("Physics / Time")))
+		if (EditorGui::CollapsingHeader(TrId("Physics / Time")))
 		{
 			Vector3 gravity = scene.GetGravity();
 			if (inspector.Property("Gravity", gravity)) { scene.SetGravity(gravity); }

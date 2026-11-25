@@ -27,8 +27,14 @@ namespace rd
 		static void ToolbarSeparator();
 		// 何も表示するものがないときの案内
 		static void EmptyHint(const char* text);
+		// 何もないときの案内を、残りの広さの真ん中に大きめの薄いアイコンと一緒に出す（狭いときは EmptyHint と同じ）
+		static void EmptyState(Icon icon, const char* text);
 		// 見出しの付いた区切り
 		static void SectionLabel(const char* text);
+		// 折りたたみの見出し（ImGui::CollapsingHeader と同じ使い方）。背景を差し色のグラデーションにする
+		static bool CollapsingHeader(const char* label, int flags = 0);
+		// いちばん押してほしいボタン（確認の「はい」や Add Component）。青緑 → くすんだ青のグラデーションで塗る
+		static bool AccentButton(const char* label, const ImVec2& size = ImVec2(0.0f, 0.0f));
 		// 「保存しますか？」などの確認。true を返したら閉じた（choice に 0..n-1 か、取り消しなら -1）
 		static bool ConfirmPopup(const char* id, const char* message, const char* const* buttons, int buttonCount, int& choice);
 	};

@@ -32,9 +32,6 @@ namespace rd
 
 	void SceneViewPanel::OnGui()
 	{
-		BeginViewToolbar();
-		DrawToolbar();
-		EditorGui::EndToolbar();
 		DrawView(0.0f);
 
 		RenderCamera cam = mCamera.GetRenderCamera(GetAspect());
@@ -81,8 +78,13 @@ namespace rd
 		if (loading > 0)
 		{
 			std::string text = EditorLocale::Format("Loading {} assets...", loading);
-			ImGui::GetWindowDrawList()->AddText(ImVec2(mImagePos.x + 10.0f, mImagePos.y + 8.0f), ImGui::ColorConvertFloat4ToU32(EditorStyle::kWarning), text.c_str());
+			ImGui::GetWindowDrawList()->AddText(ImVec2(mImagePos.x + 10.0f, GetOverlayBottom() + 8.0f), ImGui::ColorConvertFloat4ToU32(EditorStyle::kWarning), text.c_str());
 		}
+
+		// ツールバーは画面の上に浮かせる（物を選ぶクリックなどより後に並べ、前のフレームの位置でクリックをよける）
+		BeginOverlayToolbar();
+		DrawToolbar();
+		EndOverlayToolbar();
 	}
 
 	void SceneViewPanel::DrawToolbar()

@@ -42,7 +42,7 @@ namespace rd
 		std::string path = GetTargetPath(icon);
 		if (icon != Icon::Image && icon != Icon::Model && icon != Icon::Prefab && icon != Icon::Material)
 		{
-			EditorGui::EmptyHint(Tr("Select a texture, a model, a prefab or a material in the Project panel."));
+			EditorGui::EmptyState(Icon::Image, Tr("Select a texture, a model, a prefab or a material in the Project panel."));
 			return;
 		}
 

@@ -53,7 +53,7 @@ namespace rd
 		{
 			const std::string& asset = mEditor.GetProject().GetSelectedFile();
 			if (!asset.empty()) { DrawAssetInfo(asset); }
-			else { EditorGui::EmptyHint(Tr("Select an actor in the Hierarchy or the Scene view to edit it.")); }
+			else { EditorGui::EmptyState(Icon::Actor, Tr("Select an actor in the Hierarchy or the Scene view to edit it.")); }
 			return;
 		}
 
@@ -102,7 +102,7 @@ namespace rd
 	void PropertiesPanel::DrawComponents(Actor* actor, ImGuiInspector& inspector, bool& commit)
 	{
 		ImGui::PushID("Transform");
-		bool open = ImGui::CollapsingHeader("      Transform", ImGuiTreeNodeFlags_DefaultOpen);
+		bool open = EditorGui::CollapsingHeader("      Transform", ImGuiTreeNodeFlags_DefaultOpen);
 		ImVec2 min = ImGui::GetItemRectMin(), max = ImGui::GetItemRectMax();
 		float iconSize = EditorStyle::IconSize();
 		EditorIcons::Draw(ImGui::GetWindowDrawList(), ImVec2(min.x + ImGui::GetTreeNodeToLabelSpacing(), min.y + (max.y - min.y - iconSize) * 0.5f), iconSize, Icon::Move);
@@ -149,7 +149,7 @@ namespace rd
 	{
 		std::string label = std::string("      ") + c->GetTypeName();
 		if (dynamic_cast<MissingComponent*>(c)) { label += std::string(" (") + Tr("Missing") + ")"; }
-		bool open = ImGui::CollapsingHeader(label.c_str(), ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_AllowOverlap);
+		bool open = EditorGui::CollapsingHeader(label.c_str(), ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_AllowOverlap);
 		const ImVec2 headerMin = ImGui::GetItemRectMin(), headerMax = ImGui::GetItemRectMax();
 		float iconSize = EditorStyle::IconSize();
 		EditorIcons::Draw(ImGui::GetWindowDrawList(), ImVec2(headerMin.x + ImGui::GetTreeNodeToLabelSpacing(), headerMin.y + (headerMax.y - headerMin.y - iconSize) * 0.5f),
@@ -266,9 +266,7 @@ namespace rd
 		ImGui::Spacing();
 		float w = ImGui::GetContentRegionAvail().x;
 		ImGui::SetCursorPosX(ImGui::GetCursorPosX() + w * 0.15f);
-		ImGui::PushStyleColor(ImGuiCol_Button, EditorStyle::kAccentDim);
-		if (ImGui::Button(Tr("Add Component"), ImVec2(w * 0.7f, 0))) { ImGui::OpenPopup("AddComponent"); mAddFilter.clear(); }
-		ImGui::PopStyleColor();
+		if (EditorGui::AccentButton(Tr("Add Component"), ImVec2(w * 0.7f, 0))) { ImGui::OpenPopup("AddComponent"); mAddFilter.clear(); }
 		if (!ImGui::BeginPopup("AddComponent")) { return; }
 		if (ImGui::IsWindowAppearing()) { ImGui::SetKeyboardFocusHere(); }
 		EditorGui::SearchField("##filter", mAddFilter, Tr("Search"), 240.0f);
@@ -430,7 +428,7 @@ namespace rd
 		{
 			ImGui::PushID(asset->GetPath().c_str());
 			std::string label = std::format("      {} ({})###{}", GetStem(asset->GetPath()), Tr("Material"), asset->GetPath());
-			bool open = ImGui::CollapsingHeader(label.c_str(), ImGuiTreeNodeFlags_DefaultOpen);
+			bool open = EditorGui::CollapsingHeader(label.c_str(), ImGuiTreeNodeFlags_DefaultOpen);
 			ImVec2 min = ImGui::GetItemRectMin(), max = ImGui::GetItemRectMax();
 			float iconSize = EditorStyle::IconSize();
 			EditorIcons::Draw(ImGui::GetWindowDrawList(), ImVec2(min.x + ImGui::GetTreeNodeToLabelSpacing(), min.y + (max.y - min.y - iconSize) * 0.5f), iconSize, Icon::Material);

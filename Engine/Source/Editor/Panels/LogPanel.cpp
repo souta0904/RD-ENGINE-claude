@@ -132,7 +132,7 @@ namespace rd
 				ImGui::TextDisabled("(%d)", line.count);
 			}
 		}
-		if (lines.empty()) { EditorGui::EmptyHint(Tr("No messages.")); }
+		if (lines.empty()) { EditorGui::EmptyState(Icon::Info, Tr("No messages.")); }
 		// 新しいログが来たら一番下へ
 		if (Logger::GetVersion() != mVersion)
 		{

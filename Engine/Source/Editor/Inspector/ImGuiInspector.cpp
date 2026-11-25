@@ -59,6 +59,45 @@ namespace rd
 			return changed;
 		}
 
+		// 数値の欄。範囲（min < max）があるときは、値の割合だけ左から差し色を薄く塗る（スライダーのように見える）。
+		//  欄の背景は ImGui に描かせず（透明にして）、欄の下の層に背景と塗りを描く
+		template <class Draw>
+		bool NumberField(float fraction, bool hasRange, Draw&& draw)
+		{
+			if (!hasRange) { return draw(); }
+			ImDrawList* dl = ImGui::GetWindowDrawList();
+			ImDrawListSplitter splitter;
+			splitter.Split(dl, 2);
+			splitter.SetCurrentChannel(dl, 1);
+			ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
+			ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
+			ImGui::PushStyleColor(ImGuiCol_FrameBgActive, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
+			bool changed = draw();
+			ImGui::PopStyleColor(3);
+			ImVec2 a = ImGui::GetItemRectMin(), b = ImGui::GetItemRectMax();
+			ImGuiCol bg = ImGui::IsItemActive() ? ImGuiCol_FrameBgActive : ImGui::IsItemHovered() ? ImGuiCol_FrameBgHovered : ImGuiCol_FrameBg;
+			splitter.SetCurrentChannel(dl, 0);
+			dl->AddRectFilled(a, b, ImGui::GetColorU32(bg));
+			float w = IM_ROUND((b.x - a.x) * std::clamp(fraction, 0.0f, 1.0f));
+			if (w > 0.0f)
+			{
+				const ImVec4& c0 = EditorStyle::kAccent;
+				const ImVec4& c1 = EditorStyle::kAccent2;
+				ImU32 l = ImGui::ColorConvertFloat4ToU32(ImVec4(c0.x, c0.y, c0.z, 0.10f));
+				ImU32 r = ImGui::ColorConvertFloat4ToU32(ImVec4(c1.x, c1.y, c1.z, 0.24f));
+				dl->AddRectFilledMultiColor(a, ImVec2(a.x + w, b.y), l, r, r, l);
+				// 塗りの右端に細い線を引いて、今の値の位置を示す
+				dl->AddRectFilled(ImVec2(a.x + w - 1.0f, a.y), ImVec2(a.x + w + 1.0f, b.y), ImGui::ColorConvertFloat4ToU32(ImVec4(c1.x, c1.y, c1.z, 0.75f)));
+			}
+			splitter.Merge(dl);
+			return changed;
+		}
+
+		float Fraction(float value, const PropertyMeta& meta)
+		{
+			return meta.min < meta.max ? (value - meta.min) / (meta.max - meta.min) : 0.0f;
+		}
+
 		// クォータニオンをオイラー角で編集すると値が飛びやすいので、最後に表示した角度を覚えておく
 		struct EulerCache
 		{
@@ -90,6 +129,8 @@ namespace rd
 	void ImGuiInspector::Label(const char* name, const PropertyMeta& meta)
 	{
 		ImGui::AlignTextToFramePadding();
+		// 項目名は少し控えめな色にして、値のほうを目立たせる
+		ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.68f, 0.70f, 0.74f, 1.0f));
 		const char* tooltip = meta.tooltip ? Tr(meta.tooltip) : nullptr;
 		// 表示名があればそれを出し、保存に使う名前は乗せたときに出す（シェーダーの _Color など）
 		if (meta.label && *meta.label)
@@ -108,6 +149,7 @@ namespace rd
 				ImGui::SetTooltip("%s%s%s", translated ? name : "", translated && tooltip ? "\n" : "", tooltip ? tooltip : "");
 			}
 		}
+		ImGui::PopStyleColor();
 		ImGui::SameLine(LabelWidth());
 		ImGui::SetNextItemWidth(-1.0f);
 	}
@@ -136,7 +178,8 @@ namespace rd
 		ImGui::PushID(name);
 		Label(name, meta);
 		ImGui::BeginDisabled(meta.flags & PropertyMeta::ReadOnly);
-		bool changed = Track(ImGui::DragInt("##v", &value, std::max(meta.speed, 0.1f), int(meta.min), int(meta.max)));
+		bool changed = Track(NumberField(Fraction(float(value), meta), meta.min < meta.max,
+			[&] { return ImGui::DragInt("##v", &value, std::max(meta.speed, 0.1f), int(meta.min), int(meta.max)); }));
 		ImGui::EndDisabled();
 		ImGui::PopID();
 		return changed;
@@ -148,8 +191,10 @@ namespace rd
 		Label(name, meta);
 		ImGui::BeginDisabled(meta.flags & PropertyMeta::ReadOnly);
 		uint32_t mn = uint32_t(std::max(0.0f, meta.min)), mx = uint32_t(std::max(0.0f, meta.max));
-		bool changed = Track(ImGui::DragScalar("##v", ImGuiDataType_U32, &value, std::max(meta.speed, 0.1f),
-			meta.min < meta.max ? &mn : nullptr, meta.min < meta.max ? &mx : nullptr));
+		bool changed = Track(NumberField(Fraction(float(value), meta), meta.min < meta.max, [&] {
+			return ImGui::DragScalar("##v", ImGuiDataType_U32, &value, std::max(meta.speed, 0.1f),
+				meta.min < meta.max ? &mn : nullptr, meta.min < meta.max ? &mx : nullptr);
+		}));
 		ImGui::EndDisabled();
 		ImGui::PopID();
 		return changed;
@@ -164,12 +209,13 @@ namespace rd
 		if (meta.flags & PropertyMeta::Angle)
 		{
 			float deg = math::ToDegrees(value);
-			changed = ImGui::DragFloat("##v", &deg, meta.speed, 0.0f, 0.0f, "%.1f deg");
+			changed = NumberField(0.0f, false, [&] { return ImGui::DragFloat("##v", &deg, meta.speed, 0.0f, 0.0f, "%.1f deg"); });
 			if (changed) { value = math::ToRadians(deg); }
 		}
 		else
 		{
-			changed = ImGui::DragFloat("##v", &value, meta.speed, meta.min, meta.max, "%.3f", SliderFlags(meta));
+			changed = NumberField(Fraction(value, meta), meta.min < meta.max,
+				[&] { return ImGui::DragFloat("##v", &value, meta.speed, meta.min, meta.max, "%.3f", SliderFlags(meta)); });
 		}
 		Track(changed);
 		ImGui::EndDisabled();

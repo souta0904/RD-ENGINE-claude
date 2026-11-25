@@ -389,6 +389,7 @@ namespace rd
 		mHotReload->Update();
 		DrawMenuBar();
 		DrawMainToolbar();
+		DrawStatusBar();
 		ImGuiID dockId = ImGui::DockSpaceOverViewport(ImGui::GetMainViewport(), ImGuiDockNodeFlags_PassthruCentralNode);
 		if (mFirstLayout)
 		{

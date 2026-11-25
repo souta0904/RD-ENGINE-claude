@@ -86,11 +86,75 @@ namespace rd
 			DrawLanguageMenu();
 			ImGui::EndMenu();
 		}
-
-		std::string fps = std::format("{:.0f} FPS  {:.2f} ms", mEngine.GetFps(), mEngine.GetFrameMs());
-		ImGui::SameLine(ImGui::GetWindowWidth() - ImGui::CalcTextSize(fps.c_str()).x - 16.0f);
-		ImGui::TextDisabled("%s", fps.c_str());
 		ImGui::EndMainMenuBar();
+	}
+
+	// 一番下の細い帯: 左に今の状態（編集中・再生中・一時停止）とシーンの保存状態、右に選んでいるものと FPS
+	void Editor::DrawStatusBar()
+	{
+		ImGuiStyle& style = ImGui::GetStyle();
+		float font = ImGui::GetFontSize();
+		float height = IM_ROUND(font * 1.55f);
+		ImGuiWindowFlags flags = ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoScrollWithMouse |
+			ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoFocusOnAppearing;
+		ImGui::PushStyleColor(ImGuiCol_WindowBg, EditorStyle::kBaseBg);
+		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(style.WindowPadding.x * 1.2f, 0.0f));
+		bool open = ImGui::BeginViewportSideBar("##StatusBar", ImGui::GetMainViewport(), ImGuiDir_Down, height, flags);
+		ImGui::PopStyleVar();
+		ImGui::PopStyleColor();
+		if (open)
+		{
+			ImDrawList* dl = ImGui::GetWindowDrawList();
+			ImVec2 wp = ImGui::GetWindowPos();
+			float cy = wp.y + height * 0.5f;
+			float textY = IM_ROUND(cy - font * 0.5f);
+			float x = wp.x + style.WindowPadding.x * 1.2f;
+			const ImU32 dim = ImGui::ColorConvertFloat4ToU32(EditorStyle::kTextDim);
+
+			// 状態の丸い印（再生中は緑、一時停止は黄色、編集中は差し色）と名前
+			bool playing = IsPlaying(), paused = mEngine.IsPaused();
+			ImVec4 stateColor = playing ? (paused ? EditorStyle::kWarning : EditorStyle::kPlay) : EditorStyle::kAccent;
+			const char* state = Tr(playing ? (paused ? "Paused" : "Playing") : "Editing");
+			float r = font * 0.22f;
+			dl->AddCircleFilled(ImVec2(x + r, cy), r * 2.2f, ImGui::ColorConvertFloat4ToU32(ImVec4(stateColor.x, stateColor.y, stateColor.z, 0.18f)), 20);
+			dl->AddCircleFilled(ImVec2(x + r, cy), r, ImGui::ColorConvertFloat4ToU32(stateColor), 20);
+			x += r * 2.0f + font * 0.55f;
+			dl->AddText(ImVec2(x, textY), ImGui::ColorConvertFloat4ToU32(EditorStyle::kText), state);
+			x += ImGui::CalcTextSize(state).x + font * 0.9f;
+			dl->AddRectFilled(ImVec2(x, cy - font * 0.4f), ImVec2(x + 1.0f, cy + font * 0.4f), ImGui::GetColorU32(ImGuiCol_Border));
+			x += font * 0.9f;
+
+			// シーンの名前と、保存していない変更があるか
+			const std::string& name = GetScene().GetName();
+			std::string scene = name.empty() ? std::string(Tr("Untitled")) : name;
+			dl->AddText(ImVec2(x, textY), dim, scene.c_str());
+			x += ImGui::CalcTextSize(scene.c_str()).x + font * 0.6f;
+			bool dirty = mHistory.IsDirty();
+			ImVec4 saveColor = dirty ? EditorStyle::kWarning : EditorStyle::kTextDim;
+			const char* save = Tr(dirty ? "Unsaved changes" : "Saved");
+			if (dirty) { dl->AddCircleFilled(ImVec2(x + r * 0.8f, cy), r * 0.8f, ImGui::ColorConvertFloat4ToU32(saveColor), 12); x += r * 1.6f + font * 0.4f; }
+			dl->AddText(ImVec2(x, textY), ImGui::ColorConvertFloat4ToU32(saveColor), save);
+
+			// 右から: FPS、区切り、選んでいるもの
+			std::string fps = std::format("{:.0f} FPS  {:.2f} ms", mEngine.GetFps(), mEngine.GetFrameMs());
+			float fpsWidth = ImGui::CalcTextSize(fps.c_str()).x;
+			float right = wp.x + ImGui::GetWindowWidth() - style.WindowPadding.x * 1.2f;
+			dl->AddText(ImVec2(right - fpsWidth, textY), dim, fps.c_str());
+			if (Actor* selected = GetSelected())
+			{
+				float sx = right - fpsWidth - font * 0.9f;
+				dl->AddRectFilled(ImVec2(sx, cy - font * 0.4f), ImVec2(sx + 1.0f, cy + font * 0.4f), ImGui::GetColorU32(ImGuiCol_Border));
+				const std::string& sel = selected->GetName();
+				float selWidth = ImGui::CalcTextSize(sel.c_str()).x;
+				float iconSize = font * 0.9f;
+				float tx = sx - font * 0.9f - selWidth;
+				dl->AddText(ImVec2(tx, textY), ImGui::ColorConvertFloat4ToU32(EditorStyle::kText), sel.c_str());
+				EditorIcons::Draw(dl, ImVec2(tx - iconSize - font * 0.35f, cy - iconSize * 0.5f), iconSize, EditorIcons::ForActor(selected));
+			}
+			// 上の縁に、パネルとの境目の細い線
+			dl->AddRectFilled(wp, ImVec2(wp.x + ImGui::GetWindowWidth(), wp.y + 1.0f), ImGui::GetColorU32(ImGuiCol_Border));
+		}
+		ImGui::End();
 	}
 
 	// Window > Language。言語の名前はどちらの言語でも読めるよう、その言語で書く。
@@ -148,8 +212,9 @@ namespace rd
 			{
 				ImVec2 p = ImGui::GetCursorScreenPos();
 				float pad = ImGui::GetFontSize() * 0.2f;
-				ImGui::GetWindowDrawList()->AddRectFilled(ImVec2(p.x - pad, p.y - pad), ImVec2(p.x + buttons + pad, p.y + ImGui::GetFrameHeight() + pad),
-					ImGui::ColorConvertFloat4ToU32(EditorStyle::kWindowBg));
+				const ImVec4& bg = EditorStyle::kWindowBg;
+				EditorStyle::DrawVerticalShade(ImGui::GetWindowDrawList(), ImVec2(p.x - pad, p.y - pad), ImVec2(p.x + buttons + pad, p.y + ImGui::GetFrameHeight() + pad),
+					ImVec4(bg.x + 0.035f, bg.y + 0.037f, bg.z + 0.040f, 1.0f), bg);
 			}
 			bool playing = IsPlaying();
 			if (EditorGui::IconButton("##play", Icon::Play, Tr(playing ? "Stop (Ctrl+P)" : "Play (Ctrl+P)"), playing, true, &EditorStyle::kPlay))

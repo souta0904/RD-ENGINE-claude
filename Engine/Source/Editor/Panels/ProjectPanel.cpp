@@ -210,7 +210,7 @@ namespace rd
 			if (i % size_t(columns) != 0) { ImGui::SameLine(); }
 			DrawEntry(mEntries[i], cell);
 		}
-		if (mEntries.empty()) { EditorGui::EmptyHint(Tr(mFilter.empty() ? "This folder is empty." : "No results.")); }
+		if (mEntries.empty()) { EditorGui::EmptyState(mFilter.empty() ? Icon::Folder : Icon::Search, Tr(mFilter.empty() ? "This folder is empty." : "No results.")); }
 
 		// 空いている所: 選択を外す、アクターのドロップでプレハブを作る、右クリックのメニュー
 		ImVec2 avail = ImGui::GetContentRegionAvail();
@@ -235,10 +235,18 @@ namespace rd
 		bool hovered = ImGui::IsItemHovered();
 		bool selected = e.path == mSelected;
 		ImDrawList* dl = ImGui::GetWindowDrawList();
-		if (selected || hovered)
+		ImVec2 tileMax(p.x + cell, p.y + cell + textH);
+		if (selected)
 		{
-			ImVec4 bg = selected ? EditorStyle::kAccentDim : ImGui::GetStyleColorVec4(ImGuiCol_HeaderHovered);
-			dl->AddRectFilled(p, ImVec2(p.x + cell, p.y + cell + textH), ImGui::ColorConvertFloat4ToU32(bg), 4.0f);
+			// 上の青緑から下のくすんだ青へ。下の縁に差し色の線を引く
+			const ImVec4& a = EditorStyle::kAccent;
+			const ImVec4& b = EditorStyle::kAccent2;
+			EditorStyle::DrawVerticalShade(dl, p, tileMax, ImVec4(a.x, a.y, a.z, hovered ? 0.42f : 0.34f), ImVec4(b.x, b.y, b.z, hovered ? 0.20f : 0.14f));
+			EditorStyle::DrawAccentGradient(dl, ImVec2(p.x, tileMax.y - 2.0f), tileMax);
+		}
+		else if (hovered)
+		{
+			dl->AddRectFilled(p, tileMax, ImGui::GetColorU32(ImGuiCol_HeaderHovered));
 		}
 
 		float pad = cell * 0.14f;

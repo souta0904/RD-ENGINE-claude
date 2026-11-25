@@ -32,11 +32,15 @@ namespace rd
 		ImGuiWindowFlags GetWindowFlags() const override { return ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse; }
 		bool HasPadding() const override { return false; }
 
-		// ツールバーを始める（パネルに余白がないので、余白を足してから）
-		void BeginViewToolbar();
-		// 残りの広さに画面を描き、マウスの状態を覚える（ratio > 0 ならその縦横比で中央に置き、余りは黒い帯）
+		// 残りの広さ（パネル全体）に画面を描き、マウスの状態を覚える（ratio > 0 ならその縦横比で中央に置き、余りは黒い帯）
 		void DrawView(float ratio);
 		Vector2 ToViewUv(ImVec2 mouse) const;
+		// 画面の左上に浮かせたツールバー（半透明の台）。DrawView の後、パネルの最後に Begin / End で囲んで部品を並べる。
+		//  ツールバーの上ではマウスが画面に乗っていない扱いにする（クリックで物を選ばないように）
+		void BeginOverlayToolbar();
+		void EndOverlayToolbar();
+		// 浮いたツールバーの下端（画面の上に文字を出すときは、これより下に出す）
+		float GetOverlayBottom() const { return mOverlayMax.y; }
 
 		uint32_t mWidth = 1280;
 		uint32_t mHeight = 720;
@@ -46,6 +50,10 @@ namespace rd
 		bool mFocused = false;
 
 	private:
+		ImVec2 mViewOrigin = ImVec2(0.0f, 0.0f);
+		ImVec2 mOverlayMin = ImVec2(0.0f, 0.0f);
+		ImVec2 mOverlayMax = ImVec2(0.0f, 0.0f);
+		ImDrawListSplitter mOverlaySplitter;
 		bool mPrimary = false;
 		int mVisibleFrame = -10;
 		RenderTargets mOffscreen;

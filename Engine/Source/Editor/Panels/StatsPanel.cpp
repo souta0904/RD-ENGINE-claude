@@ -34,7 +34,7 @@ namespace rd
 		for (float t : mFrameTimes) { maxMs = std::max(maxMs, t); }
 		ImGui::PlotLines("##frame", mFrameTimes.data(), int(mFrameTimes.size()), 0, nullptr, 0.0f, maxMs * 1.2f, ImVec2(-1, 60));
 
-		if (ImGui::CollapsingHeader(TrId("Rendering"), ImGuiTreeNodeFlags_DefaultOpen))
+		if (EditorGui::CollapsingHeader(TrId("Rendering"), ImGuiTreeNodeFlags_DefaultOpen))
 		{
 			uint32_t w, h;
 			mEditor.GetViewportSize(w, h);
@@ -49,7 +49,7 @@ namespace rd
 			bool vsync = device.GetVSync();
 			if (EditorGui::Checkbox("VSync", &vsync)) { device.SetVSync(vsync); }
 		}
-		if (ImGui::CollapsingHeader(TrId("Systems"), ImGuiTreeNodeFlags_DefaultOpen))
+		if (EditorGui::CollapsingHeader(TrId("Systems"), ImGuiTreeNodeFlags_DefaultOpen))
 		{
 			ImGui::TextUnformatted(EditorLocale::Format("Job workers: {}   Pending jobs: {}", JobSystem::GetWorkerCount(), JobSystem::GetPendingCount()).c_str());
 			auto assets = AssetManager::Get().GetAllAssets();
@@ -59,7 +59,7 @@ namespace rd
 			ImGui::TextUnformatted(EditorLocale::Format("Physics: {} colliders, {} contacts", physics.GetBodyCount(), physics.GetContactCount()).c_str());
 			ImGui::TextUnformatted(EditorLocale::Format("Time: {:.2f} s  (scale {:.2f})", Time::TotalTime(), Time::TimeScale()).c_str());
 		}
-		if (ImGui::CollapsingHeader(TrId("Loaded Assets")))
+		if (EditorGui::CollapsingHeader(TrId("Loaded Assets")))
 		{
 			for (auto& a : AssetManager::Get().GetAllAssets())
 			{

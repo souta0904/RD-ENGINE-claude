@@ -40,22 +40,24 @@ namespace rd
 
 	void GameViewPanel::OnGui()
 	{
-		BeginViewToolbar();
-		DrawToolbar();
-		EditorGui::EndToolbar();
 		DrawView(kAspects[mAspect].ratio);
 
 		ImDrawList* dl = ImGui::GetWindowDrawList();
 		ImVec2 pos = mImagePos, size = mImageSize;
 		if (!CameraComponent::FindMain(mEditor.GetScene()))
 		{
-			dl->AddText(ImVec2(pos.x + 10.0f, pos.y + 8.0f), ImGui::ColorConvertFloat4ToU32(EditorStyle::kTextDim), Tr("No camera in the scene"));
+			dl->AddText(ImVec2(pos.x + 10.0f, std::max(pos.y, GetOverlayBottom()) + 8.0f), ImGui::ColorConvertFloat4ToU32(EditorStyle::kTextDim), Tr("No camera in the scene"));
 		}
 		if (mEditor.IsPlaying())
 		{
 			ImVec4 border = mEditor.GetEngine().IsPaused() ? EditorStyle::kWarning : EditorStyle::kSuccess;
 			dl->AddRect(pos, ImVec2(pos.x + size.x, pos.y + size.y), ImGui::ColorConvertFloat4ToU32(border), 0.0f, 0, 2.0f);
 		}
+
+		// ツールバーは画面の上に浮かせる
+		BeginOverlayToolbar();
+		DrawToolbar();
+		EndOverlayToolbar();
 	}
 
 	void GameViewPanel::DrawToolbar()

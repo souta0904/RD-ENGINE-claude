@@ -70,7 +70,6 @@ namespace rd
 		mOps = {};
 		mDrop = {};
 		mFocused = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
-
 		// 選択が変わったら（ビューで選んだときなど）親を開いて、その行が見えるまでスクロールする
 		if (mEditor.GetSelectedId() != mLastSelected)
 		{
@@ -290,22 +289,23 @@ namespace rd
 		if (flat) { flags |= ImGuiTreeNodeFlags_NoTreePushOnOpen; }
 		if (selected) { flags |= ImGuiTreeNodeFlags_Selected; }
 		// フォーカスがないときの選択は灰色（Unity と同じ）
-		//  選んでいる行は差し色を薄く敷き、左端に差し色の細い帯を付ける
-		if (selected)
+		//  フォーカスがあるときは、左から右へ薄れていく差し色のグラデーションと、左端の細い帯を先に敷く（ImGui の背景は透明にする）
+		//  マウスを乗せた行の背景も ImGui には描かせず、ふわっと出し入れする
+		const ImGuiID rowKey = ImGui::GetID("##node");
+		const float hover = EditorStyle::HoverFade(rowKey, 20.0f);
+		const float reveal = EditorStyle::Animate(rowKey ^ 0x51u, selected ? 1.0f : 0.0f, 16.0f);
+		if (hover > 0.0f && !(selected && mFocused))
 		{
-			ImGui::PushStyleColor(ImGuiCol_Header, mFocused ? EditorStyle::kSelection : EditorStyle::kHeaderBg);
-			ImGui::PushStyleColor(ImGuiCol_HeaderHovered, mFocused ? EditorStyle::kSelection : EditorStyle::kHover);
+			ImVec4 bg = EditorStyle::kHover;
+			bg.w *= hover * 0.85f;
+			window->DrawList->AddRectFilled(row.Min, row.Max, ImGui::ColorConvertFloat4ToU32(bg));
 		}
+		if (selected && mFocused) { EditorStyle::DrawSelection(window->DrawList, row.Min, row.Max, reveal); }
+		ImGui::PushStyleColor(ImGuiCol_Header, selected && !mFocused ? EditorStyle::kHeaderBg : ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
+		ImGui::PushStyleColor(ImGuiCol_HeaderHovered, selected && !mFocused ? EditorStyle::kHover : ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
 		const bool open = ImGui::TreeNodeEx("##node", flags, "") && !flat;
-		if (selected)
-		{
-			ImGui::PopStyleColor(2);
-			if (mFocused)
-			{
-				float bar = std::max(2.0f, IM_ROUND(ImGui::GetFontSize() * 0.18f));
-				window->DrawList->AddRectFilled(row.Min, ImVec2(row.Min.x + bar, row.Max.y), ImGui::ColorConvertFloat4ToU32(EditorStyle::kAccent));
-			}
-		}
+		ImGui::PopStyleColor(2);
+		EditorStyle::SetHovered(rowKey, ImGui::IsItemHovered());
 		const bool treeOpen = open && hasChildren;
 
 		if (selected && mReveal) { ImGui::ScrollToItem(ImGuiScrollFlags_KeepVisibleCenterY); }

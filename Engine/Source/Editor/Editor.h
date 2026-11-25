@@ -140,6 +140,7 @@ namespace rd
 		void DrawMenuBar();
 		void DrawLanguageMenu();
 		void DrawMainToolbar();
+		void DrawStatusBar();
 		void DrawCompileButton();
 		void DrawDialogs();
 		void HandleShortcuts();
