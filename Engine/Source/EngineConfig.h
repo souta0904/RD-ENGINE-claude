@@ -35,12 +35,15 @@ namespace rd
 		size_t profileFrames = 0;
 		std::string profilePath = "Logs/Profile.json";
 
+		// 描き方を Deferred で始める（Render Settings の Render Path）
+		bool deferred = false;
+
 		LogSettings log;
 		bool crashHandler = true;
 		CrashHandler::Settings crash;
 
 		// コマンドラインを反映する（-novsync -fullscreen -windowed -capture <frame> <path> -scene <path>
-		//  -loglevel trace|debug|info|warn|error -logfile <name> -profile <frames> [path] -nocrashdialog）
+		//  -loglevel trace|debug|info|warn|error -logfile <name> -profile <frames> [path] -nocrashdialog -renderpath forward|deferred）
 		//  エディタ入りのビルドでは -noeditor -play も使える
 		void ParseCommandLine();
 	};

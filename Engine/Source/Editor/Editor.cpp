@@ -15,6 +15,7 @@
 #include "Editor/Panels/PreviewPanel.h"
 #include "Editor/Panels/ProfilerPanel.h"
 #include "Editor/Panels/ProjectPanel.h"
+#include "Editor/Panels/RenderGraphPanel.h"
 #include "Editor/Panels/SceneViewPanel.h"
 #include "Editor/Panels/StatsPanel.h"
 #include "Editor/Style/EditorStyle.h"
@@ -69,6 +70,7 @@ namespace rd
 		mProfiler = AddPanel(std::make_unique<ProfilerPanel>(*this));
 		mAssistant = AddPanel(std::make_unique<AIAssistant>(*this));
 		mBehaviorTree = AddPanel(std::make_unique<BehaviorTreePanel>(*this));
+		AddPanel(std::make_unique<RenderGraphPanel>(*this));
 		mHotReload = std::make_unique<HotReload>(*this);
 	}
 

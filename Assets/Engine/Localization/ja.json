@@ -12,7 +12,8 @@
         "Lighting": "ライティング",
         "Stats": "統計",
         "Profiler": "プロファイラー",
-        "AI Assistant": "AI アシスタント"
+        "AI Assistant": "AI アシスタント",
+        "Render Graph": "レンダーグラフ"
     },
 
     "Menu": {
@@ -643,5 +644,31 @@
         "Children of Sequence and Selector run from left to right (the number on the corner).": "シーケンスとセレクターの子は左から順に動きます（角の番号）。",
         "Press Delete to remove the selection. Right-drag pans, wheel zooms, F frames everything.": "選んだものはデリートキーで消せます。右ドラッグで移動、ホイールで拡大縮小、F キーで全体を表示。",
         "While playing, running nodes are outlined in yellow (the selected actor's tree, or the first one found).": "プレイ中は、動いているノードが黄色の枠になります（選んでいるアクターのツリー。なければ最初に見つかったもの）。"
+    },
+
+    "Render Graph": {
+        "Render Path": "描き方",
+        "Forward": "フォワード",
+        "Deferred": "ディファード",
+        "Forward lights each object as it is drawn. Deferred writes a G-buffer first and lights the screen once": "フォワードは物を描くたびに光を当てる。ディファードは先に G バッファーへ書いて、画面全体に 1 回だけ光を当てる",
+        "Nothing has been rendered yet": "まだ何も描いていません",
+        "{} passes ({} skipped)   {} textures in {} allocations": "パス {} 個（飛ばした {} 個）   テクスチャ {} 枚を実体 {} 枚で",
+        "(skipped)": "（飛ばした）",
+        "test": "比べる",
+        "copy": "コピー",
+        "clear": "書き直す",
+        "Read": "読む",
+        "Write": "書く",
+        "Depth Write": "深度を書く",
+        "Depth Read": "深度を比べる",
+        "Skipped: nothing that reaches the output uses its result": "飛ばした: 出力に届くパスがこの結果を使っていない",
+        "Textures": "テクスチャ",
+        "Format": "形式",
+        "Memory": "実体",
+        "external": "外",
+        "unused": "使わない",
+        "Textures with the same memory number share one allocation: their lifetimes do not overlap.": "実体の番号が同じテクスチャは、使う期間が重ならないので 1 枚を使い回しています。",
+        "Left dots: uses what is already there. Right dots: writes. (clear) means the pass overwrites everything.": "左の点は今の中身を使う、右の点は書く。（書き直す）は全部を書き直すパスです。",
+        "Shows the main view as it was last drawn.": "メインの画面を最後に描いたときのものです。"
     }
 }

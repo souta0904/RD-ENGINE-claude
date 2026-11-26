@@ -211,24 +211,11 @@ uint AdditionalLightCount()
     return gFrame.lightsPerObject > 0 ? gObject.objectLightCount : gFrame.pointLightCount + gFrame.spotLightCount;
 }
 
-// k 番目の追加のライトの向き L と、届く光（色 x 強度 x 減衰）。届かなければ false
-bool AdditionalLight(uint k, float3 worldPos, out float3 L, out float3 radiance)
+// 点光源（spot なら スポットライト）の id 番の向き L と、届く光（色 x 強度 x 減衰）。届かなければ false
+bool LightById(bool spot, uint id, float3 worldPos, out float3 L, out float3 radiance)
 {
     L = 0.0f;
     radiance = 0.0f;
-    bool spot;
-    uint id;
-    if (gFrame.lightsPerObject > 0)
-    {
-        uint raw = gObject.objectLights[k / 4][k % 4];
-        spot = (raw & kObjectLightSpot) != 0;
-        id = raw & ~kObjectLightSpot;
-    }
-    else
-    {
-        spot = k >= gFrame.pointLightCount;
-        id = spot ? k - gFrame.pointLightCount : k;
-    }
     // 窓関数付きの逆二乗減衰
     if (spot)
     {
@@ -254,6 +241,25 @@ bool AdditionalLight(uint k, float3 worldPos, out float3 L, out float3 radiance)
         radiance = light.color * light.intensity * att;
     }
     return true;
+}
+
+// k 番目の追加のライト（物ごとに選んだものがあればその中から）
+bool AdditionalLight(uint k, float3 worldPos, out float3 L, out float3 radiance)
+{
+    if (gFrame.lightsPerObject > 0)
+    {
+        uint raw = gObject.objectLights[k / 4][k % 4];
+        return LightById((raw & kObjectLightSpot) != 0, raw & ~kObjectLightSpot, worldPos, L, radiance);
+    }
+    bool spot = k >= gFrame.pointLightCount;
+    return LightById(spot, spot ? k - gFrame.pointLightCount : k, worldPos, L, radiance);
+}
+
+// k 番目の追加のライト（物ごとの選び方を使わず、点光源 → スポットライトの通し番号。ディファード用）
+bool AdditionalLightAll(uint k, float3 worldPos, out float3 L, out float3 radiance)
+{
+    bool spot = k >= gFrame.pointLightCount;
+    return LightById(spot, spot ? k - gFrame.pointLightCount : k, worldPos, L, radiance);
 }
 
 // 頂点ごとに計算するときの追加のライト（拡散だけ。あとでアルベドを掛ける）

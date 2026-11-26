@@ -7,6 +7,7 @@
 #include "Render/Settings/RenderSettings.h"
 #include "Render/Settings/RenderStats.h"
 #include "Math/Geometry/Frustum.h"
+#include "Render/Graph/RenderGraph.h"
 #include "RHI/Texture/DepthTexture.h"
 #include "RHI/Texture/RenderTexture.h"
 #include <array>
@@ -14,21 +15,18 @@
 
 namespace rd
 {
-	// 1 つの画面を描く先（HDR・深度・結果・ブルーム）。大きさは描くときに合わせる
+	// 1 つの画面の結果（sRGB にした LDR）。大きさは描くときに合わせる
 	//  メインの画面のほか、エディタのプレビューなどが自分の分を持って RenderOffscreen に渡す
+	//  途中で使うテクスチャ（HDR・深度・ブルーム・G バッファーなど）はレンダーグラフが持って使い回す
 	struct RD_API RenderTargets
 	{
-		static constexpr uint32_t kBloomLevels = 5;
-		RenderTexture hdr;
-		DepthTexture depth;
 		RenderTexture output;
-		RenderTexture bloom[kBloomLevels];
-		// 縁取りで「物そのものの形」を覚える印（ステンシルの代わり）
-		RenderTexture outlineMask;
 	};
 
-	// フォワードレンダラー
-	//  シャドウ → 不透明 → 空 → 半透明 / パーティクル → ブルーム → トーンマップ → デバッグ線 / スプライト
+	// レンダラー（フォワードとディファードを Render Settings の Render Path で切り替える）
+	//  フォワード:   シャドウ → 不透明・空・半透明・パーティクル → 縁取り → ブルーム → トーンマップ → デバッグ線 / スプライト
+	//  ディファード: シャドウ → G バッファー → ライティング → 空・半透明・パーティクル → 縁取り → （同じ）
+	//  パスはレンダーグラフに登録して実行する（状態の切り替えとテクスチャの使い回しはグラフが行う）
 	//  結果は GetOutput()（sRGB にした LDR）に入る。エディタは ImGui でこれを表示し、
 	//  ゲームでは BlitToBackBuffer でバックバッファへ写す。
 	//  実装は Renderer.cpp（流れ）/ RendererPipelines.cpp / RendererShadow.cpp / RendererPostProcess.cpp に分かれている
@@ -63,42 +61,57 @@ namespace rd
 		uint32_t GetOutputWidth() const { return mMain.output.GetWidth(); }
 		uint32_t GetOutputHeight() const { return mMain.output.GetHeight(); }
 
+		// メインの画面を最後に描いたときのレンダーグラフ（エディタで見せる）
+		const rg::GraphInfo& GetGraphInfo() const { return mGraphInfo; }
+
+		static constexpr uint32_t kBloomLevels = 5;
+
 	private:
 		using CasterLists = std::array<std::vector<const MeshDrawItem*>, kMaxShadowCascades>;
+		using DrawList = std::vector<const MeshDrawItem*>;
+		// メッシュをどのパスで描くか（パイプラインの選び方が変わる）
+		enum class MeshPass : uint8_t { Forward, Shadow, GBuffer };
 
 		void CreateRootSignatures();
 		void CreatePipelines();
 		// custom は自作のシェーダー（nullptr なら標準の Mesh.hlsl）
 		void BindShaderProperties(ID3D12GraphicsCommandList* cmd, const Material& mat, const ShaderAsset& shader);
-		ID3D12PipelineState* GetMeshPipeline(bool skinned, BlendMode blend, bool doubleSided, bool shadow, const ShaderAsset* custom = nullptr);
+		ID3D12PipelineState* GetMeshPipeline(bool skinned, BlendMode blend, bool doubleSided, MeshPass pass, const ShaderAsset* custom = nullptr);
 		void EnsureTargets(uint32_t width, uint32_t height);
 
 		void SetupFrameData(const RenderCamera& camera, const Environment& env, uint32_t width, uint32_t height, float time);
 		GpuLightData SetupLights();
-		void CullAndSort(const RenderCamera& camera, std::vector<const MeshDrawItem*>& opaque,
-			std::vector<const MeshDrawItem*>& transparent, CasterLists& casters);
-		void MainPass(ID3D12GraphicsCommandList* cmd, const Environment& env, uint32_t width, uint32_t height,
-			const std::vector<const MeshDrawItem*>& opaque, const std::vector<const MeshDrawItem*>& transparent);
-		void CopyOutputForCapture(ID3D12GraphicsCommandList* cmd);
+		void CullAndSort(const RenderCamera& camera, DrawList& opaque, DrawList& transparent, CasterLists& casters);
+		// パスをレンダーグラフに登録する（実行は Render の最後）
+		void BuildGraph(const Environment& env, uint32_t width, uint32_t height, const DrawList& opaque, const DrawList& transparent,
+			const CasterLists& casters);
 
+		// メッシュ用のルートシグネチャと、フレーム・ライト・影の定数を置く
+		void BindMeshPass(ID3D12GraphicsCommandList* cmd, const GpuTexture& shadowMap, uint32_t width, uint32_t height);
 		void SetupShadowCascades(const RenderCamera& camera, const Vector3& lightDir, GpuFrameData& f);
-		void ShadowPass(ID3D12GraphicsCommandList* cmd, const CasterLists& casters);
-		void DrawMeshes(ID3D12GraphicsCommandList* cmd, const std::vector<const MeshDrawItem*>& items, bool shadow);
+		void ShadowPass(ID3D12GraphicsCommandList* cmd, DepthTexture& shadowMap, const CasterLists& casters);
+		void DrawMeshes(ID3D12GraphicsCommandList* cmd, const DrawList& items, MeshPass pass);
+		// 空・半透明・パーティクル・半透明の三角形（フォワードではメインのパスの続き、ディファードではライティングの後）
+		void DrawSkyAndTransparent(ID3D12GraphicsCommandList* cmd, const Environment& env, const DrawList& transparent);
+		void DeferredLightingPass(ID3D12GraphicsCommandList* cmd, RenderTexture& hdr, const GpuTexture* gbuffer[3],
+			const GpuTexture& depth, const GpuTexture& shadowMap, uint32_t width, uint32_t height);
 		// Lights Per Object が 0 より大きいとき、物に効く追加のライトを選ぶ
 		void SelectObjectLights(const AABB& bounds, GpuObjectData& obj) const;
 		void DrawParticles(ID3D12GraphicsCommandList* cmd);
 		void DrawTranslucentTriangles(ID3D12GraphicsCommandList* cmd);
-		void OutlinePass(ID3D12GraphicsCommandList* cmd, uint32_t width, uint32_t height);
-		void BloomPass(ID3D12GraphicsCommandList* cmd);
-		void TonemapPass(ID3D12GraphicsCommandList* cmd);
-		void OverlayPass(ID3D12GraphicsCommandList* cmd, const Matrix4& viewProj);
+		// 縁取り（mask = true で形を印に塗る、false で広げた形を印のない所だけ描く）
+		void DrawOutlines(ID3D12GraphicsCommandList* cmd, bool mask, const GpuTexture* maskTexture, const GpuTexture& shadowMap,
+			uint32_t width, uint32_t height);
+		void TonemapPass(ID3D12GraphicsCommandList* cmd, RenderTexture& output, const GpuTexture& hdr, const GpuTexture* bloom);
+		void OverlayPass(ID3D12GraphicsCommandList* cmd, RenderTexture& output, DepthTexture& depth, const Matrix4& viewProj);
 		// デバッグ描画の頂点を描く（topology が線なら 2 頂点で 1 本、三角形なら 3 頂点で 1 枚）
 		void DrawDebugVertices(ID3D12GraphicsCommandList* cmd, const std::vector<DebugDraw::Vertex>& vertices, ID3D12PipelineState* pso,
 			const Matrix4& viewProj, D3D12_PRIMITIVE_TOPOLOGY topology);
-		void DrawSprites(ID3D12GraphicsCommandList* cmd);
+		void DrawSprites(ID3D12GraphicsCommandList* cmd, uint32_t width, uint32_t height);
 		void DrawFullscreen(ID3D12GraphicsCommandList* cmd, ID3D12PipelineState* pso, const Vector4& params,
 			D3D12_GPU_DESCRIPTOR_HANDLE t0, D3D12_GPU_DESCRIPTOR_HANDLE t1 = {});
 		void RenderToBloom(ID3D12GraphicsCommandList* cmd, RenderTexture& target);
+		void CopyOutputForCapture(ID3D12GraphicsCommandList* cmd, RenderTexture& output);
 
 		static inline Renderer* sInstance = nullptr;
 
@@ -132,11 +145,14 @@ namespace rd
 		ComPtr<ID3D12PipelineState> mBloomUpPSO;
 		ComPtr<ID3D12PipelineState> mTonemapPSO;
 		ComPtr<ID3D12PipelineState> mBlitPSO;
+		ComPtr<ID3D12PipelineState> mDeferredLightingPSO;
 
 		// mT は今描いている先（ふだんは mMain、RenderOffscreen の間だけ差し替わる）
 		RenderTargets mMain;
 		RenderTargets* mT = &mMain;
 		DepthTexture mShadowMap;
+		rg::RenderGraph mGraph;
+		rg::GraphInfo mGraphInfo;
 
 		D3D12_GPU_VIRTUAL_ADDRESS mFrameCB = 0;
 		D3D12_GPU_VIRTUAL_ADDRESS mLightCB = 0;

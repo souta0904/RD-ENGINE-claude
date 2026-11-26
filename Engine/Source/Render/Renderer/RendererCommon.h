@@ -11,6 +11,9 @@ namespace rd::render
 	inline constexpr DXGI_FORMAT kBloomFormat = DXGI_FORMAT_R11G11B10_FLOAT;
 	inline constexpr DXGI_FORMAT kOutputRtvFormat = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
 	inline constexpr DXGI_FORMAT kOutlineMaskFormat = DXGI_FORMAT_R8_UNORM;
+	// G バッファー（0: 色 + 金属感、1: 法線 + 粗さ、2: 発光 + 種類）。色も 1 を超えることがあるので 16 ビットの浮動小数にする
+	inline constexpr uint32_t kGBufferCount = 3;
+	inline constexpr DXGI_FORMAT kGBufferFormat = DXGI_FORMAT_R16G16B16A16_FLOAT;
 	inline constexpr const char* kShaderDir = "Assets/Engine/Shaders/";
 
 	// メッシュ用のルートシグネチャの引数の番号

@@ -131,6 +131,7 @@ namespace rd
 		mAssets->Initialize();
 		mRenderer = std::make_unique<Renderer>();
 		mRenderer->Initialize();
+		if (mConfig.deferred) { mRenderer->GetSettings().path = RenderPath::Deferred; }
 		mAudio = std::make_unique<AudioSystem>();
 		mAudio->Initialize();
 

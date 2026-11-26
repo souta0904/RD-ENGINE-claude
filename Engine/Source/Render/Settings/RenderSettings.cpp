@@ -6,6 +6,7 @@ namespace rd
 {
 	void RenderSettings::Reflect(PropertyVisitor& v)
 	{
+		v.Property("Render Path", path, { .tooltip = "Forward lights each object as it is drawn. Deferred writes a G-buffer first and lights the screen once" });
 		if (v.BeginGroup("Shadow"))
 		{
 			v.Property("Enabled", shadows);

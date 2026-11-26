@@ -190,21 +190,36 @@ namespace rd
 		mBloomUpPSO = BuildPostPipeline(device, rs, fullscreen, "BloomUpPS", kBloomFormat, BlendMode::Additive, L"BloomUpPSO");
 		mTonemapPSO = BuildPostPipeline(device, rs, fullscreen, "TonemapPS", kOutputRtvFormat, BlendMode::Opaque, L"TonemapPSO");
 		mBlitPSO = BuildPostPipeline(device, rs, fullscreen, "BlitPS", GraphicsDevice::kBackBufferFormat, BlendMode::Opaque, L"BlitPSO");
+
+		// ディファードのライティング（メッシュ用のルートシグネチャで G バッファーと影を読み、HDR に書く）
+		mDeferredLightingPSO = PipelineBuilder()
+			.SetRootSignature(mMeshRS.Get())
+			.SetVS(CompileShader("DeferredLighting.hlsl", "VSMain", ShaderStage::Vertex))
+			.SetPS(CompileShader("DeferredLighting.hlsl", "PSMain", ShaderStage::Pixel))
+			.SetCull(CullMode::None)
+			.SetDepth(DepthMode::Disabled)
+			.SetRenderTargets({ kHdrFormat }, DXGI_FORMAT_UNKNOWN)
+			.Build(device, L"DeferredLightingPSO");
 	}
 
 	// 組み合わせごとに初めて使うときに作ってキャッシュする（キーはビットで組み合わせを表す。上位は自作のシェーダーの番号）
 	//  自作のシェーダーがコンパイルできなければ、標準のシェーダーのパイプラインを代わりに覚えておく
 	//  （毎フレームコンパイルし直さないため。直したら Reload Shaders で作り直す）
-	ID3D12PipelineState* Renderer::GetMeshPipeline(bool skinned, BlendMode blend, bool doubleSided, bool shadow, const ShaderAsset* custom)
+	//  G バッファーに書くものは、同じシェーダーを GBUFFER を定義してコンパイルする（Surface.hlsli の PSMain が切り替わる）
+	ID3D12PipelineState* Renderer::GetMeshPipeline(bool skinned, BlendMode blend, bool doubleSided, MeshPass pass, const ShaderAsset* custom)
 	{
+		const bool shadow = pass == MeshPass::Shadow;
+		const bool gbuffer = pass == MeshPass::GBuffer;
 		bool wire = mSettings.wireframe && !shadow;
 		if (shadow) { custom = nullptr; } // 影は形だけなので、どのシェーダーでも同じものを使う
-		uint64_t key = (skinned ? 1u : 0u) | (uint32_t(blend) << 1) | (doubleSided ? 16u : 0u) | (shadow ? 32u : 0u) | (wire ? 64u : 0u);
+		uint64_t key = (skinned ? 1u : 0u) | (uint32_t(blend) << 1) | (doubleSided ? 16u : 0u) | (shadow ? 32u : 0u) | (wire ? 64u : 0u) |
+			(gbuffer ? 128u : 0u);
 		if (custom) { key |= uint64_t(custom->GetId()) << 8; }
 		if (auto it = mMeshPipelines.find(key); it != mMeshPipelines.end()) { return it->second.Get(); }
 
 		std::vector<std::string> defines;
 		if (skinned) { defines.push_back("SKINNED=1"); }
+		if (gbuffer) { defines.push_back("GBUFFER=1"); }
 		const Shader* vs = nullptr;
 		const Shader* ps = nullptr;
 		if (custom)
@@ -215,7 +230,7 @@ namespace rd
 			if (!vs || !vs->IsValid() || !ps || !ps->IsValid())
 			{
 				Logger::Error(LogCat::Render, "Shader '{}' failed to compile; drawing with the standard shader instead", custom->GetPath());
-				ID3D12PipelineState* fallback = GetMeshPipeline(skinned, blend, doubleSided, shadow, nullptr);
+				ID3D12PipelineState* fallback = GetMeshPipeline(skinned, blend, doubleSided, pass, nullptr);
 				mMeshPipelines[key] = fallback;
 				return fallback;
 			}
@@ -236,6 +251,15 @@ namespace rd
 				.SetDepthBias(1000, 1.5f, 0.01f)
 				.SetRenderTargets({}, DepthTexture::kDsvFormat);
 			builder.Desc().NumRenderTargets = 0;
+		}
+		else if (gbuffer)
+		{
+			builder.SetVS(vs)
+				.SetPS(ps)
+				.SetBlend(BlendMode::Opaque)
+				.SetDepth(DepthMode::ReadWrite)
+				.SetWireframe(wire)
+				.SetRenderTargets({ kGBufferFormat, kGBufferFormat, kGBufferFormat }, DepthTexture::kDsvFormat);
 		}
 		else
 		{

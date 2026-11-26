@@ -73,14 +73,12 @@ namespace rd
 	}
 
 	// i 番目のカスケードは i 番目のタイル（左上・右上・左下・右下）に描き、どの行列を使うかを定数で伝える
-	void Renderer::ShadowPass(ID3D12GraphicsCommandList* cmd, const CasterLists& casters)
+	void Renderer::ShadowPass(ID3D12GraphicsCommandList* cmd, DepthTexture& shadowMap, const CasterLists& casters)
 	{
-		RD_GPU_SCOPE("Shadow");
 		auto& device = GraphicsDevice::Get();
-		mShadowMap.Transition(cmd, D3D12_RESOURCE_STATE_DEPTH_WRITE);
-		auto dsv = mShadowMap.GetDsv();
+		auto dsv = shadowMap.GetDsv();
 		cmd->OMSetRenderTargets(0, nullptr, FALSE, &dsv);
-		mShadowMap.Clear(cmd);
+		shadowMap.Clear(cmd);
 		cmd->SetGraphicsRootSignature(mMeshRS.Get());
 		cmd->SetGraphicsRootConstantBufferView(kRootLights, mLightCB);
 		cmd->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -95,7 +93,7 @@ namespace rd
 			GpuFrameData frame = mFrameData;
 			frame.shadowCascade = i;
 			cmd->SetGraphicsRootConstantBufferView(kRootFrame, device.UploadConstants(frame));
-			DrawMeshes(cmd, casters[i], true);
+			DrawMeshes(cmd, casters[i], MeshPass::Shadow);
 		}
 	}
 }

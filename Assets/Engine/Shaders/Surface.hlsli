@@ -161,8 +161,8 @@ float3 ShadeFlat(float3 base, float3 worldPos)
 void Surface(SurfaceInput i, inout SurfaceOutput o);
 #endif
 
-// マテリアルの標準の値で SurfaceOutput を埋め、Surface 関数で書き換えてから光を当てる
-float4 PSMain(VSOutput input, bool frontFace : SV_IsFrontFace) : SV_TARGET
+// マテリアルの標準の値で SurfaceOutput を埋め、Surface 関数で書き換える（Alpha Clip で捨てるのもここ）
+SurfaceOutput EvaluateSurface(VSOutput input, bool frontFace)
 {
     float3 emissive = gMaterial.emissive;
     if (gMaterial.flags & kMatHasEmissive)
@@ -211,6 +211,51 @@ float4 PSMain(VSOutput input, bool frontFace : SV_IsFrontFace) : SV_TARGET
     {
         discard;
     }
+    return o;
+}
+
+#ifdef GBUFFER
+// ---------------------------------------------------------------- ディファード: G バッファーへ書く
+//  0: 色 + 金属感 / 1: 法線 + 粗さ / 2: 発光（ライトに関係ない色）+ 種類
+//  種類は 0 = ライトを当てる、1 = 色をそのまま使う（Unlit / Flat）。2 を足すと影を受ける
+//  頂点ごとの追加のライトは、ここで発光に足しておく（ライティングのパスでは点光源を当てない）
+struct GBufferOutput
+{
+    float4 albedo : SV_TARGET0;
+    float4 normal : SV_TARGET1;
+    float4 emission : SV_TARGET2;
+};
+
+GBufferOutput PSMain(VSOutput input, bool frontFace : SV_IsFrontFace)
+{
+    SurfaceOutput o = EvaluateSurface(input, frontFace);
+    float metallic = saturate(o.metallic);
+    float roughness = clamp(o.roughness, 0.04f, 1.0f);
+    GBufferOutput g;
+    g.albedo = float4(o.albedo, metallic);
+    g.normal = float4(normalize(o.normal), roughness);
+    float kind = (gMaterial.flags & kMatReceiveShadow) ? 2.0f : 0.0f;
+    if (gMaterial.flags & kMatUnlit)
+    {
+        g.emission = float4(o.albedo + o.emission, kind + 1.0f);
+    }
+    else if (gMaterial.flags & kMatFlat)
+    {
+        g.emission = float4(ShadeFlat(o.albedo, input.worldPos) + o.emission, kind + 1.0f);
+    }
+    else
+    {
+        float3 vertexLight = gFrame.additionalLightsPerVertex != 0 ? input.vertexLight * o.albedo * (1.0f - metallic) : 0.0f;
+        g.emission = float4(o.emission + vertexLight, kind);
+    }
+    return g;
+}
+
+#else
+// ---------------------------------------------------------------- フォワード: その場で光を当てる
+float4 PSMain(VSOutput input, bool frontFace : SV_IsFrontFace) : SV_TARGET
+{
+    SurfaceOutput o = EvaluateSurface(input, frontFace);
     if (gMaterial.flags & kMatUnlit)
     {
         return float4(ApplyFog(o.albedo + o.emission, input.worldPos), o.alpha);
@@ -220,7 +265,7 @@ float4 PSMain(VSOutput input, bool frontFace : SV_IsFrontFace) : SV_TARGET
         return float4(ApplyFog(ShadeFlat(o.albedo, input.worldPos) + o.emission, input.worldPos), o.alpha);
     }
 
-    N = normalize(o.normal);
+    float3 N = normalize(o.normal);
     float3 V = normalize(gFrame.cameraPos - input.worldPos);
     float metallic = saturate(o.metallic);
     float roughness = clamp(o.roughness, 0.04f, 1.0f);
@@ -262,5 +307,6 @@ float4 PSMain(VSOutput input, bool frontFace : SV_IsFrontFace) : SV_TARGET
     color = ApplyFog(color, input.worldPos);
     return float4(color, o.alpha);
 }
+#endif
 
 #endif
