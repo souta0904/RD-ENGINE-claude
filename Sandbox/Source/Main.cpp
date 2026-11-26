@@ -1,5 +1,6 @@
 #include "GameLauncher.h"
 #include "Scene/Scene.h"
+#include "Scene/Serialization/SceneSerializer.h"
 #include <filesystem>
 
 namespace sample
@@ -20,7 +21,7 @@ static void ConfigureGame(rd::EngineConfig& config)
 			// 初回はファイルに保存しておく（以後はエディタで編集できる）
 			if (!std::filesystem::exists("Assets/Sample/Scenes/Sample.scene"))
 			{
-				scene.SaveToFile("Assets/Sample/Scenes/Sample.scene");
+				rd::SceneSerializer::SaveToFile(scene, "Assets/Sample/Scenes/Sample.scene");
 			}
 		};
 }

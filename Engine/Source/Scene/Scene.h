@@ -17,7 +17,7 @@ namespace rd
 	// アクターの集まり（レベル）
 	//  コンポーネントは具体的な型ごとのリストと、上書きしたコールバックごとのリストで持つ
 	//  （全アクターを調べずに型で探せ、Update のないコンポーネントは呼ばない）
-	//  実装は Scene.cpp（アクター・更新・登録）と SceneSerialization.cpp（保存・読み込み・プレハブ）
+	//  保存・読み込み（JSON）は SceneSerializer が行い、Scene はファイルの形を知らない
 	class RD_API Scene
 	{
 	public:
@@ -100,26 +100,10 @@ namespace rd
 			return it != mSystemMap.end() ? static_cast<T*>(it->second) : nullptr;
 		}
 
-		Json Serialize() const;
-		bool Deserialize(const Json& json);
-		bool SaveToFile(const std::string& path);
-		bool LoadFromFile(const std::string& path);
-		// アクター（と子）を JSON の配列へ
-		Json SerializeActors(const std::vector<Actor*>& actors) const;
-		// JSON の配列からアクターを作る（remapIds なら新しい ID を振る）
-		//  一緒に作ったアクターを指す ObjectRef は新しい ID へ付け替え、それ以外は keepExternalRefs なら残す（複製）、
-		//  そうでなければ外す（プレハブ）
-		std::vector<Actor*> DeserializeActors(const Json& actors, bool remapIds, Actor* parent = nullptr, bool keepExternalRefs = true);
-		// アクター自身の状態（名前・Transform・コンポーネント。子と親は含まない。Undo で使う）
-		Json SerializeActorState(const Actor* actor) const;
-		void ApplyActorState(Actor* actor, const Json& state);
-		// シーンの設定（環境・重力）
-		Json SerializeSettings() const;
-		void ApplySettings(const Json& json);
-
+		// プレハブからアクターを作る（Unity の Instantiate）。保存・読み込みは SceneSerializer
 		Actor* Instantiate(const std::string& prefabPath, Actor* parent = nullptr);
+		// 元のすぐ後ろに、同じ中身のアクター（と子）を作る
 		Actor* Duplicate(Actor* actor);
-		static bool SavePrefab(const Actor* actor, const std::string& path);
 
 		Environment& GetEnvironment() { return mEnvironment; }
 		// 重力（物理とパーティクルが使う。シーンに保存される）
@@ -129,18 +113,16 @@ namespace rd
 
 	private:
 		friend class Actor;
+		// 保存・読み込みはアクターの一覧と ID の表を直接組み立てる
+		friend class SceneSerializer;
 		template <class Func>
 		static void VisitActor(Actor* a, Func& func)
 		{
 			func(a);
 			for (Actor* child : a->GetChildren()) { VisitActor(child, func); }
 		}
-		void SerializeActor(const Actor* actor, Json& out) const;
 		void FlushDestroyed();
 		void Clear();
-		bool ApplyComponentValues(Actor* actor, const Json& comps);
-		void RebuildComponents(Actor* actor, const Json& comps);
-		void AwakeComponents(Actor* actor);
 
 		void RegisterComponent(Component* component);
 		void UnregisterComponents(const std::vector<Component*>& components);

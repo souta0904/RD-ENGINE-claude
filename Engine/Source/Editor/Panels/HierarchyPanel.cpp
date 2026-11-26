@@ -12,6 +12,7 @@
 #include "Render/Material/MaterialAsset.h"
 #include "Scene/Scene.h"
 #include "Editor/Core/EditorLocale.h"
+#include "Scene/Serialization/SceneSerializer.h"
 #include <ImGui/imgui_stdlib.h>
 
 namespace rd
@@ -240,17 +241,17 @@ namespace rd
 		}
 		if (mOps.rename && !mRenameBuffer.empty() && mRenameBuffer != mOps.rename->GetName())
 		{
-			Json before = scene.SerializeActorState(mOps.rename);
+			Json before = SceneSerializer::SerializeActorState(mOps.rename);
 			mOps.rename->SetName(mRenameBuffer);
-			mEditor.GetUndo().Push(std::make_unique<ActorStateCommand>(Tr("Rename"), mOps.rename->GetId(), std::move(before), scene.SerializeActorState(mOps.rename)));
+			mEditor.GetUndo().Push(std::make_unique<ActorStateCommand>(Tr("Rename"), mOps.rename->GetId(), std::move(before), SceneSerializer::SerializeActorState(mOps.rename)));
 		}
 		if (mOps.toggleActive)
 		{
 			// 選択は変えずに切り替える
 			Actor* a = mOps.toggleActive;
-			Json before = scene.SerializeActorState(a);
+			Json before = SceneSerializer::SerializeActorState(a);
 			a->SetActive(!a->IsActiveSelf());
-			auto command = std::make_unique<ActorStateCommand>(Tr(a->IsActiveSelf() ? "Activate" : "Deactivate"), a->GetId(), std::move(before), scene.SerializeActorState(a));
+			auto command = std::make_unique<ActorStateCommand>(Tr(a->IsActiveSelf() ? "Activate" : "Deactivate"), a->GetId(), std::move(before), SceneSerializer::SerializeActorState(a));
 			command->SetSelection(mEditor.GetSelection().GetId());
 			mEditor.GetUndo().Push(std::move(command));
 		}

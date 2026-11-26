@@ -11,8 +11,8 @@ namespace rd
 	class RD_API ActorLifetimeCommand final : public EditorCommand
 	{
 	public:
-		static std::unique_ptr<ActorLifetimeCommand> Created(std::string label, Scene& scene, const std::vector<Actor*>& actors);
-		static std::unique_ptr<ActorLifetimeCommand> Deleting(std::string label, Scene& scene, const std::vector<Actor*>& actors);
+		static std::unique_ptr<ActorLifetimeCommand> Created(std::string label, const std::vector<Actor*>& actors);
+		static std::unique_ptr<ActorLifetimeCommand> Deleting(std::string label, const std::vector<Actor*>& actors);
 
 		void Undo(Scene& scene) override { mCreated ? Remove(scene) : Restore(scene); }
 		void Redo(Scene& scene) override { mCreated ? Restore(scene) : Remove(scene); }
@@ -26,7 +26,7 @@ namespace rd
 			int siblingIndex = -1;
 		};
 		ActorLifetimeCommand(std::string label, bool created) : EditorCommand(std::move(label)), mCreated(created) {}
-		void Capture(Scene& scene, const std::vector<Actor*>& actors);
+		void Capture(const std::vector<Actor*>& actors);
 		void Restore(Scene& scene);
 		void Remove(Scene& scene);
 

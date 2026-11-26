@@ -1,6 +1,7 @@
 #include "RdPch.h"
 #include "Editor/Commands/ActorStateCommand.h"
 #include "Scene/Scene.h"
+#include "Scene/Serialization/SceneSerializer.h"
 
 namespace rd
 {
@@ -20,12 +21,12 @@ namespace rd
 
 	void ActorStateCommand::Undo(Scene& scene)
 	{
-		if (Actor* actor = scene.FindActor(mActor)) { scene.ApplyActorState(actor, mBefore); }
+		if (Actor* actor = scene.FindActor(mActor)) { SceneSerializer::ApplyActorState(actor, mBefore); }
 	}
 
 	void ActorStateCommand::Redo(Scene& scene)
 	{
-		if (Actor* actor = scene.FindActor(mActor)) { scene.ApplyActorState(actor, mAfter); }
+		if (Actor* actor = scene.FindActor(mActor)) { SceneSerializer::ApplyActorState(actor, mAfter); }
 	}
 
 	bool ActorStateCommand::MergeWith(const EditorCommand& next)

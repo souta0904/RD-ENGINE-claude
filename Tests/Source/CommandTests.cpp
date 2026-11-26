@@ -9,6 +9,7 @@
 #include "Editor/Commands/ReparentCommand.h"
 #include "Editor/Commands/CompositeCommand.h"
 #include "Editor/Commands/SceneSettingsCommand.h"
+#include "Scene/Serialization/SceneSerializer.h"
 #include <thread>
 
 using namespace rd;
@@ -18,11 +19,11 @@ namespace
 {
 	// エディタと同じ手順: 変更前を覚える → 変更する → コマンドを積む
 	template <class Func>
-	void EditActor(CommandHistory& history, Scene& scene, Actor* actor, const char* label, Func&& edit)
+	void EditActor(CommandHistory& history, Actor* actor, const char* label, Func&& edit)
 	{
-		Json before = scene.SerializeActorState(actor);
+		Json before = SceneSerializer::SerializeActorState(actor);
 		edit();
-		history.Push(std::make_unique<ActorStateCommand>(label, actor->GetId(), std::move(before), scene.SerializeActorState(actor)));
+		history.Push(std::make_unique<ActorStateCommand>(label, actor->GetId(), std::move(before), SceneSerializer::SerializeActorState(actor)));
 	}
 }
 
@@ -33,8 +34,8 @@ RD_TEST(Undo, ActorStateUndoRedo)
 	Actor* a = scene.CreateActor("A");
 	auto* r = a->AddComponent<Recorder>();
 
-	EditActor(history, scene, a, "Set Value", [&] { r->value = 5; });
-	EditActor(history, scene, a, "Rename", [&] { a->SetName("B"); });
+	EditActor(history, a, "Set Value", [&] { r->value = 5; });
+	EditActor(history, a, "Rename", [&] { a->SetName("B"); });
 	RD_CHECK_EQ(history.GetUndoLabel(), std::string("Rename"));
 
 	RD_CHECK_EQ(history.Undo(scene), a->GetId());
@@ -57,14 +58,14 @@ RD_TEST(Undo, MergeContinuousEdits)
 	Actor* a = scene.CreateActor("A");
 	auto* r = a->AddComponent<Recorder>();
 	// ドラッグ中のように同じ操作が続いたら 1 つにまとまる
-	for (int i = 1; i <= 10; ++i) { EditActor(history, scene, a, "Drag", [&] { r->value = i; }); }
+	for (int i = 1; i <= 10; ++i) { EditActor(history, a, "Drag", [&] { r->value = i; }); }
 	history.Undo(scene);
 	RD_CHECK_EQ(r->value, 0);
 	RD_CHECK(!history.CanUndo());
 
 	// 違う操作はまとめない
 	history.Redo(scene);
-	EditActor(history, scene, a, "Other", [&] { r->value = 100; });
+	EditActor(history, a, "Other", [&] { r->value = 100; });
 	history.Undo(scene);
 	RD_CHECK_EQ(r->value, 10);
 }
@@ -82,7 +83,7 @@ RD_TEST(Undo, DeleteRestoresSameIdsAndRefs)
 	p->target = target;
 	ActorId targetId = target->GetId();
 
-	auto cmd = ActorLifetimeCommand::Deleting("Delete", scene, { target });
+	auto cmd = ActorLifetimeCommand::Deleting("Delete", { target });
 	target->Destroy();
 	scene.FlushPendingDestroy();
 	history.Push(std::move(cmd));
@@ -121,7 +122,7 @@ RD_TEST(Undo, CreateAndReparent)
 
 	Actor* c = scene.CreateActor("C");
 	ActorId cId = c->GetId();
-	history.Push(ActorLifetimeCommand::Created("Create", scene, { c }));
+	history.Push(ActorLifetimeCommand::Created("Create", { c }));
 	history.Undo(scene);
 	RD_CHECK(scene.FindActor(cId) == nullptr);
 	history.Redo(scene);
@@ -135,12 +136,12 @@ RD_TEST(Undo, SettingsAndComposite)
 	Actor* a = scene.CreateActor("A");
 	auto composite = std::make_unique<CompositeCommand>("Both");
 
-	Json before = scene.SerializeSettings();
+	Json before = SceneSerializer::SerializeSettings(scene);
 	scene.SetGravity({ 0, 1, 0 });
-	composite->Add(std::make_unique<SceneSettingsCommand>("Gravity", before, scene.SerializeSettings()));
-	Json aBefore = scene.SerializeActorState(a);
+	composite->Add(std::make_unique<SceneSettingsCommand>("Gravity", before, SceneSerializer::SerializeSettings(scene)));
+	Json aBefore = SceneSerializer::SerializeActorState(a);
 	a->SetName("Changed");
-	composite->Add(std::make_unique<ActorStateCommand>("Name", a->GetId(), aBefore, scene.SerializeActorState(a)));
+	composite->Add(std::make_unique<ActorStateCommand>("Name", a->GetId(), aBefore, SceneSerializer::SerializeActorState(a)));
 	history.Push(std::move(composite));
 
 	history.Undo(scene);
@@ -157,13 +158,13 @@ RD_TEST(Undo, DirtyTracking)
 	CommandHistory history;
 	Actor* a = scene.CreateActor("A");
 	RD_CHECK(!history.IsDirty());
-	EditActor(history, scene, a, "One", [&] { a->SetName("1"); });
+	EditActor(history, a, "One", [&] { a->SetName("1"); });
 	RD_CHECK(history.IsDirty());
 	history.MarkSaved();
 	RD_CHECK(!history.IsDirty());
 
 	// 保存した直後の操作は、前のものとまとめない（保存位置へ戻れるように）
-	EditActor(history, scene, a, "One", [&] { a->SetName("2"); });
+	EditActor(history, a, "One", [&] { a->SetName("2"); });
 	RD_CHECK(history.IsDirty());
 	history.Undo(scene);
 	RD_CHECK(!history.IsDirty());
@@ -171,7 +172,7 @@ RD_TEST(Undo, DirtyTracking)
 
 	// 保存位置より先を Undo してから別の操作をすると、保存した状態には戻れない
 	history.Undo(scene);
-	EditActor(history, scene, a, "Two", [&] { a->SetName("x"); });
+	EditActor(history, a, "Two", [&] { a->SetName("x"); });
 	RD_CHECK(history.IsDirty());
 	history.Undo(scene);
 	RD_CHECK(history.IsDirty());
@@ -185,7 +186,7 @@ RD_TEST(Undo, HistoryIsBounded)
 	for (int i = 0; i < 250; ++i)
 	{
 		// ラベルを変えてまとめないようにする
-		EditActor(history, scene, a, i % 2 ? "Odd" : "Even", [&] { a->SetName(std::to_string(i)); });
+		EditActor(history, a, i % 2 ? "Odd" : "Even", [&] { a->SetName(std::to_string(i)); });
 	}
 	int undos = 0;
 	while (history.CanUndo()) { history.Undo(scene); ++undos; }

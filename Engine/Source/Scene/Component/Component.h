@@ -86,6 +86,7 @@ private:
 	private:
 		friend class Actor;
 		friend class Scene;
+		friend class SceneSerializer;
 		Actor* mActor = nullptr;
 		bool mEnabled = true;
 		bool mStarted = false;

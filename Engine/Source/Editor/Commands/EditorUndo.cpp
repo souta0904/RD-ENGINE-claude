@@ -5,6 +5,7 @@
 #include "Editor/Core/EditorSelection.h"
 #include "Editor/Editor.h"
 #include "Scene/Scene.h"
+#include "Scene/Serialization/SceneSerializer.h"
 
 namespace rd
 {
@@ -13,8 +14,8 @@ namespace rd
 		Scene& scene = mEditor.GetScene();
 		Actor* actor = mEditor.GetSelection().Get();
 		mSnapshotActor = actor ? actor->GetId() : 0;
-		mActorSnapshot = actor ? scene.SerializeActorState(actor) : Json();
-		mSettingsSnapshot = scene.SerializeSettings();
+		mActorSnapshot = actor ? SceneSerializer::SerializeActorState(actor) : Json();
+		mSettingsSnapshot = SceneSerializer::SerializeSettings(scene);
 	}
 
 	void EditorUndo::CommitActorEdit(const std::string& label)
@@ -22,7 +23,7 @@ namespace rd
 		if (mEditor.IsPlaying()) { return; }
 		Actor* actor = mEditor.GetSelection().Get();
 		if (!actor || actor->GetId() != mSnapshotActor) { RefreshSnapshots(); return; }
-		Json after = mEditor.GetScene().SerializeActorState(actor);
+		Json after = SceneSerializer::SerializeActorState(actor);
 		if (after == mActorSnapshot) { return; }
 		Push(std::make_unique<ActorStateCommand>(label, actor->GetId(), std::move(mActorSnapshot), after));
 	}
@@ -30,7 +31,7 @@ namespace rd
 	void EditorUndo::CommitSettingsEdit(const std::string& label)
 	{
 		if (mEditor.IsPlaying()) { return; }
-		Json after = mEditor.GetScene().SerializeSettings();
+		Json after = SceneSerializer::SerializeSettings(mEditor.GetScene());
 		if (after == mSettingsSnapshot) { return; }
 		Push(std::make_unique<SceneSettingsCommand>(label, std::move(mSettingsSnapshot), after));
 	}

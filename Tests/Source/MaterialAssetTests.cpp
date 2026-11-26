@@ -11,6 +11,7 @@
 #if RD_EDITOR
 #include "Editor/Commands/ActorStateCommand.h"
 #include "Editor/Commands/CommandHistory.h"
+#include "Scene/Serialization/SceneSerializer.h"
 #endif
 
 using namespace rd;
@@ -163,9 +164,9 @@ RD_TEST(MaterialAsset, FileEditsDoNotDirtyScene)
 	history.Push(std::make_unique<FileOnlyCommand>());
 	RD_CHECK(!history.IsDirty());
 
-	Json before = scene.SerializeActorState(a);
+	Json before = SceneSerializer::SerializeActorState(a);
 	a->SetName("B");
-	history.Push(std::make_unique<ActorStateCommand>("Rename", a->GetId(), std::move(before), scene.SerializeActorState(a)));
+	history.Push(std::make_unique<ActorStateCommand>("Rename", a->GetId(), std::move(before), SceneSerializer::SerializeActorState(a)));
 	RD_CHECK(history.IsDirty());
 
 	history.MarkSaved();

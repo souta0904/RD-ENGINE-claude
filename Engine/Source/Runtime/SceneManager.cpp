@@ -4,6 +4,7 @@
 #include "Components/Rendering/CameraComponent.h"
 #include "Core/Util/FileUtil.h"
 #include "Scene/Scene.h"
+#include "Scene/Serialization/SceneSerializer.h"
 
 namespace rd
 {
@@ -15,7 +16,7 @@ namespace rd
 		mScene = std::make_unique<Scene>();
 		if (!path.empty() && FileExists(path))
 		{
-			mScene->LoadFromFile(path);
+			SceneSerializer::LoadFromFile(*mScene, path);
 		}
 		else if (build)
 		{
@@ -52,7 +53,7 @@ namespace rd
 		if (!mPendingScenePath.empty())
 		{
 			auto scene = std::make_unique<Scene>();
-			if (scene->LoadFromFile(mPendingScenePath)) { mPendingScene = std::move(scene); }
+			if (SceneSerializer::LoadFromFile(*scene, mPendingScenePath)) { mPendingScene = std::move(scene); }
 			mPendingScenePath.clear();
 		}
 		if (!mPendingScene) { return false; }

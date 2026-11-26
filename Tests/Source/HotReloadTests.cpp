@@ -3,6 +3,7 @@
 #include "Scene/Component/ComponentRegistry.h"
 #include "Scene/Component/MissingComponent.h"
 #include "Scene/Scene.h"
+#include "Scene/Serialization/SceneSerializer.h"
 
 using namespace rd;
 using namespace rdtest;
@@ -24,7 +25,7 @@ namespace
 RD_TEST(HotReload, MissingComponentKeepsValues)
 {
 	Scene scene;
-	scene.Deserialize(SceneWithUnknownComponent());
+	SceneSerializer::Deserialize(scene, SceneWithUnknownComponent());
 	Actor* actor = scene.FindActorByName("A");
 	RD_REQUIRE(actor != nullptr);
 	RD_REQUIRE(actor->GetAllComponents().size() == 1);
@@ -34,7 +35,7 @@ RD_TEST(HotReload, MissingComponentKeepsValues)
 	RD_CHECK(!missing->IsEnabled());
 
 	// 保存し直しても、元の型名と値がそのまま残る
-	Json saved = scene.Serialize();
+	Json saved = SceneSerializer::Serialize(scene);
 	const Json& comp = saved["Actors"][0]["Components"][0];
 	RD_CHECK(comp.value("Type", "") == "NoSuchComponent");
 	RD_CHECK(comp.value("Speed", 0.0) == 3.5);
@@ -45,8 +46,8 @@ RD_TEST(HotReload, MissingComponentKeepsValues)
 RD_TEST(HotReload, MissingComponentComesBackWhenRegistered)
 {
 	Scene first;
-	first.Deserialize(SceneWithUnknownComponent());
-	Json saved = first.Serialize();
+	SceneSerializer::Deserialize(first, SceneWithUnknownComponent());
+	Json saved = SceneSerializer::Serialize(first);
 
 	// 型が登録された（ゲームのコードを読み直した）あとで作り直すと、元のコンポーネントになる
 	ComponentRegistry::SetLoadingModule(7);
@@ -54,7 +55,7 @@ RD_TEST(HotReload, MissingComponentComesBackWhenRegistered)
 	ComponentRegistry::SetLoadingModule(0);
 
 	Scene second;
-	second.Deserialize(saved);
+	SceneSerializer::Deserialize(second, saved);
 	Actor* actor = second.FindActorByName("A");
 	RD_REQUIRE(actor != nullptr && actor->GetAllComponents().size() == 1);
 	RD_CHECK(dynamic_cast<MissingComponent*>(actor->GetAllComponents()[0].get()) == nullptr);

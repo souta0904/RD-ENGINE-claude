@@ -21,6 +21,7 @@
 #include "Physics/Colliders/CapsuleCollider.h"
 #include "Physics/Colliders/SphereCollider.h"
 #include "Scene/Scene.h"
+#include "Scene/Serialization/SceneSerializer.h"
 #include <ImGui/imgui.h>
 
 namespace rd
@@ -77,7 +78,7 @@ namespace rd
 			actor->GetTransform().SetPosition(cam.position + cam.GetForward() * 6.0f);
 		}
 		mEditor.GetSelection().Select(actor);
-		mEditor.GetUndo().Push(ActorLifetimeCommand::Created(EditorLocale::Format("Create {}", std::string(Tr(kind))), scene, { actor }));
+		mEditor.GetUndo().Push(ActorLifetimeCommand::Created(EditorLocale::Format("Create {}", std::string(Tr(kind))), { actor }));
 		return actor;
 	}
 
@@ -118,7 +119,7 @@ namespace rd
 		Actor* sel = mEditor.GetSelection().Get();
 		if (!sel) { return; }
 		Scene& scene = mEditor.GetScene();
-		auto command = ActorLifetimeCommand::Deleting(EditorLocale::Format("Delete {}", sel->GetName()), scene, { sel });
+		auto command = ActorLifetimeCommand::Deleting(EditorLocale::Format("Delete {}", sel->GetName()), { sel });
 		sel->Destroy();
 		scene.FlushPendingDestroy();
 		mEditor.GetSelection().Select(nullptr);
@@ -133,13 +134,13 @@ namespace rd
 		if (Actor* copy = scene.Duplicate(sel))
 		{
 			mEditor.GetSelection().Select(copy);
-			mEditor.GetUndo().Push(ActorLifetimeCommand::Created(EditorLocale::Format("Duplicate {}", sel->GetName()), scene, { copy }));
+			mEditor.GetUndo().Push(ActorLifetimeCommand::Created(EditorLocale::Format("Duplicate {}", sel->GetName()), { copy }));
 		}
 	}
 
 	void ActorActions::CopySelected()
 	{
-		if (Actor* sel = mEditor.GetSelection().Get()) { mClipboard = mEditor.GetScene().SerializeActors({ sel }); }
+		if (Actor* sel = mEditor.GetSelection().Get()) { mClipboard = SceneSerializer::SerializeActors({ sel }); }
 	}
 
 	// 選んでいるアクターの兄弟として（選んでいなければルートに）貼り付ける
@@ -149,12 +150,12 @@ namespace rd
 		Scene& scene = mEditor.GetScene();
 		Actor* sel = mEditor.GetSelection().Get();
 		Actor* parent = sel ? sel->GetParent() : nullptr;
-		auto roots = scene.DeserializeActors(mClipboard, true, parent);
+		auto roots = SceneSerializer::DeserializeActors(scene, mClipboard, true, parent);
 		if (roots.empty()) { return; }
 		Actor* copy = roots.front();
 		if (sel) { copy->SetParent(parent, false, sel->GetSiblingIndex() + 1); }
 		mEditor.GetSelection().Select(copy);
-		mEditor.GetUndo().Push(ActorLifetimeCommand::Created(EditorLocale::Format("Paste {}", copy->GetName()), scene, roots));
+		mEditor.GetUndo().Push(ActorLifetimeCommand::Created(EditorLocale::Format("Paste {}", copy->GetName()), roots));
 	}
 
 	void ActorActions::RenameSelected()
@@ -177,7 +178,7 @@ namespace rd
 		std::string stem = SafeFileName(actor->GetName());
 		std::string path = dir + "/" + stem + ".prefab";
 		for (int n = 1; FileExists(path); ++n) { path = std::format("{}/{} {}.prefab", dir, stem, n); }
-		if (!Scene::SavePrefab(actor, path))
+		if (!SceneSerializer::SavePrefab(actor, path))
 		{
 			Logger::Error(LogCat::Editor, "Failed to save prefab: {}", path);
 			return {};
@@ -202,7 +203,7 @@ namespace rd
 		if (!instance) { return nullptr; }
 		if (siblingIndex >= 0) { instance->SetParent(parent, false, siblingIndex); }
 		mEditor.GetSelection().Select(instance);
-		mEditor.GetUndo().Push(ActorLifetimeCommand::Created(EditorLocale::Format("Instantiate {}", GetStem(path)), scene, { instance }));
+		mEditor.GetUndo().Push(ActorLifetimeCommand::Created(EditorLocale::Format("Instantiate {}", GetStem(path)), { instance }));
 		return instance;
 	}
 
@@ -210,15 +211,14 @@ namespace rd
 	bool ActorActions::AssignMaterial(MeshRenderer& renderer, size_t slot, const std::string& path)
 	{
 		Actor* actor = renderer.GetActor();
-		Scene& scene = mEditor.GetScene();
-		Json before = scene.SerializeActorState(actor);
+		Json before = SceneSerializer::SerializeActorState(actor);
 		if (!renderer.SetSharedMaterial(slot, path))
 		{
 			Logger::Warning(LogCat::Editor, "{} has no material slot {} (is the model loaded?)", actor->GetName(), slot);
 			return false;
 		}
 		Logger::Info(LogCat::Editor, "Assigned {} to {} (slot {})", path, actor->GetName(), slot);
-		Json after = scene.SerializeActorState(actor);
+		Json after = SceneSerializer::SerializeActorState(actor);
 		if (after != before)
 		{
 			mEditor.GetUndo().Push(std::make_unique<ActorStateCommand>(EditorLocale::Format("Assign Material {}", GetStem(path)), actor->GetId(), std::move(before), std::move(after)));

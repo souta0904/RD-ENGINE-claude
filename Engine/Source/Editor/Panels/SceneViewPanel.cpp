@@ -318,7 +318,6 @@ namespace rd
 			mEditor.GetDocument().OpenScene(path);
 			return;
 		}
-		Scene& scene = mEditor.GetScene();
 		if (MaterialAsset::IsMaterialPath(path))
 		{
 			DropMaterial(path, ray);
@@ -345,6 +344,6 @@ namespace rd
 			actor->GetTransform().SetPosition(FindPlacement(ray, actor));
 		}
 		mEditor.GetSelection().Select(actor);
-		mEditor.GetUndo().Push(ActorLifetimeCommand::Created(EditorLocale::Format("Drop {}", GetFileName(path)), scene, { actor }));
+		mEditor.GetUndo().Push(ActorLifetimeCommand::Created(EditorLocale::Format("Drop {}", GetFileName(path)), { actor }));
 	}
 }

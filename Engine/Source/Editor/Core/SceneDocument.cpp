@@ -8,6 +8,7 @@
 #include "Editor/Style/EditorGui.h"
 #include "Engine.h"
 #include "Scene/Scene.h"
+#include "Scene/Serialization/SceneSerializer.h"
 #include <ImGui/imgui.h>
 
 namespace rd
@@ -60,7 +61,7 @@ namespace rd
 			path = FileDialog::Save(mEditor.GetEngine().GetWindow().GetHandle(), kSceneFilter, L"scene");
 			if (path.empty()) { return false; }
 		}
-		if (!scene.SaveToFile(path)) { return false; }
+		if (!SceneSerializer::SaveToFile(scene, path)) { return false; }
 		mEditor.GetUndo().MarkSaved();
 		mEditor.UpdateTitle();
 		return true;

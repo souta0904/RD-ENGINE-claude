@@ -1,9 +1,10 @@
 #include "RdPch.h"
-#include "Scene/Scene.h"
+#include "Scene/Serialization/SceneSerializer.h"
 #include "Core/Serialization/JsonReader.h"
 #include "Core/Serialization/JsonWriter.h"
 #include "Scene/Component/ComponentRegistry.h"
 #include "Scene/Component/MissingComponent.h"
+#include "Scene/Scene.h"
 #include "Scene/Serialization/RefFixupVisitor.h"
 
 namespace rd
@@ -35,7 +36,7 @@ namespace rd
 	// 読み込んだコンポーネントの Awake を呼ぶ。Awake の中で同じアクターにコンポーネントを足すことがある
 	//  （足したものは AddComponent の中で Awake される）ので、一覧を回しながらではなく、先に写した一覧で呼ぶ。
 	//  一覧を回しながら足すと、一覧の入れ物が作り直されて、回している途中の場所が壊れる
-	void Scene::AwakeComponents(Actor* actor)
+	void SceneSerializer::AwakeComponents(Actor* actor)
 	{
 		std::vector<Component*> loaded;
 		loaded.reserve(actor->mComponents.size());
@@ -43,7 +44,7 @@ namespace rd
 		for (Component* c : loaded) { c->Awake(); }
 	}
 
-	Json Scene::SerializeActorState(const Actor* actor) const
+	Json SceneSerializer::SerializeActorState(const Actor* actor)
 	{
 		Json j = Json::object();
 		j["Name"] = actor->GetName();
@@ -78,7 +79,7 @@ namespace rd
 		return j;
 	}
 
-	void Scene::ApplyActorState(Actor* actor, const Json& state)
+	void SceneSerializer::ApplyActorState(Actor* actor, const Json& state)
 	{
 		actor->SetName(state.value("Name", actor->GetName()));
 		actor->SetActive(state.value("Active", true));
@@ -95,7 +96,7 @@ namespace rd
 	}
 
 	// コンポーネントの並びが同じなら、その場で値だけ書き戻す（Awake / OnDestroy を呼ばない）
-	bool Scene::ApplyComponentValues(Actor* actor, const Json& comps)
+	bool SceneSerializer::ApplyComponentValues(Actor* actor, const Json& comps)
 	{
 		if (comps.size() != actor->mComponents.size()) { return false; }
 		for (size_t i = 0; i < comps.size(); ++i)
@@ -115,11 +116,12 @@ namespace rd
 	}
 
 	// 追加・削除・並び替えがあったときは作り直す（すべてそろってから Awake）
-	void Scene::RebuildComponents(Actor* actor, const Json& comps)
+	void SceneSerializer::RebuildComponents(Actor* actor, const Json& comps)
 	{
+		Scene* scene = actor->GetScene();
 		std::vector<Component*> old;
 		for (auto& c : actor->mComponents) { old.push_back(c.get()); }
-		UnregisterComponents(old);
+		scene->UnregisterComponents(old);
 		for (auto& c : actor->mComponents)
 		{
 			c->mPendingDestroy = true;
@@ -128,7 +130,7 @@ namespace rd
 		actor->mComponents.clear();
 
 		std::unordered_map<ActorId, Actor*> noRemap;
-		RefFixupVisitor fixup(this, noRemap, false, true);
+		RefFixupVisitor fixup(scene, noRemap, false, true);
 		for (const auto& cj : comps)
 		{
 			auto comp = CreateComponent(cj);
@@ -139,28 +141,28 @@ namespace rd
 		AwakeComponents(actor);
 	}
 
-	Json Scene::SerializeSettings() const
+	Json SceneSerializer::SerializeSettings(const Scene& scene)
 	{
 		Json j = Json::object();
 		Json env = Json::object();
 		JsonWriter w(env);
-		const_cast<Environment&>(mEnvironment).Reflect(w);
+		const_cast<Environment&>(scene.mEnvironment).Reflect(w);
 		j["Environment"] = std::move(env);
-		j["Gravity"] = mGravity;
+		j["Gravity"] = scene.mGravity;
 		return j;
 	}
 
-	void Scene::ApplySettings(const Json& json)
+	void SceneSerializer::ApplySettings(Scene& scene, const Json& json)
 	{
 		if (auto env = json.find("Environment"); env != json.end())
 		{
 			JsonReader r(*env);
-			mEnvironment.Reflect(r);
+			scene.mEnvironment.Reflect(r);
 		}
-		if (auto g = json.find("Gravity"); g != json.end() && g->is_array()) { mGravity = g->get<Vector3>(); }
+		if (auto g = json.find("Gravity"); g != json.end() && g->is_array()) { scene.mGravity = g->get<Vector3>(); }
 	}
 
-	void Scene::SerializeActor(const Actor* actor, Json& out) const
+	void SceneSerializer::SerializeActor(const Actor* actor, Json& out)
 	{
 		Json j = Json::object();
 		j["Id"] = actor->GetId();
@@ -174,7 +176,7 @@ namespace rd
 		}
 	}
 
-	Json Scene::SerializeActors(const std::vector<Actor*>& actors) const
+	Json SceneSerializer::SerializeActors(const std::vector<Actor*>& actors)
 	{
 		Json out = Json::array();
 		for (const Actor* a : actors)
@@ -185,7 +187,7 @@ namespace rd
 	}
 
 	// 1. アクターを作る（ID を保てるなら保つ） 2. 親子とプロパティ 3. 参照をこのシーンに結び付ける 4. すべてそろってから Awake
-	std::vector<Actor*> Scene::DeserializeActors(const Json& actors, bool remapIds, Actor* parent, bool keepExternalRefs)
+	std::vector<Actor*> SceneSerializer::DeserializeActors(Scene& scene, const Json& actors, bool remapIds, Actor* parent, bool keepExternalRefs)
 	{
 		std::vector<Actor*> roots;
 		std::vector<std::pair<Actor*, const Json*>> created;
@@ -196,18 +198,18 @@ namespace rd
 		{
 			ActorId oldId = j.value("Id", ActorId(0));
 			Actor* actor = nullptr;
-			if (!remapIds && oldId != 0 && !mIdMap.contains(oldId))
+			if (!remapIds && oldId != 0 && !scene.mIdMap.contains(oldId))
 			{
-				auto a = std::make_unique<Actor>(this, oldId);
+				auto a = std::make_unique<Actor>(&scene, oldId);
 				actor = a.get();
-				mIdMap.emplace(oldId, actor);
-				mActors.push_back(std::move(a));
-				mRootActors.push_back(actor);
-				mNextId = std::max(mNextId, oldId + 1);
+				scene.mIdMap.emplace(oldId, actor);
+				scene.mActors.push_back(std::move(a));
+				scene.mRootActors.push_back(actor);
+				scene.mNextId = std::max(scene.mNextId, oldId + 1);
 			}
 			else
 			{
-				actor = CreateActor();
+				actor = scene.CreateActor();
 			}
 			actor->SetName(j.value("Name", std::string("Actor")));
 			actor->SetActive(j.value("Active", true));
@@ -240,7 +242,7 @@ namespace rd
 			}
 		}
 
-		RefFixupVisitor fixup(this, idMap, remapIds, keepExternalRefs);
+		RefFixupVisitor fixup(&scene, idMap, remapIds, keepExternalRefs);
 		for (auto& [actor, jp] : created)
 		{
 			for (auto& c : actor->mComponents) { c->Reflect(fixup); }
@@ -250,42 +252,42 @@ namespace rd
 		return roots;
 	}
 
-	Json Scene::Serialize() const
+	Json SceneSerializer::Serialize(const Scene& scene)
 	{
 		Json j = Json::object();
 		j["Version"] = kSceneVersion;
-		j["Name"] = mName;
-		j.update(SerializeSettings());
-		j["Actors"] = SerializeActors(mRootActors);
+		j["Name"] = scene.mName;
+		j.update(SerializeSettings(scene));
+		j["Actors"] = SerializeActors(scene.mRootActors);
 		return j;
 	}
 
-	bool Scene::Deserialize(const Json& json)
+	bool SceneSerializer::Deserialize(Scene& scene, const Json& json)
 	{
-		Clear();
-		mNextId = 1;
-		mName = json.value("Name", std::string("Untitled"));
-		ApplySettings(json);
+		scene.Clear();
+		scene.mNextId = 1;
+		scene.mName = json.value("Name", std::string("Untitled"));
+		ApplySettings(scene, json);
 		if (auto actors = json.find("Actors"); actors != json.end())
 		{
-			DeserializeActors(*actors, false);
+			DeserializeActors(scene, *actors, false);
 		}
 		return true;
 	}
 
-	bool Scene::SaveToFile(const std::string& path)
+	bool SceneSerializer::SaveToFile(Scene& scene, const std::string& path)
 	{
-		if (!SaveJsonFile(path, Serialize()))
+		if (!SaveJsonFile(path, Serialize(scene)))
 		{
 			Logger::Error(LogCat::Scene, "Failed to save scene: {}", path);
 			return false;
 		}
-		mPath = path;
+		scene.mPath = path;
 		Logger::Info(LogCat::Scene, "Saved scene: {}", path);
 		return true;
 	}
 
-	bool Scene::LoadFromFile(const std::string& path)
+	bool SceneSerializer::LoadFromFile(Scene& scene, const std::string& path)
 	{
 		Json json;
 		if (!LoadJsonFile(path, json))
@@ -293,44 +295,30 @@ namespace rd
 			Logger::Error(LogCat::Scene, "Failed to load scene: {}", path);
 			return false;
 		}
-		Deserialize(json);
-		mPath = path;
-		Logger::Info(LogCat::Scene, "Loaded scene: {} ({} actors)", path, mActors.size());
+		Deserialize(scene, json);
+		scene.mPath = path;
+		Logger::Info(LogCat::Scene, "Loaded scene: {} ({} actors)", path, scene.mActors.size());
 		return true;
 	}
 
 	// プレハブの外を指していた参照は、このシーンでは意味がないので外す
-	Actor* Scene::Instantiate(const std::string& prefabPath, Actor* parent)
+	Actor* SceneSerializer::InstantiatePrefab(Scene& scene, const std::string& path, Actor* parent)
 	{
 		Json json;
-		if (!LoadJsonFile(prefabPath, json))
+		if (!LoadJsonFile(path, json))
 		{
-			Logger::Error(LogCat::Scene, "Prefab not found: {}", prefabPath);
+			Logger::Error(LogCat::Scene, "Prefab not found: {}", path);
 			return nullptr;
 		}
-		auto roots = DeserializeActors(json.value("Actors", Json::array()), true, parent, false);
+		auto roots = DeserializeActors(scene, json.value("Actors", Json::array()), true, parent, false);
 		return roots.empty() ? nullptr : roots.front();
 	}
 
-	// Unity と同じく、元のすぐ後ろに並べる
-	Actor* Scene::Duplicate(Actor* actor)
-	{
-		if (!actor) { return nullptr; }
-		Json json = SerializeActors({ actor });
-		auto roots = DeserializeActors(json, true, actor->GetParent());
-		if (roots.empty()) { return nullptr; }
-		Actor* copy = roots.front();
-		copy->SetName(actor->GetName());
-		copy->SetParent(actor->GetParent(), false, actor->GetSiblingIndex() + 1);
-		return copy;
-	}
-
-	// ルートは親なしとして保存する
-	bool Scene::SavePrefab(const Actor* actor, const std::string& path)
+	bool SceneSerializer::SavePrefab(const Actor* actor, const std::string& path)
 	{
 		Json json = Json::object();
 		json["Version"] = kSceneVersion;
-		Json actors = actor->GetScene()->SerializeActors({ const_cast<Actor*>(actor) });
+		Json actors = SerializeActors({ const_cast<Actor*>(actor) });
 		if (!actors.empty()) { actors[0]["Parent"] = 0; }
 		json["Actors"] = std::move(actors);
 		return SaveJsonFile(path, json);

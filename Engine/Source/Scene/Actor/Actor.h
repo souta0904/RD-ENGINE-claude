@@ -107,6 +107,7 @@ namespace rd
 
 	private:
 		friend class Scene;
+		friend class SceneSerializer;
 		void FlushDestroyedComponents();
 
 		Scene* mScene;

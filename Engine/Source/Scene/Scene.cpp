@@ -3,6 +3,7 @@
 #include "Core/Profiling/ProfileScope.h"
 #include "Core/Time/Time.h"
 #include "Render/Debug/DebugDraw.h"
+#include "Scene/Serialization/SceneSerializer.h"
 
 namespace rd
 {
@@ -246,4 +247,22 @@ namespace rd
 		}
 	}
 #endif
+
+	Actor* Scene::Instantiate(const std::string& prefabPath, Actor* parent)
+	{
+		return SceneSerializer::InstantiatePrefab(*this, prefabPath, parent);
+	}
+
+	// Unity と同じく、元のすぐ後ろに並べる
+	Actor* Scene::Duplicate(Actor* actor)
+	{
+		if (!actor) { return nullptr; }
+		Json json = SceneSerializer::SerializeActors({ actor });
+		auto roots = SceneSerializer::DeserializeActors(*this, json, true, actor->GetParent());
+		if (roots.empty()) { return nullptr; }
+		Actor* copy = roots.front();
+		copy->SetName(actor->GetName());
+		copy->SetParent(actor->GetParent(), false, actor->GetSiblingIndex() + 1);
+		return copy;
+	}
 }

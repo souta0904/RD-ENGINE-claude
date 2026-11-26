@@ -9,6 +9,7 @@
 #include "Core/Util/StringUtil.h"
 #include "Scene/Component/ComponentRegistry.h"
 #include "Scene/Scene.h"
+#include "Scene/Serialization/SceneSerializer.h"
 
 namespace rd
 {
@@ -52,9 +53,9 @@ namespace rd
 		}
 
 		// アクターの状態（SerializeActorState）を AI が読みやすい形にする（回転はクォータニオンではなくオイラー角（度））
-		Json DescribeActor(const Scene& scene, const Actor* a)
+		Json DescribeActor(const Actor* a)
 		{
-			Json j = scene.SerializeActorState(a);
+			Json j = SceneSerializer::SerializeActorState(a);
 			j["Id"] = a->GetId();
 			j["Parent"] = a->GetParent() ? a->GetParent()->GetId() : 0;
 			Json children = Json::array();
@@ -190,7 +191,7 @@ namespace rd
 		}
 		if (name == "get_actor")
 		{
-			return DescribeActor(scene, findActor("actor_id")).dump();
+			return DescribeActor(findActor("actor_id")).dump();
 		}
 		if (name == "list_component_types")
 		{
@@ -228,12 +229,12 @@ namespace rd
 			for (const auto& spec : input.value("components", Json::array())) { components.push_back(MakeComponentJson(spec)); }
 
 			Actor* actor = scene.CreateActor(input.value("name", std::string("Actor")), parent);
-			Json state = scene.SerializeActorState(actor);
+			Json state = SceneSerializer::SerializeActorState(actor);
 			ApplyTransform(state, input);
 			if (input.contains("tag")) { state["Tag"] = input.value("tag", ""); }
 			state["Components"] = components;
-			scene.ApplyActorState(actor, state);
-			host.PushCommand(ActorLifetimeCommand::Created("AI: Create " + actor->GetName(), scene, { actor }));
+			SceneSerializer::ApplyActorState(actor, state);
+			host.PushCommand(ActorLifetimeCommand::Created("AI: Create " + actor->GetName(), { actor }));
 			return Json{ { "created_id", actor->GetId() } }.dump();
 		}
 
@@ -255,7 +256,7 @@ namespace rd
 				}
 			}
 
-			Json before = scene.SerializeActorState(actor);
+			Json before = SceneSerializer::SerializeActorState(actor);
 			Json state = before;
 			if (input.contains("name")) { state["Name"] = input.value("name", ""); }
 			if (input.contains("active")) { state["Active"] = input.value("active", true); }
@@ -279,19 +280,19 @@ namespace rd
 			}
 			for (const auto& spec : input.value("add_components", Json::array())) { comps.push_back(MakeComponentJson(spec)); }
 
-			scene.ApplyActorState(actor, state);
-			Json after = scene.SerializeActorState(actor);
+			SceneSerializer::ApplyActorState(actor, state);
+			Json after = SceneSerializer::SerializeActorState(actor);
 			if (after != before)
 			{
 				host.PushCommand(std::make_unique<ActorStateCommand>("AI: Edit " + actor->GetName(), actor->GetId(), std::move(before), after));
 			}
-			return DescribeActor(scene, actor).dump();
+			return DescribeActor(actor).dump();
 		}
 
 		if (name == "delete_actor")
 		{
 			Actor* actor = findActor("actor_id");
-			auto command = ActorLifetimeCommand::Deleting("AI: Delete " + actor->GetName(), scene, { actor });
+			auto command = ActorLifetimeCommand::Deleting("AI: Delete " + actor->GetName(), { actor });
 			if (host.GetSelected() == actor || (host.GetSelected() && host.GetSelected()->IsDescendantOf(actor))) { host.Select(nullptr); }
 			actor->Destroy();
 			scene.FlushPendingDestroy();

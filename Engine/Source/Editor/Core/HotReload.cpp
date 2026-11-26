@@ -9,6 +9,7 @@
 #include "Runtime/GameModule.h"
 #include "Runtime/SceneManager.h"
 #include "Scene/Scene.h"
+#include "Scene/Serialization/SceneSerializer.h"
 
 namespace rd
 {
@@ -289,13 +290,13 @@ namespace rd
 		JobSystem::WaitIdle();
 		JobSystem::ExecuteMainThreadTasks();
 		Scene& scene = mEditor.GetScene();
-		Json snapshot = scene.Serialize();
+		Json snapshot = SceneSerializer::Serialize(scene);
 		std::string path = scene.GetPath();
 
 		if (!GameModule::Reload(error)) { return false; }
 
 		auto fresh = std::make_unique<Scene>();
-		fresh->Deserialize(snapshot);
+		SceneSerializer::Deserialize(*fresh, snapshot);
 		fresh->SetPath(path);
 		mEditor.GetEngine().GetSceneManager().SetScene(std::move(fresh));
 		mEditor.OnGameCodeReloaded();

@@ -4,6 +4,7 @@
 #include "Editor/Editor.h"
 #include "Engine.h"
 #include "Scene/Scene.h"
+#include "Scene/Serialization/SceneSerializer.h"
 
 namespace rd
 {
@@ -21,7 +22,7 @@ namespace rd
 	{
 		if (IsPlaying()) { return; }
 		const Scene& scene = mEditor.GetScene();
-		mSnapshot = scene.Serialize().dump();
+		mSnapshot = SceneSerializer::Serialize(scene).dump();
 		mSnapshotPath = scene.GetPath();
 		mEditor.GetEngine().GetPlayController().Start();
 		Logger::Info(LogCat::Core, "Play");
@@ -35,7 +36,7 @@ namespace rd
 		AudioSystem::Get().StopAll();
 		engine.GetPlayController().Stop();
 		auto scene = std::make_unique<Scene>();
-		scene->Deserialize(Json::parse(mSnapshot));
+		SceneSerializer::Deserialize(*scene, Json::parse(mSnapshot));
 		scene->SetPath(mSnapshotPath);
 		engine.GetSceneManager().SetScene(std::move(scene));
 		mEditor.SceneChanged(true);

@@ -4,6 +4,7 @@
 #include "Scene/Component/ComponentRegistry.h"
 #include "Core/Serialization/JsonReader.h"
 #include "Scene/Scene.h"
+#include "Scene/Serialization/SceneSerializer.h"
 #include <algorithm>
 #include <filesystem>
 
@@ -133,9 +134,9 @@ RD_TEST(Actor, SetComponentIndexReorders)
 	RD_CHECK_EQ(a->GetComponentIndex(c1), 2);
 
 	// 並べ替えは Undo 用の状態に残り、書き戻すと元の並びに戻る
-	Json before = scene.SerializeActorState(a);
+	Json before = SceneSerializer::SerializeActorState(a);
 	a->SetComponentIndex(c1, 0);
-	scene.ApplyActorState(a, before);
+	SceneSerializer::ApplyActorState(a, before);
 	RD_REQUIRE(a->GetAllComponents().size() == 3);
 	RD_CHECK(std::string(a->GetAllComponents()[2]->GetTypeName()) == "LateOnly");
 }
@@ -148,7 +149,7 @@ RD_TEST(Scene, PrefabRoundTrip)
 	root->GetTransform().SetPosition({ 1.0f, 2.0f, 3.0f });
 	root->AddComponent<Recorder>()->value = 5;
 	scene.CreateActor("Child", root)->AddComponent<Passive>();
-	RD_REQUIRE(Scene::SavePrefab(root, path));
+	RD_REQUIRE(SceneSerializer::SavePrefab(root, path));
 
 	Scene other;
 	Actor* a = other.Instantiate(path);
@@ -188,14 +189,14 @@ RD_TEST(Scene, SaveLoadRoundTrip)
 	p->target = target;
 	p->recorder = target->GetComponent<Recorder>();
 
-	Json json = scene.Serialize();
+	Json json = SceneSerializer::Serialize(scene);
 	// 列挙型は名前で、参照は { "$ref": id } で保存される
 	std::string text = json.dump();
 	RD_CHECK(text.find("\"Sleepy\"") != std::string::npos);
 	RD_CHECK(text.find("\"$ref\"") != std::string::npos);
 
 	Scene loaded;
-	RD_REQUIRE(loaded.Deserialize(json));
+	RD_REQUIRE(SceneSerializer::Deserialize(loaded, json));
 	RD_CHECK_EQ(loaded.GetActorCount(), size_t(3));
 	RD_CHECK_NEAR(loaded.GetGravity().y, -3.0f, 1.0e-6f);
 	Actor* h = loaded.FindActorByName("Holder");
@@ -275,8 +276,8 @@ RD_TEST(ObjectRef, DuplicateRemapsInternalRefs)
 	RD_CHECK(copyInner->GetComponent<AllProps>()->target.Get() == outside);// 外はそのまま
 
 	// プレハブとして読み込むときは、外への参照を外す
-	Json json = scene.SerializeActors({ root });
-	auto roots = scene.DeserializeActors(json, true, nullptr, false);
+	Json json = SceneSerializer::SerializeActors({ root });
+	auto roots = SceneSerializer::DeserializeActors(scene, json, true, nullptr, false);
 	RD_REQUIRE(roots.size() == 1);
 	Actor* prefabInner = roots[0]->FindChild("Inner");
 	RD_REQUIRE(prefabInner != nullptr);
@@ -303,7 +304,7 @@ RD_TEST(Scene, SiblingOrder)
 	Actor* y = scene.CreateActor("Y", b);
 	y->SetParent(b, true, 0);
 	Scene loaded;
-	loaded.Deserialize(scene.Serialize());
+	SceneSerializer::Deserialize(loaded, SceneSerializer::Serialize(scene));
 	const auto& roots = loaded.GetRootActors();
 	RD_REQUIRE(roots.size() == 4);
 	RD_CHECK_EQ(roots[0]->GetName(), std::string("C"));
@@ -321,12 +322,12 @@ RD_TEST(Scene, ActorStateApplyInPlaceAndRebuild)
 	Actor* a = scene.CreateActor("A");
 	auto* r = a->AddComponent<Recorder>();
 	r->log = &log;
-	Json before = scene.SerializeActorState(a);
+	Json before = SceneSerializer::SerializeActorState(a);
 
 	// 値だけの変更はその場で戻す（同じオブジェクトのまま、Awake / OnDestroy は呼ばない）
 	r->value = 99;
 	a->SetName("Renamed");
-	scene.ApplyActorState(a, before);
+	SceneSerializer::ApplyActorState(a, before);
 	RD_CHECK_EQ(a->GetName(), std::string("A"));
 	RD_CHECK(a->GetComponent<Recorder>() == r);
 	RD_CHECK_EQ(r->value, 0);
@@ -334,12 +335,12 @@ RD_TEST(Scene, ActorStateApplyInPlaceAndRebuild)
 
 	// コンポーネントを足したら作り直して戻す
 	a->AddComponent<Passive>();
-	Json after = scene.SerializeActorState(a);
-	scene.ApplyActorState(a, before);
+	Json after = SceneSerializer::SerializeActorState(a);
+	SceneSerializer::ApplyActorState(a, before);
 	RD_CHECK(a->GetComponent<Passive>() == nullptr);
 	RD_CHECK(a->GetComponent<Recorder>() != nullptr);
 	RD_CHECK(Contains(log, "A.OnDestroy.0"));
-	scene.ApplyActorState(a, after);
+	SceneSerializer::ApplyActorState(a, after);
 	RD_CHECK(a->GetComponent<Passive>() != nullptr);
 	RD_CHECK(scene.FindComponents<Recorder>().size() == 1);// 型ごとのリストも作り直されている
 }
