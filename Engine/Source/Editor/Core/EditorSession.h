@@ -43,11 +43,14 @@ namespace rd
 		std::string projectSelected;
 		float projectIconScale = 1.0f;
 
+		// 行動ツリーのパネルで開いていたファイル
+		std::string behaviorTree;
+
 		// パネルの開閉（キーはパネルの名前。ドッキングの配置は ImGui が別に保存している）
 		std::map<std::string, bool> panels;
 
-		// エディタの表示の言語（"ja" / "en"。EditorLocale）
-		std::string language = "ja";
+		// エディタの表示の言語（"en" / "ja"。EditorLocale。既定は英語）
+		std::string language = "en";
 
 		// ファイルがない・壊れているときは false を返し、中身は変えない
 		bool Load(const std::string& path);

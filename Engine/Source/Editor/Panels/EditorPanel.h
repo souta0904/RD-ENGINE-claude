@@ -25,6 +25,11 @@ namespace rd
 
 		virtual void Update(float /*dt*/) {}
 		void Draw();
+		// 次に描くときにウィンドウを前に出す
+		void RequestFocus() { mRequestFocus = true; mOpen = true; }
+		// 編集のショートカット（Ctrl+Z / Y / S / D / C / V・Delete）をこのパネルが受け持ったら true
+		//  （エディタはシーンの Undo などをしない。フォーカスのあるパネルだけが true を返す）
+		virtual bool HandleShortcuts() { return false; }
 		// ゲームのコードを読み直した（プレハブのプレビューなど、ゲームのコンポーネントを持つものを作り直す）
 		virtual void OnGameCodeReloaded() {}
 
@@ -34,11 +39,14 @@ namespace rd
 		// false ならウィンドウの余白をなくす（ビューポートなど）
 		virtual bool HasPadding() const { return true; }
 		virtual ImVec2 GetDefaultSize() const { return ImVec2(400.0f, 300.0f); }
+		// 初めて開いたときに同じ所へタブとして入れるウィンドウの名前（英語。nullptr なら浮かせる）
+		virtual const char* GetDefaultDockWindow() const { return nullptr; }
 
 		Editor& mEditor;
 
 	private:
 		const char* mTitle;
 		bool mOpen;
+		bool mRequestFocus = false;
 	};
 }

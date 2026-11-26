@@ -1,5 +1,6 @@
 #include "RdPch.h"
 #include "Runtime/GameModule.h"
+#include "AI/BehaviorTree/BehaviorTreeRegistry.h"
 #include "Core/Util/StringUtil.h"
 #include "Scene/Component/ComponentRegistry.h"
 
@@ -64,10 +65,13 @@ namespace rd
 		if (!IsLoaded()) { error = "No game module is loaded"; return false; }
 		// ゲームの型の登録をいったん外す。新しい DLL を読むと、その中の RD_REGISTER_COMPONENT が登録し直す。
 		//  消したクラスは登録されないまま残らない（そのコンポーネントはシーンを作り直すと Missing になる）
+		//  行動ツリーのノード（bt::Registry）も同じ
 		std::vector<ComponentRegistry::Entry> saved = ComponentRegistry::RemoveGameEntries();
+		bt::Registry::Saved savedNodes = bt::Registry::RemoveGameEntries();
 		if (!LoadCopy(sReloadCount + 2, error))
 		{
 			ComponentRegistry::RestoreEntries(std::move(saved));
+			bt::Registry::RestoreEntries(std::move(savedNodes));
 			return false;
 		}
 		++sReloadCount;

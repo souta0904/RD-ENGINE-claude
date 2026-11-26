@@ -2,6 +2,7 @@
 #include "Editor/Panels/EditorPanel.h"
 #include "Editor/Core/EditorLocale.h"
 #include "Editor/Style/EditorStyle.h"
+#include <ImGui/imgui_internal.h>
 
 namespace rd
 {
@@ -10,6 +11,16 @@ namespace rd
 		if (!mOpen) { return; }
 		if (!HasPadding()) { ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f)); }
 		ImGui::SetNextWindowSize(GetDefaultSize(), ImGuiCond_FirstUseEver);
+		if (const char* dockWith = GetDefaultDockWindow())
+		{
+			ImGuiWindow* target = ImGui::FindWindowByName(TrId(dockWith));
+			if (target && target->DockId != 0) { ImGui::SetNextWindowDockID(target->DockId, ImGuiCond_FirstUseEver); }
+		}
+		if (mRequestFocus)
+		{
+			ImGui::SetNextWindowFocus();
+			mRequestFocus = false;
+		}
 		// 見出しは訳、ID は英語の名前（言語を変えてもドッキングの配置が保たれる）
 		bool visible = ImGui::Begin(TrId(mTitle), &mOpen, GetWindowFlags());
 		if (!HasPadding()) { ImGui::PopStyleVar(); }

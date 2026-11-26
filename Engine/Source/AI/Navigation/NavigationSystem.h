@@ -11,13 +11,22 @@ namespace rd
 	class NavigationSystem final : public SceneSystem
 	{
 	public:
-		bool LoadSurface(const std::string& path)
+		// 同じパスは 1 回だけ読む（焼き直してファイルが変わったときは reload で読み直す）
+		bool LoadSurface(const std::string& path, bool reload = false)
 		{
-			if (path == mLoadedPath) { return !mMesh.IsEmpty(); }
+			if (path == mLoadedPath && !reload) { return !mMesh.IsEmpty(); }
 			mLoadedPath = path;
 			bool ok = mMesh.LoadJson(path);
 			mLinksDirty = true;
 			return ok;
+		}
+
+		// 形を捨てる（リンクは覚えたまま。次に形を読んだらつなぎ直す）
+		void ClearSurface()
+		{
+			mMesh.Clear();
+			mLoadedPath.clear();
+			mLinksDirty = true;
 		}
 
 		void SetLink(const void* owner, const NavMesh::Link& link)

@@ -22,7 +22,7 @@ namespace rd::EditorLocale
 
 		struct State
 		{
-			Language language = Language::Japanese;
+			Language language = Language::English;
 			bool loaded = false;
 			Table table;     // 英語 → 訳（読み込んだ JSON の中身）
 			Table resolved;  // Tr に渡された文字列 → 返す文字列（"##" の後ろを付け直したもの。言語ごとに作り直す）
@@ -117,7 +117,8 @@ namespace rd::EditorLocale
 
 	Language FromCode(std::string_view code)
 	{
-		return code == "en" ? Language::English : Language::Japanese;
+		// 知らない言葉の符号は英語（既定）にする
+		return code == "ja" ? Language::Japanese : Language::English;
 	}
 
 	void Reload()

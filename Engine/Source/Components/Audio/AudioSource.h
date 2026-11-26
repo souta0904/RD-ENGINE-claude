@@ -29,7 +29,7 @@ namespace rd
 		void Update(float dt) override;
 		void OnDestroy() override;
 #if RD_EDITOR
-		void OnInspectorGUI() override;
+		bool OnInspectorGUI() override;
 #endif
 
 		void Play();

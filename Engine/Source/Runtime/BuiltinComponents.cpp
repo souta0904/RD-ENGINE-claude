@@ -1,5 +1,6 @@
 #include "RdPch.h"
 #include "Runtime/BuiltinComponents.h"
+#include "Components/AI/BehaviorTreeAgent.h"
 #include "Components/Animation/Animator.h"
 #include "Components/Audio/AudioSource.h"
 #include "Components/Animation/AnimatorController.h"
@@ -47,6 +48,7 @@ namespace rd
 		ComponentRegistry::Register<NavMeshSurface>("Navigation");
 		ComponentRegistry::Register<NavMeshLink>("Navigation");
 		ComponentRegistry::Register<NavMeshAgent>("Navigation");
+		ComponentRegistry::Register<BehaviorTreeAgent>("AI");
 		ComponentRegistry::Register<Canvas>("UI");
 		ComponentRegistry::Register<CanvasGroup>("UI");
 		ComponentRegistry::Register<RectTransform>("UI");

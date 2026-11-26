@@ -1,4 +1,5 @@
 #pragma once
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <string>
@@ -22,15 +23,22 @@ namespace rd
 
 			Status Tick(float dt)
 			{
+				++mTickCount;
 				if (!mRunning)
 				{
 					mRunning = true;
 					Status s = OnStart();
 					if (s != Status::Running) { return Finish(s); }
+					mLastStatus = Status::Running;
 					return Status::Running;
 				}
 				Status s = OnUpdate(dt);
-				return s == Status::Running ? s : Finish(s);
+				if (s == Status::Running)
+				{
+					mLastStatus = s;
+					return s;
+				}
+				return Finish(s);
 			}
 
 			// 途中でやめる（動いていれば OnEnd を呼ぶ）
@@ -42,7 +50,12 @@ namespace rd
 			}
 
 			bool IsRunning() const { return mRunning; }
+			// 最後に返した結果と、Tick された回数（エディタで動いている様子を見せるのに使う）
+			Status GetLastStatus() const { return mLastStatus; }
+			uint64_t GetTickCount() const { return mTickCount; }
 			std::string name;
+			// アセットから作ったときの、アセットの中のノードの番号（0 ならアセットから作っていない）
+			uint32_t id = 0;
 
 		protected:
 			virtual Status OnStart() { return Status::Running; }
@@ -55,11 +68,14 @@ namespace rd
 			Status Finish(Status s)
 			{
 				mRunning = false;
+				mLastStatus = s;
 				OnEnd();
 				return s;
 			}
 
 			bool mRunning = false;
+			Status mLastStatus = Status::Failure;
+			uint64_t mTickCount = 0;
 		};
 
 		using NodePtr = std::unique_ptr<Node>;

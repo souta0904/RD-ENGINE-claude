@@ -302,7 +302,7 @@ namespace rd
 
 		// アセットのパスはプロジェクトパネルからドラッグして入れられる
 		constexpr uint32_t kAssetFlags = PropertyMeta::AssetTexture | PropertyMeta::AssetModel | PropertyMeta::AssetAudio |
-			PropertyMeta::AssetPrefab | PropertyMeta::AssetScene;
+			PropertyMeta::AssetPrefab | PropertyMeta::AssetScene | PropertyMeta::AssetBehaviorTree;
 		if ((meta.flags & kAssetFlags) && ImGui::BeginDragDropTarget())
 		{
 			if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("ASSET_PATH"))

@@ -204,6 +204,24 @@ namespace rd
 			list.push_back({ t, a, b, std::min(a.x, b.x), std::max(a.x, b.x), std::min(a.z, b.z), std::max(a.z, b.z) });
 		}
 
+		// 辺を上から見たマス目に振り分け、同じマスにある辺どうしだけを比べる（焼いたメッシュは辺が多い）
+		constexpr float kBucketSize = 2.0f;
+		std::unordered_map<int64_t, std::vector<uint32_t>> buckets;
+		auto forEachCell = [&](const OpenEdge& e, auto&& func)
+		{
+			int x0 = int(std::floor((e.minX - kLineTolerance) / kBucketSize)), x1 = int(std::floor((e.maxX + kLineTolerance) / kBucketSize));
+			int z0 = int(std::floor((e.minZ - kLineTolerance) / kBucketSize)), z1 = int(std::floor((e.maxZ + kLineTolerance) / kBucketSize));
+			for (int x = x0; x <= x1; ++x)
+			{
+				for (int z = z0; z <= z1; ++z) { func(CellKey(x, z)); }
+			}
+		};
+		for (size_t i = 0; i < list.size(); ++i)
+		{
+			forEachCell(list[i], [&](int64_t key) { buckets[key].push_back(uint32_t(i)); });
+		}
+		std::vector<uint32_t> checked(list.size(), UINT32_MAX); // checked[j] == i なら、i と j はもう比べた
+
 		for (size_t i = 0; i < list.size(); ++i)
 		{
 			const OpenEdge& e1 = list[i];
@@ -212,7 +230,18 @@ namespace rd
 			if (len < 1.0e-4f) { continue; }
 			float dx = d.x / len, dz = d.z / len;
 
-			for (size_t j = i + 1; j < list.size(); ++j)
+			std::vector<uint32_t> candidates;
+			forEachCell(e1, [&](int64_t key)
+			{
+				for (uint32_t j : buckets[key])
+				{
+					if (j <= i || checked[j] == uint32_t(i)) { continue; }
+					checked[j] = uint32_t(i);
+					candidates.push_back(j);
+				}
+			});
+			std::sort(candidates.begin(), candidates.end());
+			for (uint32_t j : candidates)
 			{
 				const OpenEdge& e2 = list[j];
 				if (e2.tri == e1.tri) { continue; }

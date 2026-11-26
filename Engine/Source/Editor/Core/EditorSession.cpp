@@ -64,6 +64,7 @@ namespace rd
 		for (const auto& [name, open] : panels) { panelsJson[name] = open; }
 		json["Panels"] = std::move(panelsJson);
 		json["Language"] = language;
+		json["Behavior Tree"] = behaviorTree;
 		return json;
 	}
 
@@ -113,6 +114,7 @@ namespace rd
 			for (const auto& [name, open] : it->items()) { panels[name] = open.get<bool>(); }
 		}
 		language = json.value("Language", language);
+		behaviorTree = json.value("Behavior Tree", behaviorTree);
 	}
 
 	std::string EditorSession::GetDefaultPath()

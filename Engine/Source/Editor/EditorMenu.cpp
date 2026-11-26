@@ -284,13 +284,22 @@ namespace rd
 		bool alt = io.KeyAlt;
 		auto pressed = [](ImGuiKey key) { return ImGui::IsKeyPressed(key, false); };
 
-		if (ctrl && pressed(ImGuiKey_Z)) { Undo(); }
-		if (ctrl && pressed(ImGuiKey_Y)) { Redo(); }
-		if (ctrl && pressed(ImGuiKey_S)) { SaveScene(shift); }
+		// フォーカスのあるパネル（行動ツリーなど）が編集のショートカットを受け持つなら、シーンには効かせない
+		bool panelEdit = false;
+		for (auto& panel : mPanels)
+		{
+			if (panel->IsOpen() && panel->HandleShortcuts()) { panelEdit = true; }
+		}
+		if (!panelEdit)
+		{
+			if (ctrl && pressed(ImGuiKey_Z)) { Undo(); }
+			if (ctrl && pressed(ImGuiKey_Y)) { Redo(); }
+			if (ctrl && pressed(ImGuiKey_S)) { SaveScene(shift); }
+			if (ctrl && pressed(ImGuiKey_D)) { Defer([this] { DuplicateSelected(); }); }
+			if (ctrl && pressed(ImGuiKey_C)) { CopySelected(); }
+			if (ctrl && pressed(ImGuiKey_V)) { Defer([this] { PasteClipboard(); }); }
+		}
 		if (ctrl && pressed(ImGuiKey_O)) { OpenScene(); }
-		if (ctrl && pressed(ImGuiKey_D)) { Defer([this] { DuplicateSelected(); }); }
-		if (ctrl && pressed(ImGuiKey_C)) { CopySelected(); }
-		if (ctrl && pressed(ImGuiKey_V)) { Defer([this] { PasteClipboard(); }); }
 		if (ctrl && !shift && pressed(ImGuiKey_R)) { Renderer::Get().ReloadShaders(); }
 		if (ctrl && pressed(ImGuiKey_P))
 		{
@@ -301,7 +310,7 @@ namespace rd
 		if (ctrl && alt && pressed(ImGuiKey_F11)) { mHotReload->Compile(); }
 		if (pressed(ImGuiKey_F9)) { mProfiler->SetOpen(!mProfiler->IsOpen()); }
 		if (pressed(ImGuiKey_F8)) { mAssistant->SetOpen(!mAssistant->IsOpen()); }
-		if (pressed(ImGuiKey_Delete) && ImGui::IsWindowFocused(ImGuiFocusedFlags_AnyWindow)) { Defer([this] { DeleteSelected(); }); }
+		if (!panelEdit && pressed(ImGuiKey_Delete) && ImGui::IsWindowFocused(ImGuiFocusedFlags_AnyWindow)) { Defer([this] { DeleteSelected(); }); }
 
 		SceneViewPanel& view = *mSceneView;
 		if (!view.GetCamera().IsControlling() && !ctrl && (view.IsFocused() || view.IsHovered()))

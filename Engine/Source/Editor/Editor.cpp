@@ -6,6 +6,7 @@
 #include "Editor/Core/EditorLocale.h"
 #include "Editor/Core/EditorSession.h"
 #include "Editor/Core/HotReload.h"
+#include "Editor/Panels/BehaviorTreePanel.h"
 #include "Editor/Panels/GameViewPanel.h"
 #include "Editor/Panels/LogPanel.h"
 #include "Editor/Panels/HierarchyPanel.h"
@@ -67,10 +68,16 @@ namespace rd
 		AddPanel(std::make_unique<StatsPanel>(*this));
 		mProfiler = AddPanel(std::make_unique<ProfilerPanel>(*this));
 		mAssistant = AddPanel(std::make_unique<AIAssistant>(*this));
+		mBehaviorTree = AddPanel(std::make_unique<BehaviorTreePanel>(*this));
 		mHotReload = std::make_unique<HotReload>(*this);
 	}
 
 	Editor::~Editor() = default;
+
+	void Editor::OpenBehaviorTree(const std::string& path)
+	{
+		mBehaviorTree->Open(path);
+	}
 
 	void Editor::Initialize()
 	{
@@ -150,6 +157,7 @@ namespace rd
 		session.projectIconScale = mProject->GetIconScale();
 
 		for (const auto& panel : mPanels) { session.panels[panel->GetTitle()] = panel->IsOpen(); }
+		session.behaviorTree = mBehaviorTree->GetPath();
 		session.language = EditorLocale::GetLanguageCode(EditorLocale::GetLanguage());
 	}
 
@@ -159,6 +167,13 @@ namespace rd
 		for (auto& panel : mPanels)
 		{
 			if (auto it = session.panels.find(panel->GetTitle()); it != session.panels.end()) { panel->SetOpen(it->second); }
+		}
+		std::error_code treeError;
+		if (!session.behaviorTree.empty() && std::filesystem::exists(ToWide(session.behaviorTree), treeError))
+		{
+			bool open = mBehaviorTree->IsOpen();
+			mBehaviorTree->Open(session.behaviorTree);
+			mBehaviorTree->SetOpen(open);
 		}
 
 		mSceneView->SetGizmoOp(SceneViewPanel::GizmoOp(session.gizmoOp));

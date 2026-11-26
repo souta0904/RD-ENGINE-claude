@@ -36,7 +36,7 @@ namespace rd
 		void LateUpdate(float dt) override;
 		void OnEditorUpdate(float dt) override;
 #if RD_EDITOR
-		void OnInspectorGUI() override;
+		bool OnInspectorGUI() override;
 #endif
 
 		// fade 秒かけて今のクリップから切り替える（restart なら同じクリップでも最初から）

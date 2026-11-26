@@ -292,10 +292,10 @@ namespace rd
 	}
 
 #if RD_EDITOR
-	void Animator::OnInspectorGUI()
+	bool Animator::OnInspectorGUI()
 	{
 		auto names = GetClipNames();
-		if (names.empty()) { return; }
+		if (names.empty()) { return false; }
 		if (ImGui::BeginCombo("Select Clip", clip.empty() ? names.front().c_str() : clip.c_str()))
 		{
 			for (auto& n : names)
@@ -309,6 +309,7 @@ namespace rd
 			ImGui::EndCombo();
 		}
 		ImGui::ProgressBar(GetNormalizedTime(), ImVec2(-1, 0), std::format("{:.2f}s", mTime).c_str());
+		return false;
 	}
 #endif
 }

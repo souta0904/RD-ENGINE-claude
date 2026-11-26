@@ -263,13 +263,14 @@ namespace rd
 		}
 	}
 
-	void ParticleSystem::OnInspectorGUI()
+	bool ParticleSystem::OnInspectorGUI()
 	{
 		if (ImGui::Button(mPlaying ? "Stop" : "Play")) { mPlaying ? Stop() : Play(); }
 		ImGui::SameLine();
 		if (ImGui::Button("Clear")) { Stop(true); }
 		ImGui::SameLine();
 		ImGui::Text("Alive: %u", GetAliveCount());
+		return false;
 	}
 #endif
 }

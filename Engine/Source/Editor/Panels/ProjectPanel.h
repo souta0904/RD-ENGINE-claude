@@ -54,6 +54,7 @@ namespace rd
 		void CreateFolder();
 		void CreateMaterial();
 		void CreateShader();
+		void CreateBehaviorTree();
 		void BeginRename(const Entry& e);
 		// 直前に描いた項目の上にファイルが落とされていたら、そのフォルダを取り込み先にする
 		void CheckFileDropTarget(const std::string& folder);

@@ -130,7 +130,7 @@ namespace rd
 					ImGui::PopStyleColor();
 				}
 				c->Reflect(inspector);
-				c->OnInspectorGUI();
+				commit |= c->OnInspectorGUI();
 				ImGui::Unindent(4.0f);
 				if (inspector.AnyChanged()) { c->OnValidate(); }
 				commit |= inspector.AnyCommitted();

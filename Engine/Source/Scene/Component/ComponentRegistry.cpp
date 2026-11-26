@@ -60,6 +60,11 @@ namespace rd
 		return Entries();
 	}
 
+	int ComponentRegistry::GetLoadingModule()
+	{
+		return sLoadingModule;
+	}
+
 	void ComponentRegistry::SetLoadingModule(int module)
 	{
 		sLoadingModule = module;

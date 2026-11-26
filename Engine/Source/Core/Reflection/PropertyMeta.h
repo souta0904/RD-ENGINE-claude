@@ -25,6 +25,7 @@ namespace rd
 			Multiline = 1 << 8,    // 文字列を複数行で入力する
 			AssetMaterial = 1 << 9,
 			AssetShader = 1 << 10,
+			AssetBehaviorTree = 1 << 11,
 		};
 		float speed = 0.05f;          // ドラッグしたときの値の変わる速さ
 		float min = 0.0f;             // 値の範囲（min == max なら範囲なし）

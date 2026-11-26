@@ -1,5 +1,6 @@
 #include "RdPch.h"
 #include "Editor/Panels/ProjectPanel.h"
+#include "AI/BehaviorTree/BehaviorTreeAsset.h"
 #include "Asset/AssetManager.h"
 #include "Asset/Model/Model.h"
 #include "Asset/Texture/Texture.h"
@@ -111,6 +112,7 @@ namespace rd
 			if (ImGui::MenuItem(Tr("Folder"))) { CreateFolder(); }
 			if (ImGui::MenuItem(Tr("Material"))) { CreateMaterial(); }
 			if (ImGui::MenuItem(Tr("Shader"))) { CreateShader(); }
+			if (ImGui::MenuItem(Tr("Behavior Tree"))) { CreateBehaviorTree(); }
 			if (ImGui::MenuItem(Tr("Prefab from Selection"), nullptr, false, mEditor.GetSelected() != nullptr))
 			{
 				mPrefabActor = mEditor.GetSelectedId();
@@ -323,6 +325,7 @@ namespace rd
 		if (ImGui::MenuItem(Tr("Create Folder"))) { CreateFolder(); }
 		if (ImGui::MenuItem(Tr("Create Material"))) { CreateMaterial(); }
 		if (ImGui::MenuItem(Tr("Create Shader"))) { CreateShader(); }
+		if (ImGui::MenuItem(Tr("Create Behavior Tree"))) { CreateBehaviorTree(); }
 		if (ImGui::MenuItem(Tr("Create Prefab from Selection"), nullptr, false, mEditor.GetSelected() != nullptr))
 		{
 			mPrefabActor = mEditor.GetSelectedId();
@@ -341,6 +344,7 @@ namespace rd
 			mSelected.clear();
 		}
 		else if (e.ext == ".scene") { mEditor.OpenScene(e.path); }
+		else if (e.ext == bt::TreeAsset::kExtension) { mSelected = e.path; mEditor.OpenBehaviorTree(e.path); }
 		// シェーダーはエディタの中では書けないので、Windows で決めてあるアプリで開く（Unity と同じ）
 		else if (e.ext == ".hlsl" || e.ext == ".hlsli") { mSelected = e.path; FileDialog::OpenWithDefaultApp(e.path); }
 		else { mSelected = e.path; mEditor.Select(nullptr); }
@@ -366,6 +370,19 @@ namespace rd
 		mSelected = path;
 		mEditor.Select(nullptr);
 		BeginRename({ GetFileName(path), path, MaterialAsset::kExtension, false });
+	}
+
+	// 今のフォルダに Root だけの "New Behavior Tree.rdbt" を作り、名前の変更を始める
+	void ProjectPanel::CreateBehaviorTree()
+	{
+		const char* ext = bt::TreeAsset::kExtension;
+		std::string path = std::format("{}/New Behavior Tree{}", mFolder, ext);
+		for (int n = 1; fs::exists(ToWide(path)); ++n) { path = std::format("{}/New Behavior Tree {}{}", mFolder, n, ext); }
+		if (!bt::TreeAsset::CreateFile(path)) { return; }
+		Logger::Info(LogCat::Editor, "Created behavior tree: {}", path);
+		mSelected = path;
+		mEditor.Select(nullptr);
+		BeginRename({ GetFileName(path), path, ext, false });
 	}
 
 	// 今のフォルダにサーフェスシェーダーの雛形 "New Shader.hlsl" を作る（Unity の Create > Shader）

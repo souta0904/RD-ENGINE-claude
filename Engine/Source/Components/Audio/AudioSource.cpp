@@ -139,11 +139,12 @@ namespace rd
 	}
 
 #if RD_EDITOR
-	void AudioSource::OnInspectorGUI()
+	bool AudioSource::OnInspectorGUI()
 	{
 		if (ImGui::Button("Preview")) { Play(); }
 		ImGui::SameLine();
 		if (ImGui::Button("Stop")) { Stop(); }
+		return false;
 	}
 #endif
 }

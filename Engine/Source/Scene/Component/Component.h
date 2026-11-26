@@ -58,7 +58,8 @@ private:
 		virtual void OnRender(RenderList& /*list*/) {}
 #if RD_EDITOR
 		virtual void OnDrawGizmos(DebugDraw& /*draw*/, bool /*selected*/) {}
-		virtual void OnInspectorGUI() {}
+		// 保存する値を変えたら true を返す（Undo に積み、シーンを「変更あり」にする）
+		virtual bool OnInspectorGUI() { return false; }
 #endif
 
 		virtual void OnCollisionEnter(const Collision& /*c*/) {}

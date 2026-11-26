@@ -38,6 +38,8 @@ namespace rd
 
 		// これから Add されるものに付ける、モジュールの番号（GameModule が DLL を読む前後に設定する）
 		static void SetLoadingModule(int module);
+		// 今読み込み中のモジュールの番号（ほかの一覧（行動ツリーのノードなど）も同じ番号で見分ける）
+		static int GetLoadingModule();
 		// ゲームのモジュール（番号が 0 でないもの）の登録を外して返す
 		static std::vector<Entry> RemoveGameEntries();
 		// RemoveGameEntries で外したものを戻す（新しい DLL を読めなかったとき）

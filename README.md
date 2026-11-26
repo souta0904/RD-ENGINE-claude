@@ -33,7 +33,7 @@ DirectX 12 で動く自作のゲームエンジンです。Unity と同じ考え
 Bin\Debug\Tests.exe            すべて
 Bin\Debug\Tests.exe Scene      名前に "Scene" を含むものだけ
 ```
-数学・幾何、JSON とリフレクション、シーンの更新順とコンポーネントのリスト、参照（ActorRef）、Undo/Redo、物理の形状、JobSystem、音声の読み込み、クラッシュハンドラ（自分自身をわざと落として調べる）、.rdmodel の読み書き、シェーダーとマテリアルのアセット、エディタの言語と状態の保存、NavMesh のギズモ、ホットリロード（コンポーネントの登録の入れ替えと Missing Component）、AI アシスタント（ツールと LLM ごとの変換）を確かめます。
+数学・幾何、JSON とリフレクション、シーンの更新順とコンポーネントのリスト、参照（ActorRef）、Undo/Redo、物理の形状、JobSystem、音声の読み込み、クラッシュハンドラ（自分自身をわざと落として調べる）、.rdmodel の読み書き、シェーダーとマテリアルのアセット、エディタの言語と状態の保存、NavMesh のギズモと焼き（床・壁・段差・天井）、ホットリロード（コンポーネントの登録の入れ替えと Missing Component）、AI アシスタント（ツールと LLM ごとの変換）を確かめます。
 
 ### コマンドライン
 
@@ -59,7 +59,7 @@ claude/
 │  ├─ Common.props          全プロジェクト共通の設定（出力先・C++20・構成ごとの定義・RD_API）
 │  ├─ EngineLink.props      エンジンが使うライブラリのリンクと DXC のコピー
 │  └─ GameModule.props      ゲームのプロジェクト共通の設定（DLL / exe の切り替え・F5 の起動・PDB の名前）
-├─ External/                 ImGui(docking) / ImGuizmo / DirectXTex / assimp 6.0 / nlohmann-json / magic_enum / stb_truetype
+├─ External/                 ImGui(docking) / ImGuizmo / imgui-node-editor / DirectXTex / assimp 6.0 / nlohmann-json / magic_enum / stb_truetype
 │  └─ ThirdParty.vcxproj     ImGui と DirectXTex をまとめた静的ライブラリ
 ├─ Engine/                   エンジン本体（Debug / Release では RdEngine.dll、Game では静的ライブラリ）
 │  └─ Source/
@@ -192,9 +192,13 @@ RD_GPU_SCOPE("Shadow");              // CPU と GPU（タイムスタンプ）�
 fbx / glTF / obj などを Project パネルへドロップすると、描画とアニメーションに使うものだけを圧縮したエンジン独自の `.rdmodel` に変換して取り込む（ワーカースレッドで変換するのでエディタは止まらない）。解析がいらないので読み込みが速い。法線は八面体の符号化、ウェイトや関節の番号は 16 ビットにして小さくしている。元のファイルは assimp でそのまま読むこともできる。
 
 ### AI とナビゲーション
-- `NavMesh`: 書き出した三角形を読み、辺を共有する三角形とタイルの境目で一部が重なる辺をつなぐ。A* と funnel で曲がり角を求め、リンク（跳んで渡る道）にも対応する
-- `NavMeshSurface` / `NavMeshLink` / `NavMeshAgent`: Unity と同じ使い方のコンポーネント。エージェントはリンクの入口で止まり、`CompleteOffMeshLink` で続きを歩く
-- `bt::`（行動ツリー）: Sequence / Selector / Guard / Branch / Switch / Repeat の小さな行動ツリーを C++ で組み立てる
+- `NavMeshBuilder`: シーンのメッシュからナビメッシュを焼く（Recast と同じく、ボクセルに塗る → 段差と天井で絞る → エージェントの半径で縁を削る → 平面に乗る範囲を四角形にまとめる。256 マス四方のタイルに分けて並べて焼く）
+- `NavMesh`: 焼いた（または Unity から書き出した）三角形を読み、辺を共有する三角形とタイルの境目で一部が重なる辺をつなぐ。A* と funnel で曲がり角を求め、リンク（跳んで渡る道）にも対応する
+- `NavMeshSurface` / `NavMeshLink` / `NavMeshAgent`: Unity と同じ使い方のコンポーネント。Surface のインスペクタの「焼く」で、エージェントの設定どおりに焼いてシーンの隣の `<シーン名>/NavMesh-<アクター名>.json` に保存する。エージェントはリンクの入口で止まり、`CompleteOffMeshLink` で続きを歩く
+- `bt::`（行動ツリー）: Sequence / Selector / Guard / Branch / Switch / Repeat / Inverter と、Check・Wait・Log などの組み込みのノード
+  - ツリーの形はアセット `.rdbt`（JSON）に置き、エディタの「行動ツリー」パネル（thedmd/imgui-node-editor）でノードをつないで組む。プロジェクトパネルの 作成 > 行動ツリー で作り、ダブルクリックで開く
+  - ゲームの行動・条件・Switch の値は `bt::Registry::RegisterAction / RegisterCondition / RegisterSelector` で登録する（ゲームのコードを読み直すと登録し直される）。登録した行動はパネルの作成メニューに出る
+  - `BehaviorTreeAgent` コンポーネントの Tree にアセットを入れると動く。プレイ中は、選んでいるアクターのツリーの動いているノードがパネルで黄色の枠になる（成功は緑、失敗は赤が少しの間）
 
 ### UI
 画面に重ねる UI（Unity の Canvas の Screen Space - Overlay にあたる）。
@@ -204,7 +208,7 @@ fbx / glTF / obj などを Project パネルへドロップすると、描画と
 - UI はゲームの画面（Game ビューと `-noeditor`）にだけ描く
 
 ### エディタの表示の言語と状態の保存
-- Window → Language で英語 / 日本語を切り替える。コードの文字列は英語で書き、`Tr("Save")` を通すと訳になる。訳の表は `Assets/Engine/Localization/ja.json`（エンジン）と `Assets/<ゲーム>/Localization/ja.json`（ゲームのコンポーネントの項目名など）。表にない言葉は英語のまま出る
+- Window → Language で英語 / 日本語を切り替える（既定は英語。選んだ言語は次の起動でも使う）。コードの文字列は英語で書き、`Tr("Save")` を通すと訳になる。訳の表は `Assets/Engine/Localization/ja.json`（エンジン）と `Assets/<ゲーム>/Localization/ja.json`（ゲームのコンポーネントの項目名など）。表にない言葉は英語のまま出る
 - 終了時に、ウィンドウの位置・開いていたシーン・選んでいたアクター・シーンビューのカメラと表示を `UserSettings/EditorSession_<exe 名>.json` に保存し、次の起動で戻す
 - パネルの配置は `Logs/editor_layout.ini`。崩れたときは Window → Reset Layout で初期配置に戻る
 
@@ -239,7 +243,7 @@ LLM に頼んでシーンを編集する。「赤い箱を 5 個、半径 3m の
 | 描画 | PBR（GGX）、Flat の陰影、Triplanar、自作のサーフェスシェーダー、カスケードシャドウ（最大 4 段・PCF・テクセルスナップ・遠くで薄くする・色分け表示）、点光源 / スポットライト最大 32 / 16 灯（頂点ごとの計算・物ごとの数の制限も可）、法線マップ、空のグラデーション + 太陽、3 色の環境光（空・地平線・地面）、フォグ、HDR + ブルーム、トーンマップ（ACES / Neutral）、露出・コントラスト・彩度、ビネット、レトロ表示（低解像度 + ディザ）、アウトライン（壁越しに見える縁取り）、視錐台カリング、インスタンシングのパーティクル、スプライトのバッチ描画、半透明の三角形、別の描画先への描画（プレビュー・2 つのビュー） |
 | アニメーション | ジョブで並列に姿勢計算、クロスフェード、別ファイルのアニメーション流用（単位の違いを自動補正）、AnimatorController（Unity の状態遷移を JSON から動かす）、骨と同じ名前のアクターを動かす、関節の回転の上乗せ（首を向けるなど） |
 | 物理 | 剛体（質量・慣性・重力・抵抗）、球 / 箱 / カプセル / メッシュ（BVH）の衝突、動く物体のメッシュは凸包として当たる（分離軸判定）、スイープ&プルーンの広域判定、逐次インパルス法（反発・摩擦）、Enter / Stay / Exit イベント、トリガー、レイキャスト・重なりの問い合わせ、レイヤー、CharacterController（坂・段差・壁に沿って滑る） |
-| AI | NavMesh（A* + funnel・リンク）、NavMeshAgent、行動ツリー |
+| AI | NavMesh（焼き・A* + funnel・リンク）、NavMeshAgent、行動ツリー（ノードエディタで組むアセット・プレイ中の表示） |
 | UI | Canvas・RectTransform・UIImage（Sliced / Filled）・UIText（日本語・リッチテキスト・縁取り） |
 | オーディオ | BGM / SE のバス音量、ループ、ピッチ、距離減衰とパンによる 3D 定位、WAV に加えて MP3 / AAC(m4a) / FLAC / WMA（Windows の Media Foundation で展開） |
 | エディタ | ゲームのコードのホットリロード（Compile / Ctrl+Alt+F11）、ドッキング UI、Scene と Game の 2 つのビュー（並べると両方映る）、Undo/Redo、移動 / 回転 / 拡縮ギズモ（Ctrl でスナップ）、クリック選択、階層のドラッグ&ドロップで親子付け、アセットブラウザからのドラッグ&ドロップ、エクスプローラーからのファイルの取り込み、コンポーネント追加メニュー（検索付き）、プレイ / 一時停止 / ステップ / 停止（停止で元に戻る。プレイ中にゲームが場面を切り替えても続く）、アクターのコピー&貼り付け・名前の変更、コンポーネントの並び替え・値のコピー&貼り付け、プレハブの作成と配置、Project パネル（フォルダ・マテリアル・シェーダーの作成、名前変更、ごみ箱へ削除、ドラッグで移動、モデルのサムネイル）、テクスチャとモデルのプレビュー（回転・拡大・クリップの再生）、Log パネル（レベルごとの件数・まとめ表示・プレイ時に消去）、NavMesh と物理の表示、日本語表示、終了時の状態の保存、保存していない変更の確認、統計、シェーダーのホットリロード（Ctrl+R） |
@@ -325,7 +329,7 @@ RD_GAME_MAIN(ConfigureGame)
 - 旧版のレベルファイル（`.rdlv`）と互換はない（型を番号で保存していたため）
 - 影を落とすのは最初の平行光源 1 つだけ（点光源・スポットライトの影はない）
 - 動く物体のメッシュコライダーは凸包として当たる（凹んだ形は凹みが埋まる。Unity の Convex と同じ）。凸包でないメッシュ同士は頂点の食い込みで調べるので、辺と辺だけの交差は拾えない
-- NavMesh はエンジンの中で焼かない（Unity などで作った三角形を読み込む）
+- NavMesh を焼くのは MeshRenderer の三角形だけ（コライダー・NavMeshModifier・区画ごとの塗り分けは未対応）。面は四角形の集まりなので、Unity より三角形が多い
 - UIImage の円形の塗りと Tiled の繰り返しは未対応
 - 音声は Ogg Vorbis に未対応（Windows 標準では読めないため）
 - ゲームのコードの読み直しはプレイ中にはしない（止めたときに読み直す）。エンジンのコードは読み直せない（エディタの再起動が必要）

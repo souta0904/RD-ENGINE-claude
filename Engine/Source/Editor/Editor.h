@@ -13,6 +13,7 @@
 namespace rd
 {
 	class AIAssistant;
+	class BehaviorTreePanel;
 	struct EditorSession;
 	class LogPanel;
 	class EditorPanel;
@@ -111,6 +112,9 @@ namespace rd
 		void TogglePause();
 		void StepFrame();
 
+		// 行動ツリー（.rdbt）をパネルで開く
+		void OpenBehaviorTree(const std::string& path);
+
 		SceneViewPanel& GetSceneView() { return *mSceneView; }
 		HierarchyPanel& GetHierarchy() { return *mHierarchy; }
 		ProjectPanel& GetProject() { return *mProject; }
@@ -167,6 +171,7 @@ namespace rd
 		LogPanel* mLog = nullptr;
 		AIAssistant* mAssistant = nullptr;
 		ProfilerPanel* mProfiler = nullptr;
+		BehaviorTreePanel* mBehaviorTree = nullptr;
 		std::unique_ptr<HotReload> mHotReload;
 
 		bool mFirstLayout = true;
