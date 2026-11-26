@@ -33,7 +33,7 @@ DirectX 12 で動く自作のゲームエンジンです。Unity と同じ考え
 Bin\Debug\Tests.exe            すべて
 Bin\Debug\Tests.exe Scene      名前に "Scene" を含むものだけ
 ```
-数学・幾何、JSON とリフレクション、シーンの更新順とコンポーネントのリスト、参照（ActorRef）、Undo/Redo、物理の形状、JobSystem、音声の読み込み、クラッシュハンドラ（自分自身をわざと落として調べる）、.rdmodel の読み書き、シェーダーとマテリアルのアセット、エディタの言語と状態の保存、NavMesh のギズモと焼き（床・壁・段差・天井）、ホットリロード（コンポーネントの登録の入れ替えと Missing Component）、AI アシスタント（ツールと LLM ごとの変換）を確かめます。
+数学・幾何、JSON とリフレクション、シーンの更新順とコンポーネントのリスト、参照（ActorRef）、Undo/Redo、物理の形状、JobSystem、音声の読み込み、クラッシュハンドラ（自分自身をわざと落として調べる）、.rdmodel の読み書き、シェーダーとマテリアルのアセット、エディタの言語と状態の保存、NavMesh のギズモと焼き（床・壁・段差・天井）、行動ツリーのアセット（保存と読み込み・組み立て・子の並び）、レンダーグラフ（飛ばすパス・テクスチャの使い回し・状態）、UDP の通信（自分宛てに送って受け取る・中身の詰め方）、ホットリロード（コンポーネントの登録の入れ替えと Missing Component）、AI アシスタント（ツールと LLM ごとの変換）を確かめます。GPU を使うもの（レンダーグラフの実行など）は、`-capture` で撮った画面で確かめます。
 
 ### コマンドライン
 
@@ -46,8 +46,10 @@ Bin\Debug\Tests.exe Scene      名前に "Scene" を含むものだけ
 | `-capture <frame> [path]` | 指定フレームの画面を PNG に保存して終了（自動テスト用） |
 | `-profile <frames> [path]` | 起動から指定フレーム分の計測を保存（既定 `Logs/Profile.json`） |
 | `-loglevel <level>` | trace / debug / info / warn / error |
+| `-logfile <name>` | ログのファイル名を変える（同じ PC で 2 つ動かして通信を試すときなど） |
 | `-fullscreen` / `-windowed` | 全画面 / ウィンドウ（実行中は F11 か Alt+Enter で切り替え） |
 | `-nocrashdialog` | 落ちたときのダイアログを出さない（レポートとダンプは残す） |
+| `-renderpath forward\|deferred` | 描き方をフォワード / ディファードで始める（既定はフォワード） |
 | `-novsync` | 垂直同期オフ |
 
 ## フォルダ構成
@@ -65,10 +67,10 @@ claude/
 │  └─ Source/
 │     ├─ Core/        ログ・クラッシュハンドラ・プロファイラ・アサート・JobSystem・リフレクション・JSON・時間・文字列とファイル
 │     ├─ Math/        ベクトル・行列・クォータニオン・色・乱数・幾何（AABB / Ray / Plane / Frustum / 交差判定）
-│     ├─ Platform/    ウィンドウ・入力（キーボード / マウス / XInput・カーソル固定）・HTTPS 通信（WinHTTP）
+│     ├─ Platform/    ウィンドウ・入力（キーボード / マウス / XInput・カーソル固定）・HTTPS 通信（WinHTTP）・UDP 通信
 │     ├─ RHI/         D3D12 デバイス・デスクリプタ・テクスチャ・パイプライン・シェーダーコンパイラ
 │     ├─ Asset/       非同期アセット管理・テクスチャ・モデル（assimp と .rdmodel）・アニメーション・音声のデコード
-│     ├─ Render/      レンダラー・描画リスト・カメラ・環境設定・マテリアル（.rdmat）と自作シェーダー（.hlsl）・デバッグ線
+│     ├─ Render/      レンダラー・レンダーグラフ・描画リスト・カメラ・環境設定・マテリアル（.rdmat）と自作シェーダー（.hlsl）・デバッグ線
 │     ├─ Audio/       XAudio2
 │     ├─ Scene/       Actor・Component・Transform・Scene・参照（ActorRef / ComponentRef）・SceneSystem
 │     ├─ AI/          NavMesh と経路探索（NavigationSystem）・行動ツリー（BehaviorTree）
@@ -76,7 +78,7 @@ claude/
 │     ├─ Physics/     コライダー・剛体・CharacterController・物理ワールド（SceneSystem として動く）
 │     ├─ Runtime/     シーン切替・プレイ状態・フレームの組み立て・画面の保存・組み込みコンポーネント登録・ゲームの DLL（GameModule）
 │     ├─ Editor/      ImGui エディタ（Editor.cpp / EditorActions.cpp / EditorMenu.cpp が本体）
-│     │  ├─ Panels/     Scene・Game・Hierarchy・Properties・Preview・Project・Log・Lighting・Stats・Profiler
+│     │  ├─ Panels/     Scene・Game・Hierarchy・Properties・Preview・Project・Log・Lighting・Stats・Profiler・Behavior Tree・Render Graph
 │     │  ├─ Commands/   Undo/Redo のコマンド
 │     │  ├─ Style/      色・アイコン・共通の UI 部品（見た目をそろえる）
 │     │  ├─ Inspector/  プロパティの表示（ImGuiInspector）
@@ -183,6 +185,16 @@ RD_GPU_SCOPE("Shadow");              // CPU と GPU（タイムスタンプ）�
 - 「Save Trace」か `-profile 300` で Chrome のトレース形式に保存し、[ui.perfetto.dev](https://ui.perfetto.dev) で開ける
 - GPU の区間は PIX / RenderDoc のイベント名にもなる。`RD_PROFILER=0` で計測コードを丸ごと外せる
 
+### レンダーグラフとフォワード / ディファード
+- 1 回の描画で行うパスを、`rg::RenderGraph` に「何を読んで何に書くか」と一緒に登録してから実行する（`Renderer::BuildGraph`）
+  - リソースの状態の切り替え（バリア）はグラフが入れる。パスの中では描くだけ
+  - 出力に届かないパスは飛ばす。途中でだけ使うテクスチャ（HDR・深度・ブルーム・G バッファー・縁取りの印）はグラフが持ち、使う期間が重ならず大きさと形式が同じなら 1 枚を使い回す（次の描画でも使い回す）
+- 描き方は Lighting パネルの Renderer > Render Path（または Render Graph パネルのボタン、起動時は `-renderpath deferred`）で切り替える
+  - **Forward**: 物を描くときにその場で光を当てる
+  - **Deferred**: 不透明な物を G バッファー（色 + 金属感・法線 + 粗さ・発光 + 種類。3 枚とも RGBA16F）へ書き、画面全体で 1 回だけ光を当てる（`DeferredLighting.hlsl`）。そのあとで空・半透明・パーティクルをフォワードで重ねる。自作のサーフェスシェーダーもそのまま使える（`GBUFFER` を定義してコンパイルし直す）
+  - ディファードでは物ごとのライトの数の制限（Lights Per Object）は効かず、すべての点光源・スポットライトを当てる
+- Window > Render Graph パネル: メインの画面を最後に描いたときのパスとテクスチャのつながり、飛ばしたパス、使い回している実体の番号を見せる
+
 ### 自作シェーダーとマテリアル
 - **シェーダー（.hlsl）**: `Surface.hlsli` を include して `Surface` 関数（必要なら `SurfaceVertex` も）を書く。ファイルの先頭の注釈に Unity と同じ書き方で `Properties { ... }` を並べると、エンジンが変数を宣言し、マテリアルの画面で値を変えられる（Color / Float / Range / Int / Vector / 2D、`[HDR]`・`[Toggle]`）。見本は `Assets/Sample/Shaders/Stripes.hlsl`
 - **マテリアル（.rdmat）**: JSON で保存するマテリアル。いくつもの MeshRenderer が同じものを指せて、値を変えると全部の見た目が変わる。標準の陰影（PBR）のほか、Flat（面ごとの平らな陰影・影の色・リム）と Triplanar（ワールド座標で 3 方向から貼る）を選べる
@@ -199,6 +211,34 @@ fbx / glTF / obj などを Project パネルへドロップすると、描画と
   - ツリーの形はアセット `.rdbt`（JSON）に置き、エディタの「行動ツリー」パネル（thedmd/imgui-node-editor）でノードをつないで組む。プロジェクトパネルの 作成 > 行動ツリー で作り、ダブルクリックで開く
   - ゲームの行動・条件・Switch の値は `bt::Registry::RegisterAction / RegisterCondition / RegisterSelector` で登録する（ゲームのコードを読み直すと登録し直される）。登録した行動はパネルの作成メニューに出る
   - `BehaviorTreeAgent` コンポーネントの Tree にアセットを入れると動く。プレイ中は、選んでいるアクターのツリーの動いているノードがパネルで黄色の枠になる（成功は緑、失敗は赤が少しの間）
+
+### 組み込みのコンポーネント
+エディタの「Add Component」に分類ごとに出る（ゲームのものは `RD_REGISTER_COMPONENT` で足す）。
+
+| 分類 | コンポーネント |
+| --- | --- |
+| Rendering | MeshRenderer・SpriteRenderer・ParticleSystem・CameraComponent（有効なものの中で Priority が一番高いものがゲームの画面になる） |
+| Light | DirectionalLight・PointLight・SpotLight |
+| Animation | Animator・AnimatorController |
+| Physics | Rigidbody・CharacterController・SphereCollider・BoxCollider・CapsuleCollider・MeshCollider |
+| Audio | AudioSource |
+| Navigation | NavMeshSurface・NavMeshLink・NavMeshAgent |
+| AI | BehaviorTreeAgent |
+| UI | Canvas・CanvasGroup・RectTransform・UIImage・UIText |
+
+組み込みのモデル `Engine/Cube`・`Engine/Sphere`・`Engine/Plane`・`Engine/Capsule` は、ファイルなしで MeshRenderer に使える。
+
+### 入力（`Platform/Input`）
+- キーボードとマウスは Win32 のメッセージ、マウスの移動量は Raw Input、ゲームパッドは XInput から読む
+- `Input::SetCursorLocked` でカーソルを隠してウィンドウの中に閉じ込める（FPS・TPS のカメラ用）。ウィンドウが前面でないときは外れ、戻ると自動でかけ直す
+- エディタの UI を触っている間は、ゲーム側の入力を止める
+
+### 通信（`Platform/Network`）
+- `UdpSocket`: UDP のソケット（待たずに使う。`Receive` は届いていなければすぐ 0 を返す）。`Open(port, broadcast)` で LAN 全体へ送れる
+- `NetAddress`: 相手の住所。`Loopback(port)`（同じ PC）・`Broadcast(port)`（同じ LAN の全員）・`Parse("192.168.0.3:7777")`
+- `NetWriter` / `NetReader`（`NetPacket.h`）: 送る中身を詰める / 順に取り出す。足りないところを読もうとしたら、以後は失敗のままになる（`IsOk`）
+- 届く順番も届くかどうかも保証されないので、使う側で何度も送り直すなどして扱う
+- `HttpClient`: HTTPS の通信（WinHTTP）。AI アシスタントが使う
 
 ### UI
 画面に重ねる UI（Unity の Canvas の Screen Space - Overlay にあたる）。
@@ -240,13 +280,16 @@ LLM に頼んでシーンを編集する。「赤い箱を 5 個、半径 3m の
 | JobSystem | ワーカースレッドプール、優先度付きキュー、`ParallelFor`、待機中のスレッドもジョブを手伝う Wait、メインスレッドへの処理の戻し |
 | 非同期読み込み | テクスチャ・モデル・音声はワーカーでデコードし、次フレーム先頭で GPU へ転送。読み込み中は代替表示。小さなファイル（マテリアル・シェーダー）は `LoadNow` でその場で読む |
 | RHI | 2 フレーム同時進行（CPU と GPU の並列化）、フレームごとの一時アップロード領域、遅延解放、フリーリスト式デスクリプタヒープ |
-| 描画 | PBR（GGX）、Flat の陰影、Triplanar、自作のサーフェスシェーダー、カスケードシャドウ（最大 4 段・PCF・テクセルスナップ・遠くで薄くする・色分け表示）、点光源 / スポットライト最大 32 / 16 灯（頂点ごとの計算・物ごとの数の制限も可）、法線マップ、空のグラデーション + 太陽、3 色の環境光（空・地平線・地面）、フォグ、HDR + ブルーム、トーンマップ（ACES / Neutral）、露出・コントラスト・彩度、ビネット、レトロ表示（低解像度 + ディザ）、アウトライン（壁越しに見える縁取り）、視錐台カリング、インスタンシングのパーティクル、スプライトのバッチ描画、半透明の三角形、別の描画先への描画（プレビュー・2 つのビュー） |
+| 描画 | レンダーグラフ（バリアの自動化・パスの省略・テクスチャの使い回し）、フォワード / ディファードの切り替え、PBR（GGX）、Flat の陰影、Triplanar、自作のサーフェスシェーダー、カスケードシャドウ（最大 4 段・PCF・テクセルスナップ・遠くで薄くする・色分け表示）、点光源 / スポットライト最大 32 / 16 灯（頂点ごとの計算・物ごとの数の制限も可）、法線マップ、空のグラデーション + 太陽、3 色の環境光（空・地平線・地面）、フォグ、HDR + ブルーム、トーンマップ（ACES / Neutral）、露出・コントラスト・彩度、ビネット、レトロ表示（低解像度 + ディザ）、アウトライン（壁越しに見える縁取り）、視錐台カリング、インスタンシングのパーティクル、スプライトのバッチ描画、半透明の三角形、別の描画先への描画（プレビュー・2 つのビュー） |
 | アニメーション | ジョブで並列に姿勢計算、クロスフェード、別ファイルのアニメーション流用（単位の違いを自動補正）、AnimatorController（Unity の状態遷移を JSON から動かす）、骨と同じ名前のアクターを動かす、関節の回転の上乗せ（首を向けるなど） |
 | 物理 | 剛体（質量・慣性・重力・抵抗）、球 / 箱 / カプセル / メッシュ（BVH）の衝突、動く物体のメッシュは凸包として当たる（分離軸判定）、スイープ&プルーンの広域判定、逐次インパルス法（反発・摩擦）、Enter / Stay / Exit イベント、トリガー、レイキャスト・重なりの問い合わせ、レイヤー、CharacterController（坂・段差・壁に沿って滑る） |
 | AI | NavMesh（焼き・A* + funnel・リンク）、NavMeshAgent、行動ツリー（ノードエディタで組むアセット・プレイ中の表示） |
 | UI | Canvas・RectTransform・UIImage（Sliced / Filled）・UIText（日本語・リッチテキスト・縁取り） |
+| 入力 | キーボード・マウス（Raw Input の移動量）・XInput のゲームパッド、カーソルの固定 |
+| 通信 | UDP（ブロードキャスト・送る中身の詰め方）、HTTPS（WinHTTP） |
+| シーン | Actor + Component、親子、プレハブ、参照（ActorRef / ComponentRef。保存と複製でつなぎ直す）、場面の切り替え（フレームの区切りで差し替える）、SceneSystem（物理・ナビゲーション） |
 | オーディオ | BGM / SE のバス音量、ループ、ピッチ、距離減衰とパンによる 3D 定位、WAV に加えて MP3 / AAC(m4a) / FLAC / WMA（Windows の Media Foundation で展開） |
-| エディタ | ゲームのコードのホットリロード（Compile / Ctrl+Alt+F11）、ドッキング UI、Scene と Game の 2 つのビュー（並べると両方映る）、Undo/Redo、移動 / 回転 / 拡縮ギズモ（Ctrl でスナップ）、クリック選択、階層のドラッグ&ドロップで親子付け、アセットブラウザからのドラッグ&ドロップ、エクスプローラーからのファイルの取り込み、コンポーネント追加メニュー（検索付き）、プレイ / 一時停止 / ステップ / 停止（停止で元に戻る。プレイ中にゲームが場面を切り替えても続く）、アクターのコピー&貼り付け・名前の変更、コンポーネントの並び替え・値のコピー&貼り付け、プレハブの作成と配置、Project パネル（フォルダ・マテリアル・シェーダーの作成、名前変更、ごみ箱へ削除、ドラッグで移動、モデルのサムネイル）、テクスチャとモデルのプレビュー（回転・拡大・クリップの再生）、Log パネル（レベルごとの件数・まとめ表示・プレイ時に消去）、NavMesh と物理の表示、日本語表示、終了時の状態の保存、保存していない変更の確認、統計、シェーダーのホットリロード（Ctrl+R） |
+| エディタ | ゲームのコードのホットリロード（Compile / Ctrl+Alt+F11）、ドッキング UI（グラデーションと動きのある見た目・浮いたツールバー・ステータスバー）、行動ツリーのノードエディタ、レンダーグラフの表示とフォワード / ディファードの切り替え、ナビメッシュを焼くボタン、Scene と Game の 2 つのビュー（並べると両方映る）、Undo/Redo、移動 / 回転 / 拡縮ギズモ（Ctrl でスナップ）、クリック選択、階層のドラッグ&ドロップで親子付け、アセットブラウザからのドラッグ&ドロップ、エクスプローラーからのファイルの取り込み、コンポーネント追加メニュー（検索付き）、プレイ / 一時停止 / ステップ / 停止（停止で元に戻る。プレイ中にゲームが場面を切り替えても続く）、アクターのコピー&貼り付け・名前の変更、コンポーネントの並び替え・値のコピー&貼り付け、プレハブの作成と配置、Project パネル（フォルダ・マテリアル・シェーダーの作成、名前変更、ごみ箱へ削除、ドラッグで移動、モデルのサムネイル）、テクスチャとモデルのプレビュー（回転・拡大・クリップの再生）、Log パネル（レベルごとの件数・まとめ表示・プレイ時に消去）、NavMesh と物理の表示、日本語表示、終了時の状態の保存、保存していない変更の確認、統計、シェーダーのホットリロード（Ctrl+R） |
 
 ## ゲームコードの書き方
 
@@ -328,6 +371,8 @@ RD_GAME_MAIN(ConfigureGame)
 ## 既知の制限
 - 旧版のレベルファイル（`.rdlv`）と互換はない（型を番号で保存していたため）
 - 影を落とすのは最初の平行光源 1 つだけ（点光源・スポットライトの影はない）
+- ディファードでは物ごとのライトの数の制限（Lights Per Object）が効かない。描画の設定（Render Path など）は保存せず、起動のたびに既定に戻る
+- 行動ツリーのノードエディタは、ノードのコピー&貼り付けに未対応（複製 Ctrl+D はできる）
 - 動く物体のメッシュコライダーは凸包として当たる（凹んだ形は凹みが埋まる。Unity の Convex と同じ）。凸包でないメッシュ同士は頂点の食い込みで調べるので、辺と辺だけの交差は拾えない
 - NavMesh を焼くのは MeshRenderer の三角形だけ（コライダー・NavMeshModifier・区画ごとの塗り分けは未対応）。面は四角形の集まりなので、Unity より三角形が多い
 - UIImage の円形の塗りと Tiled の繰り返しは未対応
