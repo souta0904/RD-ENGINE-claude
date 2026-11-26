@@ -66,12 +66,12 @@ namespace rd
 		}
 
 		bool usingGizmo = false;
-		Actor* selected = mEditor.GetSelected();
+		Actor* selected = mEditor.GetSelection().Get();
 		if (selected) { DrawGizmo(selected, cam, usingGizmo); }
 
 		if (mHovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !ImGuizmo::IsOver() && !usingGizmo && !Input::GetKeyRaw(Key::Alt))
 		{
-			mEditor.Select(Pick(cam.ScreenPointToRay(ToViewUv(ImGui::GetMousePos()))));
+			mEditor.GetSelection().Select(Pick(cam.ScreenPointToRay(ToViewUv(ImGui::GetMousePos()))));
 		}
 
 		uint32_t loading = AssetManager::Get().GetLoadingCount();
@@ -129,7 +129,7 @@ namespace rd
 			selected->GetTransform().SetWorldMatrix(world);
 		}
 		usingGizmo = ImGuizmo::IsUsing();
-		if (mGizmoWasUsing && !usingGizmo) { mEditor.CommitActorEdit(Tr("Transform")); }
+		if (mGizmoWasUsing && !usingGizmo) { mEditor.GetUndo().CommitActorEdit(Tr("Transform")); }
 		mGizmoWasUsing = usingGizmo;
 	}
 
@@ -204,7 +204,7 @@ namespace rd
 		{
 			slot = std::min<size_t>(model->GetSubMeshes()[size_t(sub)].materialIndex, target->GetMaterialCount() - 1);
 		}
-		mEditor.AssignMaterial(*target, slot, path);
+		mEditor.GetActions().AssignMaterial(*target, slot, path);
 	}
 
 	namespace
@@ -315,7 +315,7 @@ namespace rd
 		std::string ext = GetExtension(path);
 		if (ext == ".scene")
 		{
-			mEditor.OpenScene(path);
+			mEditor.GetDocument().OpenScene(path);
 			return;
 		}
 		Scene& scene = mEditor.GetScene();
@@ -344,7 +344,7 @@ namespace rd
 			if (!actor) { return; }
 			actor->GetTransform().SetPosition(FindPlacement(ray, actor));
 		}
-		mEditor.Select(actor);
-		mEditor.PushCommand(ActorLifetimeCommand::Created(EditorLocale::Format("Drop {}", GetFileName(path)), scene, { actor }));
+		mEditor.GetSelection().Select(actor);
+		mEditor.GetUndo().Push(ActorLifetimeCommand::Created(EditorLocale::Format("Drop {}", GetFileName(path)), scene, { actor }));
 	}
 }

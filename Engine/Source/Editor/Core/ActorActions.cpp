@@ -1,5 +1,5 @@
 #include "RdPch.h"
-#include "Editor/Editor.h"
+#include "Editor/Core/ActorActions.h"
 #include "Asset/Model/Model.h"
 #include "Components/Effects/ParticleSystem.h"
 #include "Components/Lighting/DirectionalLight.h"
@@ -10,23 +10,23 @@
 #include "Core/Util/FileUtil.h"
 #include "Core/Util/StringUtil.h"
 #include "Editor/Commands/ActorLifetimeCommand.h"
-#include "Editor/Core/FileDialog.h"
+#include "Editor/Commands/ActorStateCommand.h"
+#include "Editor/Commands/EditorUndo.h"
+#include "Editor/Core/EditorLocale.h"
+#include "Editor/Core/EditorSelection.h"
+#include "Editor/Editor.h"
 #include "Editor/Panels/HierarchyPanel.h"
 #include "Editor/Panels/SceneViewPanel.h"
-#include "Engine.h"
 #include "Physics/Colliders/BoxCollider.h"
 #include "Physics/Colliders/CapsuleCollider.h"
 #include "Physics/Colliders/SphereCollider.h"
 #include "Scene/Scene.h"
-#include "Editor/Core/EditorLocale.h"
 #include <ImGui/imgui.h>
 
 namespace rd
 {
 	namespace
 	{
-		constexpr const wchar_t* kSceneFilter = L"Scene (*.scene)\0*.scene\0";
-
 		// ファイル名に使えない文字は _ にする
 		std::string SafeFileName(std::string name)
 		{
@@ -38,16 +38,16 @@ namespace rd
 		}
 	}
 
-	Actor* Editor::CreatePrimitive(const std::string& name, const std::string& model)
+	Actor* ActorActions::CreatePrimitive(const std::string& name, const std::string& model)
 	{
-		Actor* actor = mEngine.GetScene().CreateActor(name);
+		Actor* actor = mEditor.GetScene().CreateActor(name);
 		actor->AddComponent<MeshRenderer>()->SetModel(model);
 		return actor;
 	}
 
-	Actor* Editor::CreateActor(const std::string& kind, Actor* parent)
+	Actor* ActorActions::CreateActor(const std::string& kind, Actor* parent)
 	{
-		Scene& scene = mEngine.GetScene();
+		Scene& scene = mEditor.GetScene();
 		Actor* actor = nullptr;
 		if (kind == "Empty") { actor = scene.CreateActor("Actor"); }
 		else if (kind == "Cube") { actor = CreatePrimitive("Cube", "Engine/Cube"); actor->AddComponent<BoxCollider>(); }
@@ -73,15 +73,15 @@ namespace rd
 		}
 		else if (kind != "Directional Light")
 		{
-			RenderCamera cam = mSceneView->GetViewCamera(1.0f);
+			RenderCamera cam = mEditor.GetSceneView().GetViewCamera(1.0f);
 			actor->GetTransform().SetPosition(cam.position + cam.GetForward() * 6.0f);
 		}
-		Select(actor);
-		PushCommand(ActorLifetimeCommand::Created(EditorLocale::Format("Create {}", std::string(Tr(kind))), scene, { actor }));
+		mEditor.GetSelection().Select(actor);
+		mEditor.GetUndo().Push(ActorLifetimeCommand::Created(EditorLocale::Format("Create {}", std::string(Tr(kind))), scene, { actor }));
 		return actor;
 	}
 
-	void Editor::DrawCreateMenu(Actor* parent)
+	void ActorActions::DrawCreateMenu(Actor* parent)
 	{
 		ActorId parentId = parent ? parent->GetId() : 0;
 		auto item = [&](const char* label)
@@ -89,7 +89,7 @@ namespace rd
 				if (ImGui::MenuItem(Tr(label)))
 				{
 					std::string kind = label;
-					Defer([this, kind, parentId] { CreateActor(kind, parentId ? GetScene().FindActor(parentId) : nullptr); });
+					mEditor.Defer([this, kind, parentId] { CreateActor(kind, parentId ? mEditor.GetScene().FindActor(parentId) : nullptr); });
 				}
 			};
 		item("Empty");
@@ -113,65 +113,65 @@ namespace rd
 	}
 
 	// 消す前に中身を覚えておく（Undo で戻せるように）
-	void Editor::DeleteSelected()
+	void ActorActions::DeleteSelected()
 	{
-		Actor* sel = GetSelected();
+		Actor* sel = mEditor.GetSelection().Get();
 		if (!sel) { return; }
-		Scene& scene = mEngine.GetScene();
+		Scene& scene = mEditor.GetScene();
 		auto command = ActorLifetimeCommand::Deleting(EditorLocale::Format("Delete {}", sel->GetName()), scene, { sel });
 		sel->Destroy();
 		scene.FlushPendingDestroy();
-		Select(nullptr);
-		PushCommand(std::move(command));
+		mEditor.GetSelection().Select(nullptr);
+		mEditor.GetUndo().Push(std::move(command));
 	}
 
-	void Editor::DuplicateSelected()
+	void ActorActions::DuplicateSelected()
 	{
-		Actor* sel = GetSelected();
+		Actor* sel = mEditor.GetSelection().Get();
 		if (!sel) { return; }
-		Scene& scene = mEngine.GetScene();
+		Scene& scene = mEditor.GetScene();
 		if (Actor* copy = scene.Duplicate(sel))
 		{
-			Select(copy);
-			PushCommand(ActorLifetimeCommand::Created(EditorLocale::Format("Duplicate {}", sel->GetName()), scene, { copy }));
+			mEditor.GetSelection().Select(copy);
+			mEditor.GetUndo().Push(ActorLifetimeCommand::Created(EditorLocale::Format("Duplicate {}", sel->GetName()), scene, { copy }));
 		}
 	}
 
-	void Editor::CopySelected()
+	void ActorActions::CopySelected()
 	{
-		if (Actor* sel = GetSelected()) { mClipboard = mEngine.GetScene().SerializeActors({ sel }); }
+		if (Actor* sel = mEditor.GetSelection().Get()) { mClipboard = mEditor.GetScene().SerializeActors({ sel }); }
 	}
 
 	// 選んでいるアクターの兄弟として（選んでいなければルートに）貼り付ける
-	void Editor::PasteClipboard()
+	void ActorActions::PasteClipboard()
 	{
 		if (!HasClipboard()) { return; }
-		Scene& scene = mEngine.GetScene();
-		Actor* sel = GetSelected();
+		Scene& scene = mEditor.GetScene();
+		Actor* sel = mEditor.GetSelection().Get();
 		Actor* parent = sel ? sel->GetParent() : nullptr;
 		auto roots = scene.DeserializeActors(mClipboard, true, parent);
 		if (roots.empty()) { return; }
 		Actor* copy = roots.front();
 		if (sel) { copy->SetParent(parent, false, sel->GetSiblingIndex() + 1); }
-		Select(copy);
-		PushCommand(ActorLifetimeCommand::Created(EditorLocale::Format("Paste {}", copy->GetName()), scene, roots));
+		mEditor.GetSelection().Select(copy);
+		mEditor.GetUndo().Push(ActorLifetimeCommand::Created(EditorLocale::Format("Paste {}", copy->GetName()), scene, roots));
 	}
 
-	void Editor::RenameSelected()
+	void ActorActions::RenameSelected()
 	{
-		mHierarchy->BeginRename(GetSelected());
+		mEditor.GetHierarchy().BeginRename(mEditor.GetSelection().Get());
 	}
 
-	void Editor::FocusOn(Actor* actor)
+	void ActorActions::FocusOn(Actor* actor)
 	{
 		if (!actor) { return; }
 		auto mr = actor->GetComponent<MeshRenderer>();
-		mSceneView->GetCamera().Focus(mr ? mr->GetWorldBounds() : AABB::FromCenterExtents(actor->GetTransform().GetPosition(), Vector3(1, 1, 1)));
-		mFocusView = "Scene";
+		mEditor.GetSceneView().GetCamera().Focus(mr ? mr->GetWorldBounds() : AABB::FromCenterExtents(actor->GetTransform().GetPosition(), Vector3(1, 1, 1)));
+		mEditor.FocusView("Scene");
 	}
 
 	// 上書きしないよう、同じ名前があれば " 1", " 2" … を付ける
-	std::string Editor::CreatePrefab(Actor* actor, const std::string& dir)
+	std::string ActorActions::CreatePrefab(Actor* actor, const std::string& dir)
 	{
 		if (!actor) { return {}; }
 		std::string stem = SafeFileName(actor->GetName());
@@ -188,9 +188,9 @@ namespace rd
 
 	// ヒエラルキーへのドロップ。プレハブはその中身を、モデルは MeshRenderer を付けたアクターを作る
 	//  位置は Unity と同じく、ルートなら原点、親の中なら親の位置（ローカルの原点）
-	Actor* Editor::InstantiateAsset(const std::string& path, Actor* parent, int siblingIndex)
+	Actor* ActorActions::InstantiateAsset(const std::string& path, Actor* parent, int siblingIndex)
 	{
-		Scene& scene = mEngine.GetScene();
+		Scene& scene = mEditor.GetScene();
 		Actor* instance = nullptr;
 		if (GetExtension(path) == ".prefab") { instance = scene.Instantiate(path, parent); }
 		else if (Model::IsSupportedExtension(GetExtension(path)))
@@ -201,94 +201,28 @@ namespace rd
 		}
 		if (!instance) { return nullptr; }
 		if (siblingIndex >= 0) { instance->SetParent(parent, false, siblingIndex); }
-		Select(instance);
-		PushCommand(ActorLifetimeCommand::Created(EditorLocale::Format("Instantiate {}", GetStem(path)), scene, { instance }));
+		mEditor.GetSelection().Select(instance);
+		mEditor.GetUndo().Push(ActorLifetimeCommand::Created(EditorLocale::Format("Instantiate {}", GetStem(path)), scene, { instance }));
 		return instance;
 	}
 
-	void Editor::NewScene()
+	// 入れる前後のアクターの状態を Undo に積む（アクターの値の変更と同じ扱い）
+	bool ActorActions::AssignMaterial(MeshRenderer& renderer, size_t slot, const std::string& path)
 	{
-		RunAfterSaveCheck([this]
-			{
-				if (IsPlaying()) { mEngine.EndPlay(); }
-				mEngine.NewScene();
-			});
-	}
-
-	void Editor::OpenScene()
-	{
-		RunAfterSaveCheck([this]
-			{
-				std::string path = FileDialog::Open(mEngine.GetWindow().GetHandle(), kSceneFilter, L"scene");
-				if (path.empty()) { return; }
-				if (IsPlaying()) { mEngine.EndPlay(); }
-				mEngine.LoadScene(path);
-			});
-	}
-
-	void Editor::OpenScene(const std::string& path)
-	{
-		RunAfterSaveCheck([this, path]
-			{
-				if (IsPlaying()) { mEngine.EndPlay(); }
-				mEngine.LoadScene(path);
-			});
-	}
-
-	bool Editor::SaveScene(bool saveAs)
-	{
-		if (IsPlaying())
+		Actor* actor = renderer.GetActor();
+		Scene& scene = mEditor.GetScene();
+		Json before = scene.SerializeActorState(actor);
+		if (!renderer.SetSharedMaterial(slot, path))
 		{
-			Logger::Warning(LogCat::Editor, "Stop play mode before saving");
+			Logger::Warning(LogCat::Editor, "{} has no material slot {} (is the model loaded?)", actor->GetName(), slot);
 			return false;
 		}
-		Scene& scene = mEngine.GetScene();
-		std::string path = scene.GetPath();
-		if (saveAs || path.empty())
+		Logger::Info(LogCat::Editor, "Assigned {} to {} (slot {})", path, actor->GetName(), slot);
+		Json after = scene.SerializeActorState(actor);
+		if (after != before)
 		{
-			path = FileDialog::Save(mEngine.GetWindow().GetHandle(), kSceneFilter, L"scene");
-			if (path.empty()) { return false; }
+			mEditor.GetUndo().Push(std::make_unique<ActorStateCommand>(EditorLocale::Format("Assign Material {}", GetStem(path)), actor->GetId(), std::move(before), std::move(after)));
 		}
-		if (!scene.SaveToFile(path)) { return false; }
-		mHistory.MarkSaved();
-		UpdateTitle();
 		return true;
-	}
-
-	void Editor::RequestQuit()
-	{
-		RunAfterSaveCheck([this]
-			{
-				mAllowClose = true;
-				mEngine.Quit();
-			});
-	}
-
-	void Editor::RunAfterSaveCheck(std::function<void()> action)
-	{
-		if (!mHistory.IsDirty())
-		{
-			action();
-			return;
-		}
-		mPendingAfterSave = std::move(action);
-		mOpenSavePrompt = true;
-	}
-
-	void Editor::TogglePlay()
-	{
-		IsPlaying() ? mEngine.EndPlay() : mEngine.BeginPlay();
-	}
-
-	void Editor::TogglePause()
-	{
-		if (IsPlaying()) { mEngine.SetPaused(!mEngine.IsPaused()); }
-	}
-
-	void Editor::StepFrame()
-	{
-		if (!IsPlaying()) { return; }
-		mEngine.SetPaused(true);
-		mEngine.StepFrame();
 	}
 }

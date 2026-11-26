@@ -1,13 +1,10 @@
 #pragma once
-#include <memory>
-#include <string>
 
 namespace rd
 {
-	class Scene;
-
 	// プレイの状態（Play / Pause / Step）とゲーム時間の進め方
-	//  エディタではプレイを始めるときにシーンを保存しておき、止めたときにその状態へ戻す
+	//  エディタのない構成では起動からずっとプレイ中。エディタではエディタの PlayMode が Start / Stop を呼ぶ
+	//  （プレイ前のシーンを取っておいて戻すのはエディタの仕事）
 	class RD_API PlayController
 	{
 	public:
@@ -22,17 +19,10 @@ namespace rd
 		bool IsPaused() const { return mPaused; }
 		void SetPaused(bool paused) { mPaused = paused; }
 		void StepFrame() { mStepRequested = true; }
-		// エディタなしでの常時プレイや、シーンの切り替えでの停止に使う
-		void SetPlaying(bool playing) { mPlaying = playing; }
 
-#if RD_EDITOR
-		// もうプレイ中なら false
-		bool Begin(const Scene& scene);
-		// 保存しておいたシーンを作り直して返す（プレイ中でなければ nullptr）
-		std::unique_ptr<Scene> End();
-		// プレイを始めたときのシーンのパス
-		const std::string& GetSnapshotPath() const { return mSnapshotPath; }
-#endif
+		// プレイを始める（一時停止を解き、ゲームの時間を 0 に戻す）
+		void Start();
+		void Stop();
 
 		FrameTime AdvanceTime(float dt);
 
@@ -40,9 +30,5 @@ namespace rd
 		bool mPlaying = false;
 		bool mPaused = false;
 		bool mStepRequested = false;
-#if RD_EDITOR
-		std::string mSnapshot;
-		std::string mSnapshotPath;
-#endif
 	};
 }

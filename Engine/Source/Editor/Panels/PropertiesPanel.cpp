@@ -49,7 +49,7 @@ namespace rd
 
 	void PropertiesPanel::OnGui()
 	{
-		Actor* actor = mEditor.GetSelected();
+		Actor* actor = mEditor.GetSelection().Get();
 		if (!actor)
 		{
 			const std::string& asset = mEditor.GetProject().GetSelectedFile();
@@ -74,7 +74,7 @@ namespace rd
 			mOps.label = EditorLocale::Format("Add {}", mOps.add);
 			commit = true;
 		}
-		if (commit) { mEditor.CommitActorEdit(mOps.label); }
+		if (commit) { mEditor.GetUndo().CommitActorEdit(mOps.label); }
 	}
 
 	// アイコン・有効 / 無効・名前を 1 行に、その下にタグとレイヤー
@@ -464,8 +464,8 @@ namespace rd
 			{
 				asset.Save();
 				auto command = std::make_unique<MaterialAssetCommand>(EditorLocale::Format("Edit Material {}", GetStem(path)), path, it->second, after);
-				command->SetSelection(mEditor.GetSelectedId());
-				mEditor.PushCommand(std::move(command));
+				command->SetSelection(mEditor.GetSelection().GetId());
+				mEditor.GetUndo().Push(std::move(command));
 			}
 			it->second = std::move(after);
 		}

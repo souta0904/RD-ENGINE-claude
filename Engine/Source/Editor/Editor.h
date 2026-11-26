@@ -1,10 +1,14 @@
 #pragma once
 #include "Core/Serialization/Json.h"
-#include "Editor/Commands/CommandHistory.h"
+#include "Editor/Commands/EditorUndo.h"
+#include "Editor/Core/ActorActions.h"
+#include "Editor/Core/EditorSelection.h"
+#include "Editor/Core/EditorSession.h"
+#include "Editor/Core/PlayMode.h"
+#include "Editor/Core/SceneDocument.h"
 #include "Editor/Core/ImGuiLayer.h"
 #include "Render/RenderList/RenderList.h"
-#include "Runtime/FrameOverlay.h"
-#include "Scene/Actor/Actor.h"
+#include "Runtime/EngineLayer.h"
 #include <functional>
 #include <memory>
 #include <string>
@@ -13,111 +17,89 @@
 namespace rd
 {
 	class AIAssistant;
+	class ActorActions;
 	class BehaviorTreePanel;
-	struct EditorSession;
-	class LogPanel;
+	class EditorLayout;
+	class EditorMainUI;
 	class EditorPanel;
-	class MeshRenderer;
+	class EditorSelection;
+	class EditorUndo;
 	class Engine;
+	class GameViewPanel;
 	class HierarchyPanel;
-	class PropertiesPanel;
-	class LightingPanel;
+	class HotReload;
+	class PlayMode;
 	class ProfilerPanel;
 	class ProjectPanel;
-	class SceneViewPanel;
-	class GameViewPanel;
-	class HotReload;
-	class ViewPanel;
 	class Scene;
-	class StatsPanel;
+	class SceneDocument;
+	class SceneViewPanel;
+	class ViewPanel;
 
 	// ImGui のエディタ（Unity 風: Hierarchy / Properties / Preview / Project / Log / Scene / Game）
-	//  パネルは EditorPanel の派生として別のクラスにし、ここは選択・Undo・シーンとアクターの操作・メニューを受け持つ。
+	//  エンジンに EngineLayer として差し込まれる（エンジンはエディタを知らない）。
+	//  Editor はパネルと部品を持って組み立て、フレームの流れを回すだけで、中身は部品に任せる:
+	//   EditorSelection（選んでいるもの）/ EditorUndo（Undo・Redo）/ ActorActions（アクターの操作）/
+	//   SceneDocument（シーンのファイル）/ PlayMode（Play・Stop）/ HotReload（ゲームのコードの読み直し）/
+	//   EditorLayout（パネルの配置）/ EditorMainUI（メニュー・ツールバー・ステータスバー・ショートカット）
+	//  パネルは EditorPanel の派生で、作るときに Editor& を受け取り、ここから部品を使う。
 	//  エンジンは作るときに渡される（グローバルの Engine::Get() には頼らない）。
-	//  実装は Editor.cpp（全体）/ EditorActions.cpp（アクターとシーンの操作）/ EditorMenu.cpp（メニュー・ツールバー・ショートカット）
-	class RD_API Editor final : public FrameOverlay
+	class RD_API Editor final : public EngineLayer
 	{
 	public:
 		explicit Editor(Engine& engine);
-		~Editor();
+		~Editor() override;
 
-		void Initialize();
-		void Shutdown();
-		bool HandleMessage(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
+		// EngineLayer
+		void OnConfigure(EngineConfig& config, WindowDesc& window) override;
+		void OnInitialize() override;
+		void OnShutdown() override;
+		bool HandleMessage(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) override;
+		void OnBeginFrame() override;
+		void OnUpdate(float dt) override;
+		void OnSceneChanged() override { SceneChanged(false); }
 
-		void BeginFrame();
-		void Update(float dt);
-		// シーンが差し替わった（keepSelection ならプレイを止めて戻ったので選択と履歴を残す）
-		void OnSceneChanged(bool keepSelection = false);
-		// ゲームのコードを読み直して、シーンを作り直した（選択と履歴は残す）
-		void OnGameCodeReloaded();
-		HotReload& GetHotReload() { return *mHotReload; }
-
-		// 次の起動のために今の状態を session へ書き出す（session.scene は呼ぶ側が先に入れておく）
-		void CaptureSession(EditorSession& session) const;
-		// 前回の状態を戻す。選択とカメラは、前回と同じシーンを開いたときだけ戻す
-		void RestoreSession(const EditorSession& session);
-
+		// FrameOverlay
 		void GetViewportSize(uint32_t& width, uint32_t& height) const override;
 		bool OverrideCamera(float aspect, RenderCamera& camera) const override;
 		void DrawGizmos(DebugDraw& draw) override;
 		void RenderExtraViews(Scene& scene, float time) override;
 		void RenderUI() override;
 
+		// シーンが差し替わった（keepSelection: プレイを止めて同じシーンに戻ったので選択と履歴を残す）
+		void SceneChanged(bool keepSelection);
+		// ゲームのコードを読み直して、シーンを作り直した（選択と履歴は残す）
+		void OnGameCodeReloaded();
+		// タイトルを「エンジン名 - シーンのパス」にし、保存していない変更があれば * を付ける
+		void UpdateTitle();
+
 		Engine& GetEngine() const { return mEngine; }
 		Scene& GetScene() const;
 		bool IsPlaying() const;
 
-		Actor* GetSelected() const;
-		ActorId GetSelectedId() const { return mSelectedId; }
-		void Select(Actor* actor);
+		// 部品
+		EditorSelection& GetSelection() const { return *mSelection; }
+		EditorUndo& GetUndo() const { return *mUndo; }
+		ActorActions& GetActions() const { return *mActions; }
+		SceneDocument& GetDocument() const { return *mDocument; }
+		PlayMode& GetPlayMode() const { return *mPlayMode; }
+		HotReload& GetHotReload() const { return *mHotReload; }
+		EditorLayout& GetLayout() const { return *mLayout; }
 
-		// 操作した後に呼ぶ: 選んでいるアクター / シーンの設定の変更を確定して Undo の履歴に積む
-		void CommitActorEdit(const std::string& label);
-		void CommitSettingsEdit(const std::string& label);
-		void PushCommand(std::unique_ptr<EditorCommand> command);
-		void Undo();
-		void Redo();
-		const CommandHistory& GetHistory() const { return mHistory; }
-
-		// パネルを描き終えてから実行する（描いている途中にシーンを変えると辿っている途中の一覧が壊れるため）
-		void Defer(std::function<void()> action) { mDeferred.push_back(std::move(action)); }
-
-		// kind は "Empty" / "Cube" / "Sphere" / "Plane" / "Capsule" / "Directional Light" / "Point Light" /
-		// "Spot Light" / "Camera" / "Particle System"。parent を渡すとその子として親の原点に、なければカメラの前に作る
-		Actor* CreateActor(const std::string& kind, Actor* parent = nullptr);
-		// 作成のメニューの項目を並べる（選ばれたら後で作る）
-		void DrawCreateMenu(Actor* parent);
-		void DeleteSelected();
-		void DuplicateSelected();
-		void CopySelected();
-		void PasteClipboard();
-		bool HasClipboard() const { return !mClipboard.is_null(); }
-		void RenameSelected();
-		void FocusOn(Actor* actor);
-		// アクター（と子）を dir にプレハブとして保存する（同じ名前があれば番号を付ける）。保存したパスを返す
-		std::string CreatePrefab(Actor* actor, const std::string& dir);
-		// MeshRenderer の枠にマテリアルのアセットを入れ、Undo に積む（入れられなければ false）
-		bool AssignMaterial(MeshRenderer& renderer, size_t slot, const std::string& path);
-		// プレハブかモデルを parent の siblingIndex 番目（-1 なら最後）に置いて選び、Undo に積む
-		Actor* InstantiateAsset(const std::string& path, Actor* parent, int siblingIndex);
-
-		void NewScene();
-		void OpenScene();
-		void OpenScene(const std::string& path);
-		bool SaveScene(bool saveAs);
-		void RequestQuit();
-
-		void TogglePlay();
-		void TogglePause();
-		void StepFrame();
-
+		// パネル
+		const std::vector<std::unique_ptr<EditorPanel>>& GetPanels() const { return mPanels; }
+		SceneViewPanel& GetSceneView() const { return *mSceneView; }
+		HierarchyPanel& GetHierarchy() const { return *mHierarchy; }
+		ProjectPanel& GetProject() const { return *mProject; }
+		ProfilerPanel& GetProfiler() const { return *mProfiler; }
+		AIAssistant& GetAssistant() const { return *mAssistant; }
 		// 行動ツリー（.rdbt）をパネルで開く
 		void OpenBehaviorTree(const std::string& path);
 
-		SceneViewPanel& GetSceneView() { return *mSceneView; }
-		HierarchyPanel& GetHierarchy() { return *mHierarchy; }
-		ProjectPanel& GetProject() { return *mProject; }
+		// パネルを描き終えてから実行する（描いている途中にシーンを変えると辿っている途中の一覧が壊れるため）
+		void Defer(std::function<void()> action) { mDeferred.push_back(std::move(action)); }
+		// 次のフレームで前に出すビューのウィンドウ（"Scene" / "Game"）
+		void FocusView(const char* name) { mFocusView = name; }
 
 	private:
 		template <class T>
@@ -127,62 +109,52 @@ namespace rd
 			mPanels.push_back(std::move(panel));
 			return raw;
 		}
-		Actor* CreatePrimitive(const std::string& name, const std::string& model);
-		void RefreshSnapshots();
-		void UpdateTitle();
+		void CreatePanels();
+		void RestoreSession(const EditorSession& session);
+		void SaveSession();
 		void RunDeferred();
-		// 保存していない変更があれば「保存しますか？」を出してから action を実行する
-		void RunAfterSaveCheck(std::function<void()> action);
 
 		ViewPanel& GetPrimaryView() const;
 		void UpdatePrimaryView();
-		// シーンビューに重ねる線（グリッド・ギズモ・コライダー）
+		// シーンビューに重ねる線（グリッド・ギズモ・コライダー・ナビメッシュ）
 		void DrawSceneGizmos(DebugDraw& draw);
 		void DrawNavMeshGizmos(DebugDraw& draw);
-		void SetupDockLayout(unsigned int dockId);
-		void SelectDefaultTabs();
-		void DrawMenuBar();
-		void DrawLanguageMenu();
-		void DrawMainToolbar();
-		void DrawStatusBar();
-		void DrawCompileButton();
-		void DrawDialogs();
-		void HandleShortcuts();
 
 		Engine& mEngine;
 		ImGuiLayer mImGui;
-		CommandHistory mHistory;
-		ActorId mSelectedId = 0;
-		// 変更前の状態（確定したときに変更後と比べてコマンドを作る）
-		ActorId mSnapshotActor = 0;
-		Json mActorSnapshot;
-		Json mSettingsSnapshot;
-		Json mClipboard;
-		std::vector<std::function<void()>> mDeferred;
+		bool mImGuiReady = false;
+
+		std::unique_ptr<EditorSelection> mSelection;
+		std::unique_ptr<EditorUndo> mUndo;
+		std::unique_ptr<ActorActions> mActions;
+		std::unique_ptr<SceneDocument> mDocument;
+		std::unique_ptr<PlayMode> mPlayMode;
+		std::unique_ptr<HotReload> mHotReload;
+		std::unique_ptr<EditorLayout> mLayout;
+		std::unique_ptr<EditorMainUI> mMainUI;
 
 		std::vector<std::unique_ptr<EditorPanel>> mPanels;
 		SceneViewPanel* mSceneView = nullptr;
 		GameViewPanel* mGameView = nullptr;
+		HierarchyPanel* mHierarchy = nullptr;
+		ProjectPanel* mProject = nullptr;
+		ProfilerPanel* mProfiler = nullptr;
+		AIAssistant* mAssistant = nullptr;
+		BehaviorTreePanel* mBehaviorTree = nullptr;
+
 		// primary でないビューに描くときの描画リスト（使い回す）
 		RenderList mExtraList;
-		HierarchyPanel* mHierarchy = nullptr;
-		PropertiesPanel* mProperties = nullptr;
-		ProjectPanel* mProject = nullptr;
-		LogPanel* mLog = nullptr;
-		AIAssistant* mAssistant = nullptr;
-		ProfilerPanel* mProfiler = nullptr;
-		BehaviorTreePanel* mBehaviorTree = nullptr;
-		std::unique_ptr<HotReload> mHotReload;
+		std::vector<std::function<void()>> mDeferred;
 
-		bool mFirstLayout = true;
-		bool mSelectDefaultTabs = false;
+		// 前回の状態（OnConfigure で読み、OnInitialize で戻す）。撮影や計測の実行では毎回同じ条件にしたいので使わない
+		EditorSession mSession;
+		bool mUseSession = false;
+		bool mHasSession = false;
+		bool mAutoPlay = false;
+
 		bool mWasPlaying = false;
 		bool mPrimaryGame = false;
 		// 次に前に出すビューのウィンドウ名（なければ nullptr）
 		const char* mFocusView = "Scene";
-		bool mShowDemo = false;
-		bool mAllowClose = false;
-		std::function<void()> mPendingAfterSave;
-		bool mOpenSavePrompt = false;
 	};
 }

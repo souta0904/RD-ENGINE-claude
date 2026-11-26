@@ -35,6 +35,6 @@ namespace rd
 			float timeScale = Time::TimeScale();
 			if (inspector.Property("Time Scale", timeScale, { .speed = 0.01f, .min = 0.0f, .max = 10.0f })) { Time::SetTimeScale(timeScale); }
 		}
-		if (inspector.AnyCommitted()) { mEditor.CommitSettingsEdit(Tr("Environment")); }
+		if (inspector.AnyCommitted()) { mEditor.GetUndo().CommitSettingsEdit(Tr("Environment")); }
 	}
 }

@@ -57,7 +57,7 @@ namespace rd
 	void HierarchyPanel::BeginRename(Actor* actor)
 	{
 		if (!actor) { return; }
-		mEditor.Select(actor);
+		mEditor.GetSelection().Select(actor);
 		mLastSelected = actor->GetId();
 		mRenamingId = actor->GetId();
 		mRenameBuffer = actor->GetName();
@@ -71,9 +71,9 @@ namespace rd
 		mDrop = {};
 		mFocused = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
 		// 選択が変わったら（ビューで選んだときなど）親を開いて、その行が見えるまでスクロールする
-		if (mEditor.GetSelectedId() != mLastSelected)
+		if (mEditor.GetSelection().GetId() != mLastSelected)
 		{
-			mLastSelected = mEditor.GetSelectedId();
+			mLastSelected = mEditor.GetSelection().GetId();
 			mReveal = mLastSelected != 0;
 			if (mRenamingId != mLastSelected) { mRenamingId = 0; }
 		}
@@ -90,7 +90,7 @@ namespace rd
 		if (EditorGui::IconButton("##create", Icon::Plus, Tr("Create"))) { ImGui::OpenPopup("CreateActor"); }
 		if (ImGui::BeginPopup("CreateActor"))
 		{
-			mEditor.DrawCreateMenu(nullptr);
+			mEditor.GetActions().DrawCreateMenu(nullptr);
 			ImGui::EndPopup();
 		}
 		ImGui::SameLine();
@@ -119,7 +119,7 @@ namespace rd
 
 		// 行の間を空けない（縞模様とドロップの位置をつなげる）
 		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, 0.0f));
-		std::string sceneLabel = (scene.GetName().empty() ? std::string(Tr("Untitled")) : scene.GetName()) + (mEditor.GetHistory().IsDirty() ? "*" : "");
+		std::string sceneLabel = (scene.GetName().empty() ? std::string(Tr("Untitled")) : scene.GetName()) + (mEditor.GetUndo().GetHistory().IsDirty() ? "*" : "");
 		bool sceneOpen = ImGui::TreeNodeEx("##scene", ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_Framed |
 			ImGuiTreeNodeFlags_SpanFullWidth | ImGuiTreeNodeFlags_FramePadding, "%s", sceneLabel.c_str());
 		AcceptRootDrop();
@@ -145,15 +145,15 @@ namespace rd
 		// 残りの空いている所: クリックで選択を外す、ドロップでルートへ、右クリックで作成
 		ImVec2 avail = ImGui::GetContentRegionAvail();
 		ImGui::InvisibleButton("##empty", ImVec2(std::max(avail.x, 1.0f), std::max(avail.y, ImGui::GetFrameHeight() * 2.0f)));
-		if (ImGui::IsItemClicked()) { mEditor.Select(nullptr); mRenamingId = 0; }
+		if (ImGui::IsItemClicked()) { mEditor.GetSelection().Select(nullptr); mRenamingId = 0; }
 		AcceptRootDrop();
 		if (ImGui::BeginPopupContextItem("##emptyMenu"))
 		{
-			mEditor.DrawCreateMenu(nullptr);
-			if (mEditor.HasClipboard())
+			mEditor.GetActions().DrawCreateMenu(nullptr);
+			if (mEditor.GetActions().HasClipboard())
 			{
 				ImGui::Separator();
-				if (ImGui::MenuItem(Tr("Paste"), "Ctrl+V")) { mEditor.Defer([this] { mEditor.PasteClipboard(); }); }
+				if (ImGui::MenuItem(Tr("Paste"), "Ctrl+V")) { mEditor.Defer([this] { mEditor.GetActions().PasteClipboard(); }); }
 			}
 			ImGui::EndPopup();
 		}
@@ -166,9 +166,9 @@ namespace rd
 		Scene& scene = mEditor.GetScene();
 		if (ImGui::BeginPopupContextItem())
 		{
-			mEditor.DrawCreateMenu(nullptr);
+			mEditor.GetActions().DrawCreateMenu(nullptr);
 			ImGui::Separator();
-			if (ImGui::MenuItem(Tr("Save Scene"), "Ctrl+S")) { mEditor.Defer([this] { mEditor.SaveScene(false); }); }
+			if (ImGui::MenuItem(Tr("Save Scene"), "Ctrl+S")) { mEditor.Defer([this] { mEditor.GetDocument().SaveScene(false); }); }
 			ImGui::EndPopup();
 		}
 		if (ImGui::IsItemHovered())
@@ -228,21 +228,21 @@ namespace rd
 			{
 				auto command = std::make_unique<ReparentCommand>(EditorLocale::Format(sameParent ? "Reorder {}" : "Reparent {}", actor->GetName()), actor, parent, index);
 				command->Redo(scene);
-				mEditor.Select(actor);
-				mEditor.PushCommand(std::move(command));
+				mEditor.GetSelection().Select(actor);
+				mEditor.GetUndo().Push(std::move(command));
 				// 閉じた親へ入れたときも見えるよう、次のフレームで親を開く
 				mLastSelected = 0;
 			}
 		}
 		if (!mOps.instantiate.empty())
 		{
-			mEditor.InstantiateAsset(mOps.instantiate, mOps.instParent, mOps.instIndex);
+			mEditor.GetActions().InstantiateAsset(mOps.instantiate, mOps.instParent, mOps.instIndex);
 		}
 		if (mOps.rename && !mRenameBuffer.empty() && mRenameBuffer != mOps.rename->GetName())
 		{
 			Json before = scene.SerializeActorState(mOps.rename);
 			mOps.rename->SetName(mRenameBuffer);
-			mEditor.PushCommand(std::make_unique<ActorStateCommand>(Tr("Rename"), mOps.rename->GetId(), std::move(before), scene.SerializeActorState(mOps.rename)));
+			mEditor.GetUndo().Push(std::make_unique<ActorStateCommand>(Tr("Rename"), mOps.rename->GetId(), std::move(before), scene.SerializeActorState(mOps.rename)));
 		}
 		if (mOps.toggleActive)
 		{
@@ -251,8 +251,8 @@ namespace rd
 			Json before = scene.SerializeActorState(a);
 			a->SetActive(!a->IsActiveSelf());
 			auto command = std::make_unique<ActorStateCommand>(Tr(a->IsActiveSelf() ? "Activate" : "Deactivate"), a->GetId(), std::move(before), scene.SerializeActorState(a));
-			command->SetSelection(mEditor.GetSelectedId());
-			mEditor.PushCommand(std::move(command));
+			command->SetSelection(mEditor.GetSelection().GetId());
+			mEditor.GetUndo().Push(std::move(command));
 		}
 	}
 
@@ -260,7 +260,7 @@ namespace rd
 	{
 		const ActorId id = actor->GetId();
 		const bool hasChildren = !flat && !actor->GetChildren().empty();
-		const bool selected = id == mEditor.GetSelectedId();
+		const bool selected = id == mEditor.GetSelection().GetId();
 
 		ImGui::PushID(reinterpret_cast<void*>(id));
 		ImGuiWindow* window = ImGui::GetCurrentWindow();
@@ -274,7 +274,7 @@ namespace rd
 		{
 			if (mReveal)
 			{
-				if (Actor* sel = mEditor.GetSelected(); sel && sel->IsDescendantOf(actor)) { ImGui::SetNextItemOpen(true); }
+				if (Actor* sel = mEditor.GetSelection().Get(); sel && sel->IsDescendantOf(actor)) { ImGui::SetNextItemOpen(true); }
 			}
 			if (mToggleId == id)
 			{
@@ -311,12 +311,12 @@ namespace rd
 		if (selected && mReveal) { ImGui::ScrollToItem(ImGuiScrollFlags_KeepVisibleCenterY); }
 		if (ImGui::IsItemClicked(ImGuiMouseButton_Left) && !ImGui::IsItemToggledOpen())
 		{
-			mEditor.Select(actor);
+			mEditor.GetSelection().Select(actor);
 			if (mRenamingId != id) { mRenamingId = 0; }
 		}
 		if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left) && !ImGui::IsItemToggledOpen())
 		{
-			mEditor.Defer([this, id] { mEditor.FocusOn(mEditor.GetScene().FindActor(id)); });
+			mEditor.Defer([this, id] { mEditor.GetActions().FocusOn(mEditor.GetScene().FindActor(id)); });
 		}
 
 		if (ImGui::BeginDragDropSource())
@@ -394,7 +394,7 @@ namespace rd
 						{
 							if (Actor* a = mEditor.GetScene().FindActor(id))
 							{
-								if (auto mr = a->GetComponent<MeshRenderer>()) { mEditor.AssignMaterial(*mr, 0, path); }
+								if (auto mr = a->GetComponent<MeshRenderer>()) { mEditor.GetActions().AssignMaterial(*mr, 0, path); }
 							}
 						});
 				}
@@ -407,16 +407,16 @@ namespace rd
 	{
 		if (!ImGui::BeginPopupContextItem()) { return; }
 		Scene& scene = mEditor.GetScene();
-		if (mEditor.GetSelectedId() != actor->GetId()) { mEditor.Select(actor); }
+		if (mEditor.GetSelection().GetId() != actor->GetId()) { mEditor.GetSelection().Select(actor); }
 		if (ImGui::MenuItem(Tr("Rename"), "F2")) { BeginRename(actor); }
-		if (ImGui::MenuItem(Tr("Copy"), "Ctrl+C")) { mEditor.CopySelected(); }
-		if (ImGui::MenuItem(Tr("Paste"), "Ctrl+V", false, mEditor.HasClipboard())) { mEditor.Defer([this] { mEditor.PasteClipboard(); }); }
-		if (ImGui::MenuItem(Tr("Duplicate"), "Ctrl+D")) { mEditor.Defer([this] { mEditor.DuplicateSelected(); }); }
-		if (ImGui::MenuItem(Tr("Delete"), "Del")) { mEditor.Defer([this] { mEditor.DeleteSelected(); }); }
+		if (ImGui::MenuItem(Tr("Copy"), "Ctrl+C")) { mEditor.GetActions().CopySelected(); }
+		if (ImGui::MenuItem(Tr("Paste"), "Ctrl+V", false, mEditor.GetActions().HasClipboard())) { mEditor.Defer([this] { mEditor.GetActions().PasteClipboard(); }); }
+		if (ImGui::MenuItem(Tr("Duplicate"), "Ctrl+D")) { mEditor.Defer([this] { mEditor.GetActions().DuplicateSelected(); }); }
+		if (ImGui::MenuItem(Tr("Delete"), "Del")) { mEditor.Defer([this] { mEditor.GetActions().DeleteSelected(); }); }
 		ImGui::Separator();
 		if (ImGui::BeginMenu(Tr("Create Child")))
 		{
-			mEditor.DrawCreateMenu(actor);
+			mEditor.GetActions().DrawCreateMenu(actor);
 			ImGui::EndMenu();
 		}
 		ImGui::Separator();
@@ -429,11 +429,11 @@ namespace rd
 		if (ImGui::MenuItem(Tr("Move to Bottom"), nullptr, false, sibling < count - 1)) { moveTo(actor->GetParent(), -1); }
 		if (ImGui::MenuItem(Tr("Unparent"), nullptr, false, actor->GetParent() != nullptr)) { moveTo(nullptr, -1); }
 		ImGui::Separator();
-		if (ImGui::MenuItem(Tr("Focus"), Tr("F / Double-click"))) { mEditor.Defer([this, actor] { mEditor.FocusOn(actor); }); }
+		if (ImGui::MenuItem(Tr("Focus"), Tr("F / Double-click"))) { mEditor.Defer([this, actor] { mEditor.GetActions().FocusOn(actor); }); }
 		if (ImGui::MenuItem(Tr("Create Prefab")))
 		{
 			std::string dir = mEditor.GetProject().GetCurrentFolder();
-			mEditor.Defer([this, actor, dir] { mEditor.CreatePrefab(actor, dir); });
+			mEditor.Defer([this, actor, dir] { mEditor.GetActions().CreatePrefab(actor, dir); });
 		}
 		if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", EditorLocale::Format("Save to {}/\n(or drag the actor into the Project panel)", mEditor.GetProject().GetCurrentFolder()).c_str()); }
 		ImGui::EndPopup();
@@ -519,18 +519,18 @@ namespace rd
 		for (ImGuiKey key : { ImGuiKey_UpArrow, ImGuiKey_DownArrow, ImGuiKey_LeftArrow, ImGuiKey_RightArrow }) { ImGui::SetKeyOwner(key, owner); }
 		auto pressed = [&](ImGuiKey key) { return ImGui::IsKeyPressed(key, owner, ImGuiInputFlags_Repeat); };
 
-		if (ImGui::IsKeyPressed(ImGuiKey_F2, false)) { BeginRename(mEditor.GetSelected()); return; }
+		if (ImGui::IsKeyPressed(ImGuiKey_F2, false)) { BeginRename(mEditor.GetSelection().Get()); return; }
 		if (mRows.empty()) { return; }
 
 		int index = -1;
 		for (int i = 0; i < int(mRows.size()); ++i)
 		{
-			if (mRows[i].id == mEditor.GetSelectedId()) { index = i; break; }
+			if (mRows[i].id == mEditor.GetSelection().GetId()) { index = i; break; }
 		}
 		Scene& scene = mEditor.GetScene();
 		auto selectRow = [&](int i)
 			{
-				if (i >= 0 && i < int(mRows.size())) { mEditor.Select(scene.FindActor(mRows[i].id)); }
+				if (i >= 0 && i < int(mRows.size())) { mEditor.GetSelection().Select(scene.FindActor(mRows[i].id)); }
 			};
 		if (index < 0)
 		{
@@ -544,7 +544,7 @@ namespace rd
 		else if (pressed(ImGuiKey_LeftArrow))
 		{
 			if (row.open) { mToggleId = row.id; mToggleOpen = false; }
-			else if (row.parent) { mEditor.Select(scene.FindActor(row.parent)); }
+			else if (row.parent) { mEditor.GetSelection().Select(scene.FindActor(row.parent)); }
 		}
 		else if (pressed(ImGuiKey_RightArrow))
 		{

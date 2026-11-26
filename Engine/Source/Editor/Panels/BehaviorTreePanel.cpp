@@ -352,7 +352,7 @@ namespace rd
 	{
 		if (!mEditor.IsPlaying()) { return nullptr; }
 		const bt::TreeInstance* first = nullptr;
-		Actor* selected = mEditor.GetSelected();
+		Actor* selected = mEditor.GetSelection().Get();
 		for (const bt::TreeInstance* inst : bt::TreeInstance::GetAll())
 		{
 			if (!inst->IsValid() || inst->GetPath() != mPath) { continue; }

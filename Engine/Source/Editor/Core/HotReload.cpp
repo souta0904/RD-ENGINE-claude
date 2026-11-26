@@ -1,11 +1,13 @@
 #include "RdPch.h"
 #include "Editor/Core/HotReload.h"
+#include "Core/Jobs/JobSystem.h"
 #include "Core/Time/Time.h"
 #include "Core/Time/Timer.h"
 #include "Core/Util/StringUtil.h"
 #include "Editor/Editor.h"
 #include "Engine.h"
 #include "Runtime/GameModule.h"
+#include "Runtime/SceneManager.h"
 #include "Scene/Scene.h"
 
 namespace rd
@@ -260,7 +262,7 @@ namespace rd
 				auto builtTime = GameModule::GetBuiltWriteTime();
 				std::string error;
 				Timer timer;
-				if (mEditor.GetEngine().ReloadGameCode(error))
+				if (ReloadGameCode(error))
 				{
 					Logger::Info(LogCat::Editor, "Reloaded the game code ({} reloads, {:.0f} ms)", GameModule::GetReloadCount(), timer.GetTotalSeconds() * 1000.0);
 					mState = State::Succeeded;
@@ -272,5 +274,31 @@ namespace rd
 					mState = State::Failed;
 				}
 			});
+	}
+
+	// 1. 動いているジョブを待つ（古いコンポーネントを触っているかもしれない）
+	// 2. 今のシーンを JSON にしておく（保存していない変更も、選んでいるアクターの ID もそのまま残る）
+	// 3. 新しい DLL を読む。ゲームのコンポーネントの登録が新しい型に入れ替わる
+	// 4. JSON からシーンを作り直す。足した変数には初期値が入り、消したクラスは MissingComponent になる
+	//  Undo の履歴はアクターの ID と JSON で持っているので、そのまま使える
+	bool HotReload::ReloadGameCode(std::string& error)
+	{
+		if (!GameModule::IsLoaded()) { error = "The game code is not a DLL in this build"; return false; }
+		if (mEditor.IsPlaying()) { error = "Stop playing before reloading the game code"; return false; }
+
+		JobSystem::WaitIdle();
+		JobSystem::ExecuteMainThreadTasks();
+		Scene& scene = mEditor.GetScene();
+		Json snapshot = scene.Serialize();
+		std::string path = scene.GetPath();
+
+		if (!GameModule::Reload(error)) { return false; }
+
+		auto fresh = std::make_unique<Scene>();
+		fresh->Deserialize(snapshot);
+		fresh->SetPath(path);
+		mEditor.GetEngine().GetSceneManager().SetScene(std::move(fresh));
+		mEditor.OnGameCodeReloaded();
+		return true;
 	}
 }

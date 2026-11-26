@@ -469,7 +469,7 @@ namespace rd
 
 		if (target && ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
 		{
-			if (mEditor) { mEditor->Select(target); }
+			if (mEditor) { mEditor->GetSelection().Select(target); }
 		}
 
 		if (!readOnly && ImGui::BeginDragDropTarget())

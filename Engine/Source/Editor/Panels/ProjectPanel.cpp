@@ -99,7 +99,7 @@ namespace rd
 		ImGui::EndChild();
 		DrawDialogs();
 
-		if (mPrefabActor != 0) { mEditor.CreatePrefab(mEditor.GetScene().FindActor(mPrefabActor), mPrefabFolder); }
+		if (mPrefabActor != 0) { mEditor.GetActions().CreatePrefab(mEditor.GetScene().FindActor(mPrefabActor), mPrefabFolder); }
 	}
 
 	// 今のフォルダまでのパンくず（押すとそのフォルダへ戻る）と、検索・アイコンの大きさ
@@ -113,9 +113,9 @@ namespace rd
 			if (ImGui::MenuItem(Tr("Material"))) { CreateMaterial(); }
 			if (ImGui::MenuItem(Tr("Shader"))) { CreateShader(); }
 			if (ImGui::MenuItem(Tr("Behavior Tree"))) { CreateBehaviorTree(); }
-			if (ImGui::MenuItem(Tr("Prefab from Selection"), nullptr, false, mEditor.GetSelected() != nullptr))
+			if (ImGui::MenuItem(Tr("Prefab from Selection"), nullptr, false, mEditor.GetSelection().Get() != nullptr))
 			{
-				mPrefabActor = mEditor.GetSelectedId();
+				mPrefabActor = mEditor.GetSelection().GetId();
 				mPrefabFolder = mFolder;
 			}
 			ImGui::EndPopup();
@@ -326,9 +326,9 @@ namespace rd
 		if (ImGui::MenuItem(Tr("Create Material"))) { CreateMaterial(); }
 		if (ImGui::MenuItem(Tr("Create Shader"))) { CreateShader(); }
 		if (ImGui::MenuItem(Tr("Create Behavior Tree"))) { CreateBehaviorTree(); }
-		if (ImGui::MenuItem(Tr("Create Prefab from Selection"), nullptr, false, mEditor.GetSelected() != nullptr))
+		if (ImGui::MenuItem(Tr("Create Prefab from Selection"), nullptr, false, mEditor.GetSelection().Get() != nullptr))
 		{
-			mPrefabActor = mEditor.GetSelectedId();
+			mPrefabActor = mEditor.GetSelection().GetId();
 			mPrefabFolder = mFolder;
 		}
 		ImGui::Separator();
@@ -343,11 +343,11 @@ namespace rd
 			mFolder = e.path;
 			mSelected.clear();
 		}
-		else if (e.ext == ".scene") { mEditor.OpenScene(e.path); }
+		else if (e.ext == ".scene") { mEditor.GetDocument().OpenScene(e.path); }
 		else if (e.ext == bt::TreeAsset::kExtension) { mSelected = e.path; mEditor.OpenBehaviorTree(e.path); }
 		// シェーダーはエディタの中では書けないので、Windows で決めてあるアプリで開く（Unity と同じ）
 		else if (e.ext == ".hlsl" || e.ext == ".hlsli") { mSelected = e.path; FileDialog::OpenWithDefaultApp(e.path); }
-		else { mSelected = e.path; mEditor.Select(nullptr); }
+		else { mSelected = e.path; mEditor.GetSelection().Select(nullptr); }
 	}
 
 	void ProjectPanel::SelectFile(const std::string& path)
@@ -368,7 +368,7 @@ namespace rd
 		if (!MaterialAsset::CreateFile(path)) { return; }
 		Logger::Info(LogCat::Editor, "Created material: {}", path);
 		mSelected = path;
-		mEditor.Select(nullptr);
+		mEditor.GetSelection().Select(nullptr);
 		BeginRename({ GetFileName(path), path, MaterialAsset::kExtension, false });
 	}
 
@@ -381,7 +381,7 @@ namespace rd
 		if (!bt::TreeAsset::CreateFile(path)) { return; }
 		Logger::Info(LogCat::Editor, "Created behavior tree: {}", path);
 		mSelected = path;
-		mEditor.Select(nullptr);
+		mEditor.GetSelection().Select(nullptr);
 		BeginRename({ GetFileName(path), path, ext, false });
 	}
 
@@ -393,7 +393,7 @@ namespace rd
 		if (!ShaderAsset::CreateFile(path)) { return; }
 		Logger::Info(LogCat::Editor, "Created shader: {}", path);
 		mSelected = path;
-		mEditor.Select(nullptr);
+		mEditor.GetSelection().Select(nullptr);
 		BeginRename({ GetFileName(path), path, ".hlsl", false });
 	}
 

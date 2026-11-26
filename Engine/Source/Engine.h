@@ -13,16 +13,15 @@ namespace rd
 {
 	class AssetManager;
 	class AudioSystem;
-#if RD_EDITOR
-	class Editor;
-#endif
+	class EngineLayer;
 	class GraphicsDevice;
 	class Renderer;
 	class Scene;
 
 	// エンジン本体（サブシステムを持ち、初期化と終了の順番とメインループを受け持つ）
 	//  シーンの切り替えは SceneManager、プレイの状態は PlayController、描画の組み立ては FrameComposer に任せる。
-	//  RD_EDITOR=0（Game 構成）ではエディタを持たず、いつもプレイ中として動く。
+	//  エディタのことは知らない。エディタは EngineLayer として外から差し込まれ（EngineConfig::createLayer）、
+	//  エンジンは決まったときにその関数を呼ぶだけ。層がなければ（Game 構成・-noeditor）いつもプレイ中として動く。
 	//  サブシステムは上から順に作り、Shutdown で逆の順に消す
 	class RD_API Engine
 	{
@@ -38,9 +37,6 @@ namespace rd
 		void Quit();
 
 		Window& GetWindow() { return mWindow; }
-#if RD_EDITOR
-		Editor* GetEditor() { return mEditor.get(); }
-#endif
 		const EngineConfig& GetConfig() const { return mConfig; }
 		SceneManager& GetSceneManager() { return mScenes; }
 		PlayController& GetPlayController() { return mPlay; }
@@ -49,14 +45,6 @@ namespace rd
 		bool IsPaused() const { return mPlay.IsPaused(); }
 		void SetPaused(bool paused) { mPlay.SetPaused(paused); }
 		void StepFrame() { mPlay.StepFrame(); }
-#if RD_EDITOR
-		// Stop でプレイ前のシーンに戻す
-		void BeginPlay();
-		void EndPlay();
-		// ビルドし直したゲームの DLL を読み直し、今のシーンを新しいコードで作り直す（ホットリロード）。
-		//  プレイ中はできない（止めてから呼ぶ）。失敗したら false で、今までのコードのまま動き続ける
-		bool ReloadGameCode(std::string& error);
-#endif
 
 		// 切り替えはフレームの区切りで行われる
 		Scene& GetScene() { return mScenes.GetScene(); }
@@ -66,10 +54,7 @@ namespace rd
 
 		float GetFps() const { return mStats.GetFps(); }
 		float GetFrameMs() const { return mStats.GetFrameMs(); }
-#if RD_EDITOR
-		// タイトルを「エンジン名 - シーンのパス + suffix」にする（保存していない * など）
-		void SetWindowTitleSuffix(const std::string& suffix);
-#endif
+		uint64_t GetFrameCount() const { return mFrameCount; }
 
 	private:
 		bool Initialize();
@@ -77,9 +62,6 @@ namespace rd
 		void Frame(float dt);
 		void ApplyPendingScene();
 		void UpdateAudio(Scene& scene);
-#if RD_EDITOR
-		void SaveEditorSession();
-#endif
 
 		static inline Engine* sInstance = nullptr;
 		EngineConfig mConfig;
@@ -89,11 +71,8 @@ namespace rd
 		std::unique_ptr<AssetManager> mAssets;
 		std::unique_ptr<Renderer> mRenderer;
 		std::unique_ptr<AudioSystem> mAudio;
-#if RD_EDITOR
-		std::unique_ptr<Editor> mEditor;
-		// 前回の状態を読み、終了時に保存するか（撮影や計測の実行は毎回同じ条件にしたいので使わない）
-		bool mUseEditorSession = false;
-#endif
+		// 外から差し込まれた層（エディタ）。なければ nullptr
+		std::unique_ptr<EngineLayer> mLayer;
 
 		SceneManager mScenes;
 		PlayController mPlay;

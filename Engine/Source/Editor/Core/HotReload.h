@@ -16,7 +16,7 @@ namespace rd
 	//  - Visual Studio でビルドしても、できた DLL が新しくなったことに気づいて読み直す
 	//    （デバッグ中の Visual Studio はビルドさせてくれないので、そのときはエディタの Compile を使う）
 	//  - プレイ中は読み直さず、止めたときに読み直す
-	//  読み直しの本体は Engine::ReloadGameCode
+	//  読み直しの本体は ReloadGameCode（シーンを JSON にして、DLL を読み直し、JSON からシーンを作り直す）
 	class RD_API HotReload
 	{
 	public:
@@ -41,6 +41,8 @@ namespace rd
 	private:
 		void RunBuild(std::wstring commandLine);
 		void ScheduleReload();
+		// ビルドし直したゲームの DLL を読み直し、今のシーンを新しいコードで作り直す。失敗したら今までのコードのまま
+		bool ReloadGameCode(std::string& error);
 
 		Editor& mEditor;
 		std::thread mThread;

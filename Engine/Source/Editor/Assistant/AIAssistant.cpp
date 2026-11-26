@@ -119,7 +119,7 @@ How to work:
 		AssistantTurn turn;
 		turn.role = AssistantTurn::Role::User;
 		turn.text = text;
-		if (Actor* sel = mEditor.GetSelected())
+		if (Actor* sel = mEditor.GetSelection().Get())
 		{
 			turn.text += std::format("\n\n(Currently selected actor: id {} \"{}\")", sel->GetId(), sel->GetName());
 		}

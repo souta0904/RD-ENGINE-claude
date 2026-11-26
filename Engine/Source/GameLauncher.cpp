@@ -5,6 +5,9 @@
 #include "Runtime/GameModule.h"
 #include "Scene/Scene.h"
 #include <shellapi.h>
+#if RD_EDITOR
+#include "Editor/Editor.h"
+#endif
 
 namespace rd
 {
@@ -27,6 +30,13 @@ namespace rd
 		config.gameName = gameName;
 		if (configure) { configure(config); }
 		config.ParseCommandLine();
+#if RD_EDITOR
+		// エディタはエンジンに外から差し込む（エンジンはエディタを知らない）
+		if (config.enableEditor)
+		{
+			config.createLayer = [](Engine& engine) -> std::unique_ptr<EngineLayer> { return std::make_unique<Editor>(engine); };
+		}
+#endif
 		Engine engine;
 		return engine.Run(config);
 	}

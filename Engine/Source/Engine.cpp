@@ -2,7 +2,6 @@
 #include "Engine.h"
 #include "Asset/AssetManager.h"
 #include "Audio/AudioSystem.h"
-#include "Runtime/BuiltinComponents.h"
 #include "Components/Rendering/CameraComponent.h"
 #include "Components/UI/UIFont.h"
 #include "Core/Debug/CrashHandler.h"
@@ -13,13 +12,9 @@
 #include "Platform/Input/Input.h"
 #include "Render/Renderer/Renderer.h"
 #include "RHI/Device/GraphicsDevice.h"
+#include "Runtime/BuiltinComponents.h"
+#include "Runtime/EngineLayer.h"
 #include "Scene/Scene.h"
-#if RD_EDITOR
-#include "Core/Util/FileUtil.h"
-#include "Editor/Core/EditorSession.h"
-#include "Editor/Editor.h"
-#include "Runtime/GameModule.h"
-#endif
 
 namespace rd
 {
@@ -93,27 +88,11 @@ namespace rd
 
 		JobSystem::Initialize();
 
+		// 差し込む層（エディタ）は窓を作る前に作り、窓の位置や最初のシーンを決めさせる
 		WindowDesc wd = mConfig.window;
 		if (wd.title.empty()) { wd.title = kName; }
-#if RD_EDITOR
-		// 前回の状態を読む。ウィンドウとシーンは作る前に決める必要があるので、ここで設定へ反映する
-		EditorSession session;
-		bool hasSession = false;
-		mUseEditorSession = mConfig.enableEditor && mConfig.captureFrame < 0 && mConfig.profileFrames == 0;
-		if (mUseEditorSession) { hasSession = session.Load(EditorSession::GetDefaultPath()); }
-		if (hasSession)
-		{
-			if (session.hasWindow)
-			{
-				wd.hasPlacement = true;
-				wd.placement = session.window;
-				wd.maximized = session.window.maximized;
-				if (!mConfig.fullscreenFromCommandLine) { wd.fullscreen = session.window.fullscreen; }
-			}
-			// シーンが消されていたら、いつもの開始シーンで起動する
-			if (!mConfig.sceneFromCommandLine && !session.scene.empty() && FileExists(session.scene)) { mConfig.startScene = session.scene; }
-		}
-#endif
+		if (mConfig.createLayer) { mLayer = mConfig.createLayer(*this); }
+		if (mLayer) { mLayer->OnConfigure(mConfig, wd); }
 		if (!mWindow.Create(wd)) { return false; }
 
 		mDevice = std::make_unique<GraphicsDevice>();
@@ -140,51 +119,38 @@ namespace rd
 		mComposer.Initialize(mWindow, *mDevice, *mRenderer);
 		mCapture.Configure(mConfig.captureFrame, mConfig.capturePath);
 
-#if RD_EDITOR
-		if (mConfig.enableEditor)
-		{
-			mEditor = std::make_unique<Editor>(*this);
-			mEditor->Initialize();
-			mWindow.SetMessageHook([this](HWND h, UINT m, WPARAM w, LPARAM l) { return mEditor->HandleMessage(h, m, w, l); });
-			mComposer.SetOverlay(mEditor.get());
-		}
-#endif
-
 		// シーンを差し替える前に、GPU が古いシーンのリソースを使い終わるのを待ち、音を止める
 		mScenes.SetBeforeSwap([this]
 			{
 				mDevice->WaitIdle();
 				mAudio->StopAll();
 			});
-
 		mScenes.CreateInitial(mConfig.startScene, mConfig.buildDefaultScene);
 
-#if RD_EDITOR
-		if (mEditor) { mEditor->OnSceneChanged(); }
-		if (mEditor && hasSession) { mEditor->RestoreSession(session); }
-		mPlay.SetPlaying(!mEditor);
-		if (mEditor && mConfig.autoPlay) { BeginPlay(); }
-		SetWindowTitleSuffix("");
-#else
-		mPlay.SetPlaying(true);
-#endif
+		if (mLayer)
+		{
+			mLayer->OnInitialize();
+			mWindow.SetMessageHook([this](HWND h, UINT m, WPARAM w, LPARAM l) { return mLayer->HandleMessage(h, m, w, l); });
+			mComposer.SetOverlay(mLayer.get());
+		}
+		else
+		{
+			mPlay.Start();
+		}
 		return true;
 	}
 
 	void Engine::Shutdown()
 	{
-#if RD_EDITOR
-		// シーンやエディタを消す前に保存する
-		SaveEditorSession();
-#endif
+		// 層（エディタ）は、シーンや窓が残っているうちに後片付けをする（状態の保存など）
+		if (mLayer) { mLayer->OnShutdown(); }
 		if (mDevice && GraphicsDevice::IsAlive()) { mDevice->WaitIdle(); }
-		// DestroyWindow 中のメッセージが破棄済みの Editor / デバイスへ届かないように外す
+		// DestroyWindow 中のメッセージが破棄済みの層 / デバイスへ届かないように外す
 		mWindow.SetMessageHook(nullptr);
 		mWindow.SetResizeCallback(nullptr);
+		mComposer.SetOverlay(nullptr);
 		mScenes.Clear();
-#if RD_EDITOR
-		if (mEditor) { mEditor->Shutdown(); mEditor.reset(); }
-#endif
+		mLayer.reset();
 		UIFont::ReleaseAll();
 		if (mAudio) { mAudio->Shutdown(); mAudio.reset(); }
 		if (mRenderer) { mRenderer->Shutdown(); mRenderer.reset(); }
@@ -212,16 +178,14 @@ namespace rd
 
 		mDevice->BeginFrame();
 
-#if RD_EDITOR
-		// ビューポートの大きさやカメラもここで決まる（Stop でシーンが差し替わることもある）
-		if (mEditor)
+		// 層（エディタ）の更新。ビューポートの大きさやカメラもここで決まる（Stop でシーンが差し替わることもある）
+		if (mLayer)
 		{
 			RD_PROFILE_SCOPE("Editor");
-			mEditor->BeginFrame();
-			mEditor->Update(dt);
+			mLayer->OnBeginFrame();
+			mLayer->OnUpdate(dt);
 		}
 		else
-#endif
 		{
 			Input::SetBlocked(false, false);
 		}
@@ -261,79 +225,11 @@ namespace rd
 		mAudio->Update();
 	}
 
-#if RD_EDITOR
-	void Engine::BeginPlay()
-	{
-		if (!mPlay.Begin(mScenes.GetScene())) { return; }
-		Logger::Info(LogCat::Core, "Play");
-	}
-
-	void Engine::EndPlay()
-	{
-		if (!mPlay.IsPlaying() || !mEditor) { return; }
-		mAudio->StopAll();
-		mScenes.SetScene(mPlay.End());
-		SetWindowTitleSuffix("");
-		mEditor->OnSceneChanged(true);
-		Logger::Info(LogCat::Core, "Stop");
-	}
-
-	// 1. 動いているジョブを待つ（古いコンポーネントを触っているかもしれない）
-	// 2. 今のシーンを JSON にしておく（保存していない変更も、選んでいるアクターの ID もそのまま残る）
-	// 3. 新しい DLL を読む。ゲームのコンポーネントの登録が新しい型に入れ替わる
-	// 4. JSON からシーンを作り直す。足した変数には初期値が入り、消したクラスは MissingComponent になる
-	//  Undo の履歴はアクターの ID と JSON で持っているので、そのまま使える
-	bool Engine::ReloadGameCode(std::string& error)
-	{
-		if (!GameModule::IsLoaded()) { error = "The game code is not a DLL in this build"; return false; }
-		if (mPlay.IsPlaying()) { error = "Stop playing before reloading the game code"; return false; }
-
-		JobSystem::WaitIdle();
-		JobSystem::ExecuteMainThreadTasks();
-		Scene& scene = mScenes.GetScene();
-		Json snapshot = scene.Serialize();
-		std::string path = scene.GetPath();
-
-		if (!GameModule::Reload(error)) { return false; }
-
-		auto fresh = std::make_unique<Scene>();
-		fresh->Deserialize(snapshot);
-		fresh->SetPath(path);
-		mScenes.SetScene(std::move(fresh));
-		if (mEditor) { mEditor->OnGameCodeReloaded(); }
-		SetWindowTitleSuffix("");
-		return true;
-	}
-
-	void Engine::SaveEditorSession()
-	{
-		if (!mUseEditorSession || !mEditor || !mScenes.HasScene()) { return; }
-		EditorSession session;
-		session.hasWindow = true;
-		session.window = mWindow.GetPlacement();
-		// プレイ中に閉じたら、ゲームが切り替えた場面ではなく、編集していたシーンを次に開く
-		session.scene = mPlay.IsPlaying() ? mPlay.GetSnapshotPath() : mScenes.GetScene().GetPath();
-		mEditor->CaptureSession(session);
-		if (!session.Save(EditorSession::GetDefaultPath())) { Logger::Warning(LogCat::Editor, "Failed to save the editor session"); }
-	}
-#endif
-
+	// プレイ中にゲームが切り替えた場面は、そのままプレイを続ける（Stop でプレイを始めた場面に戻る）。
+	//  エディタで開く・新しく作るときは、先にエディタがプレイを止めてから切り替える
 	void Engine::ApplyPendingScene()
 	{
 		if (!mScenes.ApplyPending()) { return; }
-#if RD_EDITOR
-		// プレイ中にゲームが切り替えた場面はそのままプレイを続ける（Stop でプレイを始めた場面に戻る）。
-		//  エディタで開く・新しく作るときは、先に EndPlay で止めてから切り替える
-		if (mEditor) { mEditor->OnSceneChanged(); }
-		SetWindowTitleSuffix("");
-#endif
+		if (mLayer) { mLayer->OnSceneChanged(); }
 	}
-
-#if RD_EDITOR
-	void Engine::SetWindowTitleSuffix(const std::string& suffix)
-	{
-		std::string scene = mScenes.HasScene() ? (mScenes.GetScene().GetPath().empty() ? std::string("Untitled") : mScenes.GetScene().GetPath()) : "";
-		mWindow.SetTitle(std::format("{} {} - {}{}", kName, kVersion, scene, suffix));
-	}
-#endif
 }

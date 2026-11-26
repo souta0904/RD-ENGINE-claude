@@ -3,10 +3,13 @@
 #include "Core/Log/Logger.h"
 #include "Platform/Window/Window.h"
 #include <functional>
+#include <memory>
 #include <string>
 
 namespace rd
 {
+	class Engine;
+	class EngineLayer;
 	class Scene;
 
 	// エンジンの起動の設定
@@ -22,6 +25,8 @@ namespace rd
 		bool enableEditor = true;
 		bool autoPlay = false;
 #endif
+		// エンジンに差し込む層を作る（RunGame がエディタを入れるときに設定する。空なら層なしでいつもプレイ中）
+		std::function<std::unique_ptr<EngineLayer>(Engine&)> createLayer;
 		bool vsync = true;
 		std::string startScene;
 		std::function<void(Scene&)> buildDefaultScene;

@@ -25,7 +25,7 @@ namespace rd
 			icon = EditorIcons::ForFile(GetExtension(asset), false);
 			return asset;
 		}
-		if (Actor* actor = mEditor.GetSelected())
+		if (Actor* actor = mEditor.GetSelection().Get())
 		{
 			if (auto mr = actor->GetComponent<MeshRenderer>(); mr && !mr->modelPath.empty())
 			{
