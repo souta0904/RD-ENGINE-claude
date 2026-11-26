@@ -6,15 +6,9 @@
 #include "Components/Navigation/NavMeshAgent.h"
 #include "Components/Rendering/MeshRenderer.h"
 #include "Math/Geometry/AABB.h"
-#include "Render/Debug/DebugDraw.h"
 #include "Scene/Actor/Actor.h"
 #include "Scene/Scene.h"
 #include <chrono>
-#if RD_EDITOR
-#include "Editor/Core/EditorLocale.h"
-#include "Editor/Style/EditorGui.h"
-#include <ImGui/imgui.h>
-#endif
 
 namespace rd
 {
@@ -144,78 +138,4 @@ namespace rd
 		mLastBake = {};
 		if (Scene* scene = GetScene()) { scene->GetSystem<NavigationSystem>().ClearSurface(); }
 	}
-
-#if RD_EDITOR
-	bool NavMeshSurface::OnInspectorGUI()
-	{
-		bool changed = false;
-		ImGui::Spacing();
-		if (EditorGui::AccentButton(Tr("Bake"))) { changed = Bake(); }
-		ImGui::SameLine();
-		if (ImGui::Button(Tr("Clear")) && !data.empty())
-		{
-			ClearData();
-			changed = true;
-		}
-		if (mLastBake.done)
-		{
-			ImGui::SameLine();
-			if (mLastBake.triangles == 0) { ImGui::TextDisabled("%s", Tr("No walkable surface was found")); }
-			else
-			{
-				ImGui::TextDisabled("%s", EditorLocale::Format("{} triangles from {} meshes ({:.0f} ms)", mLastBake.triangles, mLastBake.meshes, mLastBake.ms).c_str());
-			}
-		}
-		return changed;
-	}
-#endif
-
-	void NavMeshLink::Reflect(PropertyVisitor& v)
-	{
-		v.Property("Start Point", startPoint);
-		v.Property("End Point", endPoint);
-		v.Property("Width", width, { .speed = 0.1f, .min = 0.0f, .max = 100.0f });
-		v.Property("Cost Modifier", costModifier);
-		v.Property("Is Overriding Cost", isOverridingCost);
-		v.Property("Bidirectional", bidirectional);
-		v.Property("Activated", activated);
-		v.Property("Area", area);
-	}
-
-	void NavMeshLink::Start()
-	{
-		Register();
-	}
-
-	void NavMeshLink::OnDestroy()
-	{
-		if (Scene* scene = GetScene()) { scene->GetSystem<NavigationSystem>().RemoveLink(this); }
-	}
-
-	void NavMeshLink::Register()
-	{
-		NavigationSystem& nav = GetScene()->GetSystem<NavigationSystem>();
-		if (!activated || !IsEnabled())
-		{
-			nav.RemoveLink(this);
-			return;
-		}
-		const Matrix4& m = GetTransform().GetWorldMatrix();
-		NavMesh::Link link;
-		link.start = TransformPoint(startPoint, m);
-		link.end = TransformPoint(endPoint, m);
-		link.bidirectional = bidirectional;
-		link.costModifier = isOverridingCost ? costModifier : 1.0f;
-		link.area = area;
-		nav.SetLink(this, link);
-	}
-
-#if RD_EDITOR
-	void NavMeshLink::OnDrawGizmos(DebugDraw& draw, bool selected)
-	{
-		const Matrix4& m = GetTransform().GetWorldMatrix();
-		Color color = selected ? Color(1.0f, 0.8f, 0.2f, 1.0f) : Color(1.0f, 0.6f, 0.1f, 0.5f);
-		draw.Arrow(TransformPoint(startPoint, m), TransformPoint(endPoint, m), color);
-	}
-#endif
 }

@@ -28,9 +28,6 @@ namespace rd
 		void Start() override;
 		void Update(float dt) override;
 		void OnDestroy() override;
-#if RD_EDITOR
-		bool OnInspectorGUI() override;
-#endif
 
 		void Play();
 		void Stop();

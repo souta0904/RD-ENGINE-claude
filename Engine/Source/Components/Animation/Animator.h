@@ -35,9 +35,6 @@ namespace rd
 		void Update(float dt) override;
 		void LateUpdate(float dt) override;
 		void OnEditorUpdate(float dt) override;
-#if RD_EDITOR
-		bool OnInspectorGUI() override;
-#endif
 
 		// fade 秒かけて今のクリップから切り替える（restart なら同じクリップでも最初から）
 		void Play(const std::string& clipName, float fade = 0.2f, const std::string& source = "", bool restart = false);

@@ -1,5 +1,6 @@
 #include "RdPch.h"
 #include "Editor/Panels/PreviewPanel.h"
+#include "Editor/Preview/TexturePreview.h"
 #include "Asset/AssetManager.h"
 #include "Asset/Model/Model.h"
 #include "Asset/Texture/Texture.h"

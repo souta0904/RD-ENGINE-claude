@@ -1,5 +1,5 @@
 #pragma once
-#include "Editor/Core/AssetPreview.h"
+#include "Editor/Preview/AssetThumbnails.h"
 #include "Editor/Panels/EditorPanel.h"
 #include "Scene/Actor/Actor.h"
 #include <filesystem>

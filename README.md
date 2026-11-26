@@ -81,8 +81,9 @@ claude/
 │     │  ├─ Panels/     Scene・Game・Hierarchy・Properties・Preview・Project・Log・Lighting・Stats・Profiler・Behavior Tree・Render Graph
 │     │  ├─ Commands/   Undo/Redo のコマンド
 │     │  ├─ Style/      色・アイコン・共通の UI 部品（見た目をそろえる）
-│     │  ├─ Inspector/  プロパティの表示（ImGuiInspector）
-│     │  ├─ Core/       ImGui の初期化・エディタカメラ・ファイルダイアログ・取り込み・プレビュー・言語・状態の保存・ホットリロード
+│     │  ├─ Inspector/  プロパティの表示（ImGuiInspector）・コンポーネントごとの追加の UI（ComponentEditors）
+│     │  ├─ Preview/    モデル・プレハブ・マテリアル・テクスチャのプレビューとサムネイル
+│     │  ├─ Core/       ImGui の初期化・エディタカメラ・ファイルダイアログ・取り込み・言語・状態の保存・ホットリロード
 │     │  └─ Assistant/  AI アシスタント（LLM ごとの変換・ツール）
 │     ├─ Engine.h/.cpp サブシステムの所有とメインループ（バージョンは Engine::kVersion）
 │     └─ GameLauncher.h/.cpp  ゲームの起動（RD_GAME_MAIN・RdEditor.exe の入口）
@@ -100,6 +101,26 @@ claude/
 ```
 
 ## 設計のポイント
+
+### 全体の形
+```
+Engine（Engine.cpp）……… サブシステムを持ち、メインループを回す
+ ├─ Window / Input                    Platform
+ ├─ GraphicsDevice                    RHI
+ ├─ AssetManager                      Asset（読み込みは JobSystem で裏で行う）
+ ├─ Renderer（レンダーグラフ）         Render
+ ├─ AudioSystem                       Audio
+ ├─ SceneManager / PlayController     Runtime（シーンの差し替えとプレイ中かどうか）
+ │    └─ Scene ── Actor ── Component  Scene（PhysicsWorld・NavigationSystem は SceneSystem としてシーンが持つ）
+ ├─ FrameComposer / FrameCapture      Runtime（1 フレームの描画の組み立てと画面の保存）
+ └─ Editor（エディタのある構成だけ）  Editor（FrameOverlay として Runtime に差し込む）
+```
+1 フレームの順番（`Engine::Frame`）: ジョブの後始末とシーンの差し替え → 時間を進める → エディタの更新 → `Scene::Update`（Start → Update → FixedUpdate と物理を決まった間隔で必要な回数 → LateUpdate。各段でコンポーネントの後に SceneSystem）→ 音 → 描画（`OnRender` で描くものを集め、レンダーグラフで描く）→ 画面に出す。
+
+サブシステムへの届き方は 2 種類にそろえている。
+- **Engine が持つもの**（`GraphicsDevice`・`AssetManager`・`Renderer`・`AudioSystem`）: `Engine` が作って壊す。どこからでも `Renderer::Get()` のように使える
+- **状態をほとんど持たない道具**（`Logger`・`Input`・`Time`・`JobSystem`・`Profiler`・`ComponentRegistry`）: クラスの static 関数で使う
+- エディタは `Engine::Get()` を使わず、作るときに渡された `Engine&` を使う
 
 ### ゲームのコードの読み直し（ホットリロード）
 エディタを開いたまま、ゲームのコードを書き換えて読み直せます（Unreal のホットリロードと同じ考え方）。関数の中身だけでなく、変数の追加、新しいクラスやファイルの追加にも対応します。
@@ -130,7 +151,15 @@ Math / Core → Platform / RHI → Asset → Render / Audio → Scene → AI →
 ```
 - `Scene` はコンポーネントや物理の具体的な型を知らない。物理ワールドや NavMesh は `SceneSystem` として `scene.GetSystem<PhysicsWorld>()` のように使う。
 - `Asset` は `Render` の型を知らない。マテリアルやシェーダーは呼ぶ側で `AssetManager::LoadNow<MaterialAsset>()` のように型を指定して読む。
+- `AI`（NavMesh・行動ツリー）は `Scene` の上、`Components` の下。`NavMeshAgent` などのコンポーネントが `AI` を使い、`AI` はコンポーネントの型を知らない。
 - `Runtime` はエディタを知らない。エディタは `FrameOverlay` インターフェースを実装して、カメラ・ギズモ・UI を差し込む。
+- **ImGui を使えるのは `Editor` だけ**。コンポーネントは自分の画面を持たず、値は `Reflect` に書く。ボタンなど `Reflect` で表せない UI は、エディタの `ComponentEditors` に型ごとに登録する（Unity の CustomEditor にあたる）。
+  ```cpp
+  ComponentEditors::Register<AudioSource>([](AudioSource& s) { if (ImGui::Button("Preview")) { s.Play(); } return false; });
+  ```
+  組み込みの分は `Editor/Inspector/BuiltinComponentEditors.cpp`。シーンビューの線（`OnDrawGizmos`）は `DebugDraw`（Render）だけで描けるので、コンポーネントに書いてよい。
+- 1 つのファイルには 1 つのクラス（コンポーネントも 1 つずつ）。小さな補助の構造体はクラスの中に入れる。
+- 検査（`Tools/CheckDependencies.ps1`）は、層の表にないフォルダを include したときと、`Editor` の外で ImGui を include したときも違反にする。
 - エディタは作るときに `Engine&` を受け取り、`Engine::Get()` に頼らない。
 - エンジンの外（ゲームとテスト）から使うクラスと関数には `RD_API` を付ける（Unreal の `ENGINE_API` にあたる）。Debug / Release では DLL から出す印になり、Game 構成では何もしない。付け忘れるとゲームのリンクで「未解決の外部シンボル」になる。
   `Vector3` などの数学の型は、定数をヘッダの中で定義しているので、クラスではなく .cpp に本体がある関数にだけ付ける。

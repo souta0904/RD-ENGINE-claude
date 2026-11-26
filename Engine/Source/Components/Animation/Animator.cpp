@@ -5,9 +5,6 @@
 #include "Components/Rendering/MeshRenderer.h"
 #include "RHI/Device/GpuScope.h"
 #include "Scene/Actor/Actor.h"
-#if RD_EDITOR
-#include <ImGui/imgui.h>
-#endif
 
 namespace rd
 {
@@ -290,26 +287,4 @@ namespace rd
 		}
 		return mPaletteGpu;
 	}
-
-#if RD_EDITOR
-	bool Animator::OnInspectorGUI()
-	{
-		auto names = GetClipNames();
-		if (names.empty()) { return false; }
-		if (ImGui::BeginCombo("Select Clip", clip.empty() ? names.front().c_str() : clip.c_str()))
-		{
-			for (auto& n : names)
-			{
-				if (ImGui::Selectable(n.c_str(), n == clip))
-				{
-					clip = n;
-					Play(clip, 0.2f, clipSource);
-				}
-			}
-			ImGui::EndCombo();
-		}
-		ImGui::ProgressBar(GetNormalizedTime(), ImVec2(-1, 0), std::format("{:.2f}s", mTime).c_str());
-		return false;
-	}
-#endif
 }

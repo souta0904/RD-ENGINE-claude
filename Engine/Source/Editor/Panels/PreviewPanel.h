@@ -1,5 +1,7 @@
 #pragma once
-#include "Editor/Core/AssetPreview.h"
+#include "Editor/Preview/MaterialPreviewWidget.h"
+#include "Editor/Preview/ModelPreviewWidget.h"
+#include "Editor/Preview/PrefabPreviewWidget.h"
 #include "Editor/Panels/EditorPanel.h"
 #include "Editor/Style/EditorIcons.h"
 #include <string>

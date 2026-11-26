@@ -9,6 +9,7 @@
 #include "Core/Util/StringUtil.h"
 #include "Editor/Commands/MaterialAssetCommand.h"
 #include "Editor/Editor.h"
+#include "Editor/Inspector/ComponentEditors.h"
 #include "Editor/Inspector/ImGuiInspector.h"
 #include "Editor/Panels/ProjectPanel.h"
 #include "Editor/Style/EditorGui.h"
@@ -130,7 +131,7 @@ namespace rd
 					ImGui::PopStyleColor();
 				}
 				c->Reflect(inspector);
-				commit |= c->OnInspectorGUI();
+				commit |= ComponentEditors::Draw(*c);
 				ImGui::Unindent(4.0f);
 				if (inspector.AnyChanged()) { c->OnValidate(); }
 				commit |= inspector.AnyCommitted();

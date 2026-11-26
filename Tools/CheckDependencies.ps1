@@ -8,10 +8,15 @@
 #   Asset                 アセットの読み込み（テクスチャ・モデル・音声データ）
 #   Render, Audio         描画・音の再生
 #   Scene                 Actor / Component / Scene（コンポーネントの具体的な型は知らない）
-#   Components            描画・音・アニメーションの組み込みコンポーネント
+#   AI                    NavMesh と経路探索・行動ツリー（コンポーネントの具体的な型は知らない）
+#   Components            描画・音・アニメーション・ナビゲーションなどの組み込みコンポーネント
 #   Physics               物理ワールドと Collider / Rigidbody（シーンのシステムとして動く）
 #   Runtime               エンジンの組み立て（シーン切替・フレームの組み立て）
 #   Editor                エディタ（最上位。Engine.cpp と同じく何でも使える）
+#
+# もう 1 つの決まり: ImGui を include してよいのは Editor だけ。
+#   コンポーネントの画面の追加の部品は Editor/Inspector/ComponentEditors に書く。
+#   例外は UIFont が使う stb_truetype（ImGui に同梱されているだけで、画面の部品ではない）。
 
 $allowed = @{
     'Math'       = @('Core')
@@ -22,11 +27,13 @@ $allowed = @{
     'Render'     = @('Core', 'Math', 'RHI', 'Asset')
     'Audio'      = @('Core', 'Math', 'Asset')
     'Scene'      = @('Core', 'Math', 'Asset', 'Render')
-    'Components' = @('Core', 'Math', 'Platform', 'RHI', 'Asset', 'Render', 'Audio', 'Scene')
+    'AI'         = @('Core', 'Math', 'Asset', 'Render', 'Scene')
+    'Components' = @('Core', 'Math', 'Platform', 'RHI', 'Asset', 'Render', 'Audio', 'Scene', 'AI')
     'Physics'    = @('Core', 'Math', 'Asset', 'Render', 'Scene', 'Components')
-    'Runtime'    = @('Core', 'Math', 'Platform', 'RHI', 'Asset', 'Render', 'Audio', 'Scene', 'Components', 'Physics')
+    'Runtime'    = @('Core', 'Math', 'Platform', 'RHI', 'Asset', 'Render', 'Audio', 'Scene', 'AI', 'Components', 'Physics')
     'Editor'     = @('*')
 }
+$imguiAllowed = @('ImGui/imstb_truetype.h')
 
 $source = Join-Path $PSScriptRoot '..\Engine\Source' | Resolve-Path
 $violations = @()
@@ -39,10 +46,19 @@ Get-ChildItem $source -Recurse -Include *.h, *.cpp | ForEach-Object {
     $lineNo = 0
     foreach ($line in [IO.File]::ReadAllLines($_.FullName)) {
         $lineNo++
-        if ($line -match '^\s*#include\s+"(\w+)/') {
+        if ($line -match '^\s*#include\s+[<"]((ImGui|ImGuizmo|imgui-node-editor)/[^>"]+)[>"]') {
+            if ($imguiAllowed -notcontains $Matches[1]) {
+                $violations += "{0}:{1}  {2} -> ImGui（Editor だけが使える）" -f $relative, $lineNo, $module
+            }
+        }
+        elseif ($line -match '^\s*#include\s+"(\w+)/') {
             $target = $Matches[1]
             if ($target -ne $module -and $allowed.ContainsKey($target) -and $rules -notcontains $target) {
                 $violations += "{0}:{1}  {2} -> {3}" -f $relative, $lineNo, $module, $target
+            }
+            elseif (-not $allowed.ContainsKey($target) -and $target -ne $module) {
+                # 知らないフォルダ（新しいモジュール）は表に足すまで違反にする
+                $violations += "{0}:{1}  {2} -> {3}（層の表にないモジュール）" -f $relative, $lineNo, $module, $target
             }
         }
         elseif ($line -match '^\s*#include\s+"(Engine|EngineConfig)\.h"') {

@@ -1,5 +1,6 @@
 #include "RdPch.h"
 #include "Components/UI/Canvas.h"
+#include "Components/UI/CanvasGroup.h"
 #include "Components/UI/RectTransform.h"
 #include "Components/UI/UIImage.h"
 #include "Components/UI/UIText.h"
@@ -140,12 +141,5 @@ namespace rd
 		if (auto image = actor.GetComponent<UIImage>(); image && image->IsEnabled()) { image->Draw(rect, ctx); }
 		if (auto text = actor.GetComponent<UIText>(); text && text->IsEnabled()) { text->Draw(rect, ctx); }
 		for (Actor* child : actor.GetChildren()) { DrawActor(*child, rect, ctx); }
-	}
-
-	// ---- CanvasGroup ----
-
-	void CanvasGroup::Reflect(PropertyVisitor& v)
-	{
-		v.Property("Alpha", alpha, { .speed = 0.01f, .min = 0.0f, .max = 1.0f });
 	}
 }

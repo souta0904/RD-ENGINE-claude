@@ -61,7 +61,6 @@ namespace rd
 		void OnDestroy() override { JobSystem::Wait(mJob); }
 #if RD_EDITOR
 		void OnDrawGizmos(DebugDraw& draw, bool selected) override;
-		bool OnInspectorGUI() override;
 #endif
 
 		void Play();

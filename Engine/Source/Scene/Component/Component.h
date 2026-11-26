@@ -35,8 +35,11 @@ private:
 	//  Update / FixedUpdate / LateUpdate : プレイ中だけ
 	//  OnDestroy  : 破棄される直前（編集中も呼ばれる）
 	//  OnRender   : 編集中も毎フレーム呼ばれ、描きたいものを RenderList に積む
-	//  OnEditorUpdate : 編集中だけ（プレビュー用）、OnInspectorGUI : Reflect では表せない追加の UI
+	//  OnEditorUpdate : 編集中だけ（プレビュー用）
+	//  OnDrawGizmos : 編集中だけ、シーンビューに線を描く（エディタのある構成だけ）
 	//  OnValidate : インスペクタや Undo で値が変わった後
+	//  プロパティ画面に Reflect では表せない UI（ボタンなど）を足すときは、
+	//  コンポーネントの中ではなく Editor の ComponentEditors に登録する（画面の部品は Editor だけが使う）
 	class RD_API Component
 	{
 	public:
@@ -58,8 +61,6 @@ private:
 		virtual void OnRender(RenderList& /*list*/) {}
 #if RD_EDITOR
 		virtual void OnDrawGizmos(DebugDraw& /*draw*/, bool /*selected*/) {}
-		// 保存する値を変えたら true を返す（Undo に積み、シーンを「変更あり」にする）
-		virtual bool OnInspectorGUI() { return false; }
 #endif
 
 		virtual void OnCollisionEnter(const Collision& /*c*/) {}

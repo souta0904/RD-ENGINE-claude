@@ -3,9 +3,6 @@
 #include "Asset/AssetManager.h"
 #include "Asset/Audio/AudioClip.h"
 #include "Scene/Actor/Actor.h"
-#if RD_EDITOR
-#include <ImGui/imgui.h>
-#endif
 
 namespace rd
 {
@@ -137,14 +134,4 @@ namespace rd
 	{
 		Stop();
 	}
-
-#if RD_EDITOR
-	bool AudioSource::OnInspectorGUI()
-	{
-		if (ImGui::Button("Preview")) { Play(); }
-		ImGui::SameLine();
-		if (ImGui::Button("Stop")) { Stop(); }
-		return false;
-	}
-#endif
 }

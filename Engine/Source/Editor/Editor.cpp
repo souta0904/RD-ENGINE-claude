@@ -6,6 +6,7 @@
 #include "Editor/Core/EditorLocale.h"
 #include "Editor/Core/EditorSession.h"
 #include "Editor/Core/HotReload.h"
+#include "Editor/Inspector/ComponentEditors.h"
 #include "Editor/Panels/BehaviorTreePanel.h"
 #include "Editor/Panels/GameViewPanel.h"
 #include "Editor/Panels/LogPanel.h"
@@ -84,6 +85,7 @@ namespace rd
 	void Editor::Initialize()
 	{
 		std::filesystem::create_directories("Logs");
+		ComponentEditors::RegisterBuiltin();
 		mImGui.Initialize(mEngine.GetWindow().GetHandle());
 		EditorStyle::ApplyDarkTitleBar(mEngine.GetWindow().GetHandle());
 		mEngine.GetWindow().EnableFileDrop();

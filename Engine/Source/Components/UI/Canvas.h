@@ -32,13 +32,4 @@ namespace rd
 		Vector2 mCanvasSize;
 		float mScreenScale = 1.0f;
 	};
-
-	// 子の UI をまとめて透明にする
-	class RD_API CanvasGroup final : public Component
-	{
-		RD_COMPONENT(CanvasGroup)
-	public:
-		float alpha = 1.0f;
-		void Reflect(PropertyVisitor& v) override;
-	};
 }

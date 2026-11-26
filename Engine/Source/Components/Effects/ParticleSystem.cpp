@@ -13,9 +13,6 @@
 #include "RHI/Device/GpuScope.h"
 #include "Scene/Actor/Actor.h"
 #include "Scene/Scene.h"
-#if RD_EDITOR
-#include <ImGui/imgui.h>
-#endif
 
 namespace rd
 {
@@ -261,16 +258,6 @@ namespace rd
 		case Shape::Cone: draw.Cone(t.GetPosition(), t.GetUp(), 1.0f, math::ToRadians(coneAngle), c); break;
 		default: break;
 		}
-	}
-
-	bool ParticleSystem::OnInspectorGUI()
-	{
-		if (ImGui::Button(mPlaying ? "Stop" : "Play")) { mPlaying ? Stop() : Play(); }
-		ImGui::SameLine();
-		if (ImGui::Button("Clear")) { Stop(true); }
-		ImGui::SameLine();
-		ImGui::Text("Alive: %u", GetAliveCount());
-		return false;
 	}
 #endif
 }
