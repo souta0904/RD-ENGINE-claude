@@ -70,23 +70,23 @@ claude/
 │     ├─ Platform/    ウィンドウ・入力（キーボード / マウス / XInput・カーソル固定）・HTTPS 通信（WinHTTP）・UDP 通信
 │     ├─ RHI/         D3D12 デバイス・デスクリプタ・テクスチャ・パイプライン・シェーダーコンパイラ
 │     ├─ Asset/       非同期アセット管理・テクスチャ・モデル（assimp と .rdmodel）・アニメーション・音声のデコード
-│     ├─ Render/      レンダラー・レンダーグラフ・描画リスト・カメラ・環境設定・マテリアル（.rdmat）と自作シェーダー（.hlsl）・デバッグ線
+│     ├─ Render/      レンダラー・レンダーグラフ・描画の機能（Features）・描画リスト・カメラ・環境設定・マテリアル（.rdmat）と自作シェーダー（.hlsl）・デバッグ線
 │     ├─ Audio/       XAudio2
-│     ├─ Scene/       Actor・Component・Transform・Scene・参照（ActorRef / ComponentRef）・SceneSystem
+│     ├─ Scene/       Actor・Component・Transform・Scene・参照（ActorRef / ComponentRef）・SceneSystem・保存と読み込み（SceneSerializer）
 │     ├─ AI/          NavMesh と経路探索（NavigationSystem）・行動ツリー（BehaviorTree）
 │     ├─ Components/  描画 / アニメーション / ライト / エフェクト / 音 / ナビゲーション / UI のコンポーネント
 │     ├─ Physics/     コライダー・剛体・CharacterController・物理ワールド（SceneSystem として動く）
-│     ├─ Runtime/     シーン切替・プレイ状態・フレームの組み立て・画面の保存・組み込みコンポーネント登録・ゲームの DLL（GameModule）
-│     ├─ Editor/      ImGui エディタ（Editor.cpp / EditorActions.cpp / EditorMenu.cpp が本体）
+│     ├─ Runtime/     シーン切替・プレイ状態・フレームの組み立て・画面の保存・組み込みコンポーネント登録・ゲームの DLL（GameModule）・差し込む層（EngineLayer）
+│     ├─ Editor/      ImGui エディタ（Editor が組み立て、EditorMainUI がメニュー・ツールバー・ステータスバー・ショートカット）
 │     │  ├─ Panels/     Scene・Game・Hierarchy・Properties・Preview・Project・Log・Lighting・Stats・Profiler・Behavior Tree・Render Graph
-│     │  ├─ Commands/   Undo/Redo のコマンド
+│     │  ├─ Commands/   Undo/Redo（EditorUndo）とコマンド
 │     │  ├─ Style/      色・アイコン・共通の UI 部品（見た目をそろえる）
 │     │  ├─ Inspector/  プロパティの表示（ImGuiInspector）・コンポーネントごとの追加の UI（ComponentEditors）
 │     │  ├─ Preview/    モデル・プレハブ・マテリアル・テクスチャのプレビューとサムネイル
-│     │  ├─ Core/       ImGui の初期化・エディタカメラ・ファイルダイアログ・取り込み・言語・状態の保存・ホットリロード
+│     │  ├─ Core/       エディタの部品（選択・アクターの操作・シーンのファイル・プレイ・配置）・ImGui の初期化・エディタカメラ・ファイルダイアログ・取り込み・言語・状態の保存・ホットリロード
 │     │  └─ Assistant/  AI アシスタント（LLM ごとの変換・ツール）
-│     ├─ Engine.h/.cpp サブシステムの所有とメインループ（バージョンは Engine::kVersion）
-│     └─ GameLauncher.h/.cpp  ゲームの起動（RD_GAME_MAIN・RdEditor.exe の入口）
+│     ├─ Engine.h/.cpp サブシステムの所有とメインループ（エディタは知らない。バージョンは Engine::kVersion）
+│     └─ GameLauncher.h/.cpp  ゲームの起動（RD_GAME_MAIN・RdEditor.exe の入口・エディタを差し込む）
 ├─ Launcher/                 RdEditor.exe（エディタの起動用。Debug / Release だけ）
 ├─ Tools/
 │  ├─ CheckDependencies.ps1  モジュール間の依存が層の決まりを守っているか調べる
@@ -104,24 +104,42 @@ claude/
 
 ### 全体の形
 ```
-Engine（Engine.cpp）……… サブシステムを持ち、メインループを回す
+Engine（Engine.cpp）……… サブシステムを持ち、メインループを回す。エディタのことは知らない
  ├─ Window / Input                    Platform
  ├─ GraphicsDevice                    RHI
  ├─ AssetManager                      Asset（読み込みは JobSystem で裏で行う）
- ├─ Renderer（レンダーグラフ）         Render
+ ├─ Renderer                          Render（描画の機能を順に呼び、レンダーグラフで描く）
  ├─ AudioSystem                       Audio
- ├─ SceneManager / PlayController     Runtime（シーンの差し替えとプレイ中かどうか）
+ ├─ SceneManager / PlayController     Runtime（シーンの差し替え・ゲーム時間と一時停止）
  │    └─ Scene ── Actor ── Component  Scene（PhysicsWorld・NavigationSystem は SceneSystem としてシーンが持つ）
  ├─ FrameComposer / FrameCapture      Runtime（1 フレームの描画の組み立てと画面の保存）
- └─ Editor（エディタのある構成だけ）  Editor（FrameOverlay として Runtime に差し込む）
+ └─ EngineLayer（差し込まれた層）     エディタのある構成では Editor。Game 構成と -noeditor ではなし
 ```
-1 フレームの順番（`Engine::Frame`）: ジョブの後始末とシーンの差し替え → 時間を進める → エディタの更新 → `Scene::Update`（Start → Update → FixedUpdate と物理を決まった間隔で必要な回数 → LateUpdate。各段でコンポーネントの後に SceneSystem）→ 音 → 描画（`OnRender` で描くものを集め、レンダーグラフで描く）→ 画面に出す。
+1 フレームの順番（`Engine::Frame`）: ジョブの後始末とシーンの差し替え → 時間を進める → 層（エディタ）の更新 → `Scene::Update`（Start → Update → FixedUpdate と物理を決まった間隔で必要な回数 → LateUpdate。各段でコンポーネントの後に SceneSystem）→ 音 → 描画（`OnRender` で描くものを集め、レンダーグラフで描く）→ 画面に出す。
 
 サブシステムへの届き方は 2 種類にそろえている。
 - **Engine が持つもの**（`GraphicsDevice`・`AssetManager`・`Renderer`・`AudioSystem`）: `Engine` が作って壊す。どこからでも `Renderer::Get()` のように使える
-- **状態をほとんど持たない道具**（`Logger`・`Input`・`Time`・`JobSystem`・`Profiler`・`ComponentRegistry`）: クラスの static 関数で使う
+- **状態をほとんど持たない道具**（`Logger`・`Input`・`Time`・`JobSystem`・`Profiler`・`ComponentRegistry`・`SceneSerializer`）: クラスの static 関数で使う
 - エディタは `Engine::Get()` を使わず、作るときに渡された `Engine&` を使う
 
+### エンジンとエディタの分け方（EngineLayer）
+エンジンはエディタを知らない。エディタは `Runtime/EngineLayer` を実装したもので、起動のとき（`RunGame`）に `EngineConfig::createLayer` で差し込まれる（Unreal で `UEditorEngine` が `UEngine` に足す部分にあたる）。
+- エンジンは決まったときに層の関数を呼ぶだけ: `OnConfigure`（窓を作る前。前回の窓の位置と開いていたシーン）→ `OnInitialize` → 毎フレーム `OnBeginFrame`・`OnUpdate`・描画への割り込み（`FrameOverlay`）→ `OnShutdown`（状態の保存）
+- 層がなければ、起動からずっとプレイ中として動く。層があれば、プレイを始めるのは層（エディタの Play）
+- プレイ前のシーンを取っておいて Stop で戻すこと、ゲームのコードの読み直し、エディタの状態の保存、窓のタイトルは、すべてエディタ側の仕事
+
+### エディタの部品
+`Editor` はパネルと部品を持って組み立て、フレームの流れを回すだけ。パネルは `editor.GetSelection()` のように部品を通して操作する。
+| 部品 | 仕事 |
+|---|---|
+| `EditorSelection` | 選んでいるアクター（ID で覚える） |
+| `EditorUndo` | Undo / Redo。選んでいるアクターとシーンの設定の「変更前」を覚え、確定したときにコマンドにする |
+| `ActorActions` | 作る・消す・複製・コピーと貼り付け・プレハブ・モデルを置く・マテリアルを入れる |
+| `SceneDocument` | 新規・開く・保存・閉じる（保存していない変更があれば先に聞く） |
+| `PlayMode` | Play / Stop / Pause / Step（Play でシーンを JSON に写し、Stop で戻す） |
+| `HotReload` | ゲームのコードのビルドと読み直し |
+| `EditorLayout` | パネルのドッキングの配置 |
+| `EditorMainUI` | メニュー・ツールバー・ステータスバー・全体のショートカット |
 ### ゲームのコードの読み直し（ホットリロード）
 エディタを開いたまま、ゲームのコードを書き換えて読み直せます（Unreal のホットリロードと同じ考え方）。関数の中身だけでなく、変数の追加、新しいクラスやファイルの追加にも対応します。
 
@@ -137,7 +155,7 @@ Engine（Engine.cpp）……… サブシステムを持ち、メインループ
 - ゲームの DLL の `static` 変数・グローバル変数は、読み直すと初期値に戻る。残したい値はコンポーネントに持たせる
 - エンジン（`Engine/`）のコードを変えたときは、エディタを閉じてからビルドする
 
-作り（`Runtime/GameModule`・`Engine::ReloadGameCode`・`Editor/Core/HotReload`）:
+作り（`Runtime/GameModule`・`Editor/Core/HotReload`）:
 - ビルドの出力（`Bin\Debug\Sandbox.dll`）は読み込まずに、`Bin\Debug\HotReload\` へコピーしたものを読む。読み込み中の DLL は上書きできないため
 - 読み直すときは、ジョブを待ってからシーンを JSON にし、ゲームのコンポーネントの登録を外してから新しい DLL を読み（中の `RD_REGISTER_COMPONENT` が登録し直す）、JSON からシーンを作り直す
 - 古い DLL は外さずに残す（古いコードを指した文字列や関数がどこかに残っていても落ちないように）
@@ -152,7 +170,7 @@ Math / Core → Platform / RHI → Asset → Render / Audio → Scene → AI →
 - `Scene` はコンポーネントや物理の具体的な型を知らない。物理ワールドや NavMesh は `SceneSystem` として `scene.GetSystem<PhysicsWorld>()` のように使う。
 - `Asset` は `Render` の型を知らない。マテリアルやシェーダーは呼ぶ側で `AssetManager::LoadNow<MaterialAsset>()` のように型を指定して読む。
 - `AI`（NavMesh・行動ツリー）は `Scene` の上、`Components` の下。`NavMeshAgent` などのコンポーネントが `AI` を使い、`AI` はコンポーネントの型を知らない。
-- `Runtime` はエディタを知らない。エディタは `FrameOverlay` インターフェースを実装して、カメラ・ギズモ・UI を差し込む。
+- `Runtime` と `Engine` はエディタを知らない。エディタは `EngineLayer`（`FrameOverlay` を含む）を実装して、更新・カメラ・ギズモ・UI を差し込む。
 - **ImGui を使えるのは `Editor` だけ**。コンポーネントは自分の画面を持たず、値は `Reflect` に書く。ボタンなど `Reflect` で表せない UI は、エディタの `ComponentEditors` に型ごとに登録する（Unity の CustomEditor にあたる）。
   ```cpp
   ComponentEditors::Register<AudioSource>([](AudioSource& s) { if (ImGui::Button("Preview")) { s.Play(); } return false; });
@@ -170,7 +188,7 @@ Math / Core → Platform / RHI → Asset → Render / Audio → Scene → AI →
 - `scene.FindComponents<T>()` は型ごとのリストから集めるので、全アクターを調べない。順番は追加した順で毎回同じ。
 
 ### リフレクション
-コンポーネントは `Reflect(PropertyVisitor&)` に一度プロパティを書くだけで、JSON の保存と読み込み・プロパティ画面の表示・Undo・AI アシスタントのツールに対応する。保存は型名の文字列で行い、`ComponentRegistry` で作る。
+コンポーネントは `Reflect(PropertyVisitor&)` に一度プロパティを書くだけで、JSON の保存と読み込み・プロパティ画面の表示・Undo・AI アシスタントのツールに対応する。保存は型名の文字列で行い、`ComponentRegistry` で作る。シーンとアクターのファイルの形を知っているのは `SceneSerializer` だけで、`Scene` は動いているアクターの入れ物（ゲームから使う `Instantiate`・`Duplicate` は `Scene` にある）。
 
 ### Undo / Redo（コマンドパターン）
 操作ごとに `EditorCommand` を作って `CommandHistory` に積む。変更した部分だけを保存する。
@@ -215,7 +233,10 @@ RD_GPU_SCOPE("Shadow");              // CPU と GPU（タイムスタンプ）�
 - GPU の区間は PIX / RenderDoc のイベント名にもなる。`RD_PROFILER=0` で計測コードを丸ごと外せる
 
 ### レンダーグラフとフォワード / ディファード
-- 1 回の描画で行うパスを、`rg::RenderGraph` に「何を読んで何に書くか」と一緒に登録してから実行する（`Renderer::BuildGraph`）
+- 1 回の描画で行うパスを、`rg::RenderGraph` に「何を読んで何に書くか」と一緒に登録してから実行する
+  - パスを登録するのは描画の機能（`Render/Features` の `RenderFeature`。Unity の URP の Renderer Feature にあたる）。`Renderer` はフレームの値を作り、描くものを集め、機能を次の順に呼ぶだけ:
+    影（`ShadowFeature`）→ 不透明（`ForwardFeature` か `DeferredFeature`）→ 縁取り → ブルーム → トーンマップ → 重ねるもの（デバッグ線・スプライト）→ スクリーンショット
+  - 機能は自分のパイプラインを持ち、テクスチャは `FrameContext::textures`（output・depth・hdr・shadow・bloom）で受け渡す。メッシュの描き方（`MeshDrawer`）と空・半透明（`TransparentDrawer`）は機能どうしで共有する
   - リソースの状態の切り替え（バリア）はグラフが入れる。パスの中では描くだけ
   - 出力に届かないパスは飛ばす。途中でだけ使うテクスチャ（HDR・深度・ブルーム・G バッファー・縁取りの印）はグラフが持ち、使う期間が重ならず大きさと形式が同じなら 1 枚を使い回す（次の描画でも使い回す）
 - 描き方は Lighting パネルの Renderer > Render Path（または Render Graph パネルのボタン、起動時は `-renderpath deferred`）で切り替える

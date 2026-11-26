@@ -16,7 +16,7 @@
 //    RD_GAME_MAIN(ConfigureGame)
 //
 //  エディタ入りの構成（Debug / Release）では、ゲームは DLL になり、RdEditor.exe がそれを読んでこの関数を呼ぶ。
-//  ゲームのコードを書き換えてビルドすると、エディタを開いたまま読み直せる（Engine::ReloadGameCode）。
+//  ゲームのコードを書き換えてビルドすると、エディタを開いたまま読み直せる（エディタの HotReload）。
 //  Game 構成では、ゲームは exe になり、RD_GAME_MAIN が wWinMain を作る。
 namespace rd
 {
